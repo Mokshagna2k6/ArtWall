@@ -1,0 +1,3 @@
+import { DoorOpen, Plus } from "lucide-react";
+import { StudioButton, StudioEmptyState, StudioPageHeader } from "@/components/dashboard/studio-shell";
+export default function RoomsPage() { return <div className="flex flex-col gap-8"><StudioPageHeader eyebrow="Private rooms" title="Collector rooms" description="Create a considered, private way to share a body of work with the people it is meant for." action={<StudioButton><Plus data-icon="inline-start" />Create room</StudioButton>} /><div className="studio-card"><StudioEmptyState title="No private rooms" description="Private rooms will let you assemble selected works and share them with a collector or curator." action={<StudioButton><DoorOpen data-icon="inline-start" />Create first room</StudioButton>} /></div></div>; }

@@ -1,0 +1,3 @@
+import { Plus, Users } from "lucide-react";
+import { StudioButton, StudioEmptyState, StudioPageHeader } from "@/components/dashboard/studio-shell";
+export default function ContactsPage() { return <div className="flex flex-col gap-8"><StudioPageHeader eyebrow="Network" title="Contacts" description="Build a thoughtful record of collectors, curators, galleries, and collaborators." action={<StudioButton><Plus data-icon="inline-start" />Add contact</StudioButton>} /><div className="studio-card"><StudioEmptyState title="Your collector book is empty" description="Contacts will become the connective tissue between your work and its next home." action={<StudioButton><Users data-icon="inline-start" />Add your first contact</StudioButton>} /></div></div>; }

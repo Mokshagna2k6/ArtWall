@@ -1,0 +1,3 @@
+import { FileText, Plus } from "lucide-react";
+import { StudioButton, StudioEmptyState, StudioPageHeader } from "@/components/dashboard/studio-shell";
+export default function DocumentsPage() { return <div className="flex flex-col gap-8"><StudioPageHeader eyebrow="Archive" title="Documents" description="Keep certificates, invoices, agreements, and the supporting record close to each work." action={<StudioButton><Plus data-icon="inline-start" />Upload document</StudioButton>} /><div className="studio-card"><StudioEmptyState title="No documents yet" description="Documents added to this workspace will be organized and permissioned here." action={<StudioButton><FileText data-icon="inline-start" />Add first document</StudioButton>} /></div></div>; }
