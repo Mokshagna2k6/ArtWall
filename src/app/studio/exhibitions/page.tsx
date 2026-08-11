@@ -1,0 +1,2 @@
+import { StudioEmptyState, StudioPageHeader, StudioButton } from "@/components/dashboard/studio-shell";
+export default function ExhibitionsPage() { return <div className="flex flex-col gap-8"><StudioPageHeader eyebrow="Operations" title="Exhibitions" description="Keep upcoming, current, and past presentations of your work in view." action={<StudioButton>Plan exhibition</StudioButton>} /><div className="studio-card"><StudioEmptyState title="No exhibitions yet" description="Add an exhibition to connect works, dates, venues, and movement history." /></div></div>; }
