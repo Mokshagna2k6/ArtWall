@@ -25,10 +25,10 @@ export function WallStats({ artists, cities, cohortSize }: WallStatsProps) {
   const filled = Math.min(1, artists / cohortSize);
 
   return (
-    <div className="border-border bg-wall-charcoal/80 flex w-full flex-col gap-4 rounded-lg border p-5 backdrop-blur-md">
+    <div className="flex w-full flex-col gap-4 rounded-2xl border border-white/15 bg-[#191a1d]/85 p-5 text-[#fffaf4] backdrop-blur-md">
       <div className="flex items-center gap-2">
         <span className="bg-ember size-1.5 animate-pulse rounded-full" />
-        <span className="text-caption text-muted-foreground tracking-[0.14em] uppercase">
+        <span className="text-caption tracking-[0.14em] text-[#c9c4bd] uppercase">
           The wall is growing
         </span>
       </div>
@@ -37,17 +37,17 @@ export function WallStats({ artists, cities, cohortSize }: WallStatsProps) {
         <span className="font-heading text-display-s leading-none tracking-tight tabular-nums">
           <CountUp to={artists} seconds={duration.scene} />
         </span>
-        <span className="text-small text-muted-foreground mt-1">
+        <span className="text-small mt-1 text-[#c9c4bd]">
           {artists === 1 ? "artist joined" : "artists joined"}
         </span>
       </div>
 
-      <dl className="border-border grid grid-cols-2 gap-4 border-t pt-4">
+      <dl className="grid grid-cols-2 gap-4 border-t border-white/15 pt-4">
         <div className="flex flex-col">
           <dt className="font-heading text-h4 tabular-nums">
             <CountUp to={artists} seconds={duration.scene} />
           </dt>
-          <dd className="text-caption text-muted-foreground">
+          <dd className="text-caption text-[#c9c4bd]">
             {artists === 1 ? "Artwork live" : "Artworks live"}
           </dd>
         </div>
@@ -55,14 +55,14 @@ export function WallStats({ artists, cities, cohortSize }: WallStatsProps) {
           <dt className="font-heading text-h4 tabular-nums">
             <CountUp to={cities} seconds={duration.scene} />
           </dt>
-          <dd className="text-caption text-muted-foreground">
+          <dd className="text-caption text-[#c9c4bd]">
             {cities === 1 ? "City" : "Cities"}
           </dd>
         </div>
       </dl>
 
       <div className="flex flex-col gap-2">
-        <div className="bg-wall-elevated h-1 overflow-hidden rounded-full">
+        <div className="h-1 overflow-hidden rounded-full bg-white/15">
           <motion.div
             initial={{ scaleX: 0 }}
             animate={{ scaleX: Math.max(filled, 0.008) }}
@@ -71,7 +71,7 @@ export function WallStats({ artists, cities, cohortSize }: WallStatsProps) {
             className="from-ember to-ember-glow h-full w-full rounded-full bg-linear-to-r"
           />
         </div>
-        <span className="text-caption text-ink-muted tabular-nums">
+        <span className="text-caption text-[#c9c4bd] tabular-nums">
           {artists} of {cohortSize} founding places filled
         </span>
       </div>

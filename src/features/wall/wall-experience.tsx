@@ -12,7 +12,7 @@ import {
   useTransition,
 } from "react";
 import Link from "next/link";
-import { Loader2, Search, X } from "lucide-react";
+import { ArrowRight, Loader2, Search, X } from "lucide-react";
 
 import { primaryCta } from "@/config/nav";
 import { searchWall } from "@/features/wall/actions";
@@ -96,13 +96,27 @@ export function WallExperience({
   }, [tiles, pending]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-10">
+      <div className="flex flex-col gap-4 border-y border-[#e2ded7] py-5 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm leading-6 text-[#5b6472]">
+          <span className="font-semibold text-[#101114]">
+            A living collection.
+          </span>{" "}
+          Explore slowly—drag across the wall or scroll to move closer.
+        </p>
+        <a
+          href="#hang-your-work"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[#245fc5] transition hover:text-[#101114]"
+        >
+          Hang your work <ArrowRight className="size-4" aria-hidden />
+        </a>
+      </div>
       {/* ── The installation ─────────────────────────────────────────────
           The wall is full-bleed and the copy sits on it, because the wall is
           the product — not an illustration next to a description of one. */}
       <div
         ref={wallRef}
-        className="border-border relative overflow-hidden rounded-xl border"
+        className="relative overflow-hidden rounded-[1.75rem] border border-[#242427] shadow-[0_24px_70px_rgb(16_17_20/0.18)]"
       >
         {activeResults !== null ? (
           <SearchResults results={activeResults} onOpen={setOpenTile} />
@@ -137,15 +151,15 @@ export function WallExperience({
             <div className="pointer-events-none absolute inset-x-0 top-0 z-30 hidden p-6 lg:block lg:p-8">
               <div className="flex items-start justify-between gap-8">
                 <Reveal className="max-w-sm">
-                  <p className="text-label text-ember tracking-[0.18em] uppercase">
-                    The Wall
+                  <p className="text-label tracking-[0.18em] text-[#e0a15d] uppercase">
+                    The living collection
                   </p>
-                  <h2 className="font-heading text-h2 mt-3 leading-[1.1] tracking-tight">
+                  <h2 className="font-heading text-h2 mt-3 leading-[1.1] tracking-tight text-[#fffaf4]">
                     One wall.
                     <br />
-                    <span className="text-ember">One place each.</span>
+                    <span className="text-[#e8bd89]">One place each.</span>
                   </h2>
-                  <p className="text-muted-foreground text-small mt-4 leading-relaxed">
+                  <p className="text-small mt-4 leading-relaxed text-[#d5cec5]">
                     It begins as ours — a wall of Warli, Madhubani, Phad, Gond,
                     and Ajrakh that we drew ourselves. As artists join, each
                     piece of it dissolves into real work. The wall was only ever
@@ -153,7 +167,7 @@ export function WallExperience({
                   </p>
                   <Link
                     href={primaryCta.href}
-                    className="bg-ember text-wall-black hover:bg-ember-glow text-small pointer-events-auto mt-6 inline-flex h-10 items-center rounded-md px-5 font-medium transition-colors"
+                    className="text-small pointer-events-auto mt-6 inline-flex h-10 items-center rounded-full bg-[#fffaf4] px-5 font-semibold text-[#161618] transition-colors hover:bg-[#e8bd89]"
                   >
                     {primaryCta.label}
                   </Link>
@@ -238,18 +252,37 @@ export function WallExperience({
 
       <WallActivity events={events} cohortSize={cohortSize} />
 
-      <UploadForm
-        onPublished={(tile) => {
-          setPending(tile);
-          setQuery("");
-          // Put the wall back on screen — their work has just been hung on it,
-          // and they are looking at a form.
-          wallRef.current?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }}
-      />
+      <section
+        id="hang-your-work"
+        className="grid gap-8 border-t border-[#e7e7e5] pt-16 lg:grid-cols-[0.7fr_1.3fr] lg:gap-16"
+      >
+        <div>
+          <p className="text-label tracking-[0.18em] text-[#245fc5] uppercase">
+            Add your work
+          </p>
+          <h2 className="font-heading mt-4 text-4xl tracking-tight text-balance">
+            Hang your work where people can find it.
+          </h2>
+          <p className="text-muted-foreground mt-5 leading-7">
+            Add one artwork and your story to the living collection. You keep
+            every right to your work; ArtWall only gives it a place to be seen.
+          </p>
+        </div>
+        <div>
+          <UploadForm
+            onPublished={(tile) => {
+              setPending(tile);
+              setQuery("");
+              // Put the wall back on screen — their work has just been hung on it,
+              // and they are looking at a form.
+              wallRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }}
+          />
+        </div>
+      </section>
 
       <TileDialog tile={openTile} onClose={() => setOpenTile(null)} />
     </div>

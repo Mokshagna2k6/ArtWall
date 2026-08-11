@@ -6,32 +6,30 @@ export interface Choice {
 }
 
 export interface Question {
+  /** A quiet gallery label that makes each choice feel like a new way of looking. */
+  chapter: string;
+  moment: string;
   prompt: string;
   choices: readonly Choice[];
 }
 
 /**
- * Five questions, scored by tally.
- *
- * Written as situations rather than self-assessments. "How creative are you?"
- * measures self-esteem; "you walk into an old haveli — what pulls you in first?"
- * measures attention, which is the thing that actually differs between artists.
- * Nobody can game it toward a flattering answer because no option is the
- * obviously superior one.
- *
- * Every archetype appears at least three times across the set, so no result is
- * unreachable and none is disproportionately likely.
+ * Five small encounters rather than five personality questions. The language
+ * gives a visitor room to remember before answering, which makes the journey
+ * feel considered without adding form fields or cognitive load.
  */
 export const questions: readonly Question[] = [
   {
-    prompt: "You walk into an old haveli. What pulls you in first?",
+    chapter: "Notice",
+    moment: "Observation",
+    prompt: "You walk into an old haveli. What finds you first?",
     choices: [
       {
         text: "The fading frescoes on the courtyard walls",
         archetype: "keeper",
       },
       {
-        text: "A narrow staircase you cannot see the end of",
+        text: "A narrow staircase I cannot see the end of",
         archetype: "wanderer",
       },
       {
@@ -42,60 +40,95 @@ export const questions: readonly Question[] = [
     ],
   },
   {
-    prompt: "A piece is nearly finished. What decides that it's done?",
-    choices: [
-      { text: "It finally matches what I first saw", archetype: "storyteller" },
-      {
-        text: "Taking anything else away would break it",
-        archetype: "quiet-eye",
-      },
-      { text: "The proportions finally sit right", archetype: "builder" },
-      {
-        text: "The material stopped fighting me",
-        archetype: "alchemist",
-      },
-    ],
-  },
-  {
-    prompt: "Someone offers you a week anywhere, to work. You pick —",
+    chapter: "Discover",
+    moment: "Texture",
+    prompt: "At a conservator's table, your hand pauses over —",
     choices: [
       {
-        text: "A workshop with someone who still does it the old way",
+        text: "A repeated hand-painted motif, still perfectly alive",
         archetype: "keeper",
       },
       {
-        text: "A city I've never been to, with a sketchbook",
+        text: "A surface where pigment, fibre and time have met",
+        archetype: "alchemist",
+      },
+      {
+        text: "The measured edge where two materials meet",
+        archetype: "builder",
+      },
+      {
+        text: "A small mark that makes the whole image breathe",
+        archetype: "quiet-eye",
+      },
+    ],
+  },
+  {
+    chapter: "Artist",
+    moment: "Space",
+    prompt: "A gallery room is empty except for one work. You place it —",
+    choices: [
+      {
+        text: "Where the changing daylight can keep finding it",
         archetype: "wanderer",
       },
       {
-        text: "An empty studio, a locked door, no phone",
+        text: "In the exact proportion the architecture asks for",
+        archetype: "builder",
+      },
+      {
+        text: "At the far end, so the room becomes part of the work",
         archetype: "quiet-eye",
       },
       {
-        text: "A foundry, a kiln, a press — somewhere with machines",
+        text: "Near the entrance, where its story can begin immediately",
+        archetype: "storyteller",
+      },
+    ],
+  },
+  {
+    chapter: "Artwork",
+    moment: "Memory",
+    prompt: "Which image would stay with you on the journey home?",
+    choices: [
+      {
+        text: "A familiar ritual, seen with a new tenderness",
+        archetype: "keeper",
+      },
+      {
+        text: "A figure caught just before they turn to speak",
+        archetype: "storyteller",
+      },
+      {
+        text: "A place I have never been, but suddenly recognise",
+        archetype: "wanderer",
+      },
+      {
+        text: "A material transformed beyond what it first was",
         archetype: "alchemist",
       },
     ],
   },
   {
-    prompt: "What do you most want someone to do in front of your work?",
+    chapter: "Wall",
+    moment: "Light",
+    prompt: "As evening light moves across a wall, you notice —",
     choices: [
-      { text: "Recognise something they'd forgotten", archetype: "keeper" },
       {
-        text: "Wonder what happened just before this",
+        text: "The composition holding steady beneath the shift",
+        archetype: "builder",
+      },
+      {
+        text: "A colour becoming a memory of another place",
         archetype: "storyteller",
       },
-      { text: "Stay longer than they meant to", archetype: "quiet-eye" },
-      { text: "Try to work out how it was made", archetype: "builder" },
-    ],
-  },
-  {
-    prompt: "Your sketchbook, honestly, is mostly —",
-    choices: [
-      { text: "Faces and figures, half-finished", archetype: "storyteller" },
-      { text: "Places, from the corner of a café", archetype: "wanderer" },
-      { text: "Grids, plans and measurements", archetype: "builder" },
-      { text: "Notes on materials I want to try", archetype: "alchemist" },
+      {
+        text: "The texture changing its voice with every minute",
+        archetype: "alchemist",
+      },
+      {
+        text: "The generous space around the work becoming visible",
+        archetype: "quiet-eye",
+      },
     ],
   },
 ];

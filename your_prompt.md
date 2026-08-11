@@ -1,494 +1,327 @@
 ````markdown
-# ARTWALL 2.0 — COMPLETE UI/UX REDESIGN & PLATFORM BUILD PROMPT
+# ARTWALL — COMPLETE FRONTEND UI/UX REDESIGN PROMPT
 
-You are a **Senior Software Architect, Product Designer, Full-Stack Engineer, Database Architect, QA Engineer, and Security Engineer** working on my existing project called **ArtWall**.
+You are a **senior frontend engineer, UI/UX designer, product designer, and animation specialist**.
 
-I want to transform the current ArtWall application into a **complete professional art-management platform**, taking strong product and UX inspiration from **Artwork Archive** and **VarisArt**, while keeping ArtWall's own branding, identity, and existing functionality.
+I want you to completely redesign the **frontend UI/UX of my existing ArtWall application**.
 
-Reference:
+The most important requirement is:
 
-- Artwork Archive: https://www.artworkarchive.com/
-- VarisArt: Research the current product, workflows, and feature set yourself.
-
-> **IMPORTANT:** Do not copy proprietary code, branding, text, images, assets, or exact designs. Use these products as product/UX references and build our own implementation.
-
----
-
-# 1. MOST IMPORTANT REQUIREMENT
-
-## DO NOT BREAK MY EXISTING APPLICATION
-
-Before changing anything:
-
-- Inspect the complete repository.
-- Understand the existing architecture.
-- Understand the current database.
-- Understand authentication.
-- Understand all routes.
-- Understand all server actions/API routes.
-- Understand Cloudinary.
-- Understand the current waitlist.
-- Understand the founding artist system.
-- Understand the Collaborative Wall.
-- Understand admin functionality.
-- Understand all existing pages and components.
-
-Existing functionality must continue working.
-
-### Existing functionality that MUST be preserved
-
-- Waitlist
-- Founding artist registration
-- Founder numbers
-- Artwork uploads
-- Collaborative Wall
-- Wall search
-- Real-time activity
-- Admin moderation
-- Cloudinary image uploads
-- Neon PostgreSQL
-- Existing server actions
-- CSRF protection
-- Rate limiting
-- Bot protection
-- Existing experiential pages
-- Existing public pages
-- Existing data
-
-Do not delete existing functionality just because we are redesigning the UI.
+> **Do NOT change, remove, break, or rewrite my existing functionality.**
+>
+> This task is primarily a **frontend/UI/UX redesign**. Preserve all existing business logic, backend functionality, database behavior, routes, server actions, authentication, API calls, uploads, and existing features unless a tiny frontend adjustment is required to support the new UI.
 
 ---
 
-# 2. CURRENT TECH STACK
+# 1. CURRENT PROBLEM
 
-The existing application currently uses:
+My current ArtWall UI has a darker, more cinematic/futuristic visual style.
 
-- Next.js 16
-- React 19
-- TypeScript
-- Tailwind CSS
-- shadcn/ui
-- Neon PostgreSQL
-- Cloudinary
-- Server Actions
-- CSRF protection
-- Rate limiting
-- Bot protection
+I want to move the entire frontend toward a:
 
-First verify the actual repository before assuming anything.
+- Minimal
+- Warm
+- Off-white
+- Editorial
+- Premium
+- Elegant
+- Calm
+- Professional
+- Art-focused
 
-If the existing architecture is good, **extend it rather than replacing it**.
+visual direction.
+
+Use **Artwork Archive** as a UX reference for the clean professional art-management feeling:
+
+https://www.artworkarchive.com/
+
+However:
+
+- Do NOT clone Artwork Archive.
+- Do NOT copy its source code.
+- Do NOT copy its branding.
+- Do NOT copy its exact layouts pixel-for-pixel.
+- Do NOT copy proprietary assets.
+- Do NOT make ArtWall look like a cheap clone.
+
+Instead, understand the principles behind the design and create a better, original ArtWall experience.
 
 ---
 
-# 3. PRODUCT VISION
+# 2. MAIN DESIGN DIRECTION
 
-ArtWall should become a platform where artists can manage their complete professional art business.
+The new ArtWall UI should feel like:
 
-The platform should allow artists to:
+> **A contemporary art gallery + premium editorial website + professional art-management application.**
 
-- Manage artworks
-- Create collections
-- Manage editions
-- Manage series
-- Track artwork locations
-- Manage exhibitions
-- Manage collectors
-- Manage galleries
-- Manage contacts
-- Manage sales
-- Manage invoices
-- Manage payments
-- Manage documents
-- Generate certificates
-- Track provenance
-- Create private viewing rooms
-- Manage public profile
-- Manage events
-- Track tasks
-- View analytics
-- Generate reports
-- Share artwork professionally
-
-The long-term product relationship should look like:
+The visual language should be:
 
 ```text
-Artist
-   ↓
-Artwork
-   ↓
-Collection / Series / Edition
-   ↓
-Exhibition
-   ↓
-Location
-   ↓
-Contact / Collector / Gallery
-   ↓
-Sale
-   ↓
-Invoice / Payment
-   ↓
-Provenance
-   ↓
-Certificate
-   ↓
-Reports / Analytics
+Warm
+Quiet
+Minimal
+Editorial
+Image-first
+Sophisticated
+Human
+Professional
 ````
 
----
-
-# 4. COMPLETE UI/UX REDESIGN
-
-The current ArtWall frontend is dark, cinematic, and launch-focused.
-
-I no longer want the main product UI to have this visual direction.
-
-I want the new ArtWall UI to feel:
-
-* Warm
-* Minimal
-* Elegant
-* Editorial
-* Professional
-* Premium
-* Art-focused
-* Calm
-* Sophisticated
-* Modern
-* Highly usable
-
-The main visual inspiration should be **Artwork Archive-style professional art management**, but ArtWall must maintain its own identity.
-
-Think:
+Avoid:
 
 ```text
-Contemporary art gallery
-        +
-Editorial magazine
-        +
-Professional SaaS
-        +
-Art archive
-```
-
-Instead of:
-
-```text
-Dark futuristic startup dashboard
+Dark futuristic UI
+Excessive gradients
+Bright neon colors
+Heavy glassmorphism
+Huge shadows
+Overly rounded cards
+Excessive borders
+Generic SaaS dashboard design
+Unnecessary animations
+Visual clutter
 ```
 
 ---
 
-# 5. VISUAL DESIGN SYSTEM
+# 3. COLOR SYSTEM
 
-## Background
+Create a proper ArtWall design system.
+
+## Primary Background
+
+Use a warm off-white / ivory background.
+
+For example:
+
+```text
+#F7F5F0
+#F4F1EA
+#FAF9F6
+```
+
+Do not blindly use these exact values. Choose the final palette carefully.
+
+## Surfaces
 
 Use:
 
-* Warm ivory
-* Off-white
-* Soft cream
-* White surfaces
-* Very light warm gray
+```text
+White
+Warm white
+Very light beige
+Soft warm gray
+```
 
-Avoid making the entire product pure white.
+## Text
+
+Use:
+
+```text
+Charcoal
+Dark gray
+Muted gray
+Soft gray
+```
+
+Avoid pure black wherever possible.
+
+## Accent
+
+Use a subtle:
+
+```text
+Earthy olive
+Muted gold
+Warm brown
+Terracotta
+```
+
+Use accent colors sparingly.
+
+The artwork itself should provide most of the visual color.
 
 ---
 
-## Typography
+# 4. TYPOGRAPHY
 
-Use a sophisticated typography system.
+Typography should become a major part of the design.
 
-### Display Typography
+Use a sophisticated combination of:
 
-Use an elegant serif/editorial font for:
+### Display font
+
+Elegant serif/editorial typography for:
 
 * Hero headings
-* Major page titles
 * Artist names
+* Artwork titles
 * Exhibition titles
-* Important artwork titles
+* Major section headings
 
-### UI Typography
+### UI font
 
-Use a clean modern sans-serif for:
+Clean modern sans-serif for:
 
 * Navigation
 * Buttons
 * Forms
 * Tables
 * Metadata
-* Body content
+* Labels
+* Body text
 
-Avoid overly futuristic fonts.
+Do not use futuristic typography.
 
-Avoid excessive font weights.
+Do not make everything bold.
 
-Use typography to create hierarchy instead of heavy cards.
-
----
-
-# 6. COLORS
-
-Create a consistent ArtWall color system.
-
-### Primary
-
-```text
-Warm Ivory
-```
-
-### Surface
-
-```text
-White
-Soft Cream
-Light Warm Gray
-```
-
-### Text
-
-```text
-Charcoal
-Dark Gray
-Muted Gray
-```
-
-### Accent
-
-Use subtle:
-
-```text
-Muted Olive
-Earthy Gold
-Warm Brown
-```
-
-Do not use bright yellow everywhere.
-
-Do not use gradients as the primary design language.
-
-Do not use pure black backgrounds for normal application screens.
+Use font size, spacing, weight, and whitespace to create hierarchy.
 
 ---
 
-# 7. SPACING
+# 5. SPACING
 
-Use generous whitespace.
+Increase whitespace throughout the application.
 
-The interface should breathe.
+The UI should breathe.
 
-Avoid placing every piece of information inside a card.
+Prefer:
+
+```text
+Whitespace
++
+Typography
++
+Thin separators
++
+Strong image hierarchy
+```
+
+instead of:
+
+```text
+Card
+Card
+Card
+Card
+```
+
+Do not put every piece of content inside a card.
+
+Use cards only when they genuinely improve usability.
+
+---
+
+# 6. COMPLETE FRONTEND REDESIGN
+
+Redesign all existing frontend pages where appropriate.
+
+Audit every page first.
+
+For each page determine:
+
+```text
+KEEP FUNCTIONALITY
+        ↓
+REDESIGN PRESENTATION
+        ↓
+IMPROVE UX
+        ↓
+IMPROVE RESPONSIVENESS
+        ↓
+IMPROVE ANIMATIONS
+```
+
+Do not change the underlying functionality unnecessarily.
+
+---
+
+# 7. EXISTING FEATURES MUST REMAIN
+
+Preserve everything that currently works.
+
+This includes, but is not limited to:
+
+* Waitlist
+* Founding artist registration
+* Founder number system
+* Artwork uploads
+* Collaborative Wall
+* Search
+* Real-time activity
+* Admin moderation
+* Existing authentication
+* Existing API calls
+* Existing server actions
+* Existing database interactions
+* Cloudinary integration
+* Existing experiential pages
+* Existing public pages
+* Existing forms
+* Existing validation
+* Existing security features
+
+If you find an existing feature that looks visually outdated, **redesign its UI without removing its functionality**.
+
+---
+
+# 8. LANDING PAGE
+
+Completely redesign the landing page visually.
+
+The current landing page should transition from:
+
+```text
+Dark
+Cinematic
+Futuristic
+High contrast
+```
+
+to:
+
+```text
+Warm
+Editorial
+Minimal
+Premium
+Artistic
+```
+
+Keep all existing content and functionality unless there is a clear UX improvement.
+
+---
+
+# 9. HERO SECTION
+
+Create a calm, editorial hero.
 
 Use:
 
-* Whitespace
-* Typography
-* Thin dividers
-* Image hierarchy
-* Alignment
+* Warm off-white background
+* Large elegant typography
+* Strong artwork imagery
+* Generous whitespace
+* Minimal CTA
+* Subtle supporting text
 
-instead of excessive containers.
+Avoid:
 
----
+* Huge glowing text
+* Dark backgrounds
+* Heavy gradients
+* Excessive decorations
+* Excessive floating elements
 
-# 8. ARTWORK-FIRST DESIGN
+The hero should immediately communicate:
 
-Artwork should be the visual focus of ArtWall.
-
-Whenever artwork is displayed:
-
-* Use high-quality images.
-* Maintain the original aspect ratio.
-* Avoid unnecessary borders.
-* Avoid excessive shadows.
-* Use clean metadata.
-* Use large imagery.
-* Allow artwork to visually breathe.
-
-Example:
-
-```text
-┌─────────────────────────────┐
-│                             │
-│                             │
-│        ARTWORK IMAGE        │
-│                             │
-│                             │
-└─────────────────────────────┘
-
-Untitled No. 04
-2026
-Oil on canvas
-₹85,000
-```
-
-Metadata should remain quiet and minimal.
-
----
-
-# 9. APPLICATION SHELL
-
-Create a complete professional application shell.
-
-Include:
-
-* Left sidebar
-* Collapsible sidebar
-* Top navigation
-* Global search
-* Notifications
-* User menu
-* Breadcrumbs
-* Page titles
-* Primary actions
-* Responsive navigation
-* Mobile navigation
-* Command/search interface
-
-The authenticated experience should feel like a mature professional art-management application.
+> ArtWall is a serious platform for artists and their work.
 
 ---
 
 # 10. NAVIGATION
 
-Create a minimal professional sidebar.
-
-Suggested structure:
-
-```text
-ARTWALL
-
-Overview
-
-WORK
-  Artwork
-  Collections
-  Series
-  Editions
-  Exhibitions
-  Locations
-
-BUSINESS
-  Contacts
-  Sales
-  Invoices
-  Payments
-
-MANAGEMENT
-  Documents
-  Certificates
-  Provenance
-  Private Rooms
-
-TOOLS
-  Calendar
-  Tasks
-  Reports
-  Insights
-
-SYSTEM
-  Settings
-
-------------------
-
-My Profile
-```
-
-Do not blindly use this exact structure.
-
-After auditing the current application and researching the reference products, improve the information architecture if necessary.
-
----
-
-# 11. LANDING PAGE REDESIGN
-
-Completely redesign the current dark landing page.
-
-The existing design contains:
-
-* Black background
-* Grid background
-* Large white serif heading
-* Countdown
-* Yellow CTA
-
-Replace this visual direction with a much more sophisticated editorial art experience.
-
-Use:
-
-* Warm ivory background
-* Minimal navigation
-* Editorial typography
-* Large artwork imagery
-* Generous whitespace
-* Thin separators
-* Subtle animations
-* Calm interactions
-
-The landing page should feel like:
-
-```text
-Contemporary art institution
-+
-Premium gallery
-+
-Editorial publication
-```
-
-Not like a generic startup landing page.
-
----
-
-# 12. LANDING PAGE STRUCTURE
-
-Create a complete landing page.
-
-Suggested structure:
-
-```text
-Hero
-   ↓
-Featured Artists
-   ↓
-Featured Artwork
-   ↓
-How ArtWall Works
-   ↓
-For Artists
-   ↓
-For Collectors
-   ↓
-Exhibitions
-   ↓
-The Wall
-   ↓
-Founding Artists
-   ↓
-About ArtWall
-   ↓
-CTA
-   ↓
-Footer
-```
-
-Keep existing ArtWall messaging and functionality but redesign the presentation.
-
-Do not make every section look like a standard SaaS section.
-
-Use:
-
-* Editorial layouts
-* Artwork grids
-* Asymmetric layouts
-* Large typography
-* White space
-* Image storytelling
-
----
-
-# 13. NAVIGATION ON LANDING PAGE
+Create a minimal navigation.
 
 Example:
 
@@ -501,1393 +334,380 @@ Exhibitions
 About
 
                          Search
-                         Sign in
+                         Sign In
                          Join ArtWall
 ```
 
+Use subtle typography.
+
+Do not use oversized icons.
+
 On scroll:
 
-* Reduce navigation height slightly.
-* Add subtle background.
-* Add subtle bottom border.
-* Animate smoothly.
+```text
+Initial:
+Transparent / warm background
 
-On mobile:
+Scrolled:
+Soft ivory surface
++
+subtle bottom border
++
+slightly reduced height
+```
 
-* Hamburger/menu button
-* Animated drawer
-* Clean navigation
-* Smooth transitions
+Animate this smoothly.
 
 ---
 
-# 14. DASHBOARD
+# 11. MOBILE NAVIGATION
 
-Create a completely new professional artist dashboard.
+Create a beautiful mobile navigation.
+
+Use:
+
+* Minimal menu button
+* Smooth drawer
+* Clear hierarchy
+* Large tap targets
+* Simple typography
+* Subtle animation
+
+Do not create a complicated mobile menu.
+
+---
+
+# 12. ARTWORK-FIRST UI
+
+Artwork should always remain the visual focus.
+
+Artwork cards should be clean.
 
 Example:
 
 ```text
-Good morning, Alok
+┌─────────────────────────────┐
+│                             │
+│                             │
+│         ARTWORK             │
+│                             │
+│                             │
+└─────────────────────────────┘
+
+Untitled No. 04
+2026
+Oil on canvas
+```
+
+Avoid:
+
+* Thick borders
+* Huge shadows
+* Excessive badges
+* Too many buttons
+
+Use metadata carefully.
+
+---
+
+# 13. ARTWORK GRID
+
+Create an elegant artwork grid.
+
+Support:
+
+* Responsive columns
+* Different artwork aspect ratios
+* Proper image cropping
+* High-quality images
+* Lazy loading
+* Smooth loading
+* Hover interactions
+
+Consider an editorial/masonry-like layout where appropriate.
+
+Do not force every artwork into identical cards if doing so hurts the artwork presentation.
+
+---
+
+# 14. ARTWORK HOVER ANIMATION
+
+When the user hovers an artwork:
+
+```text
+Image
+ ↓
+Very subtle scale
+ ↓
+Metadata gently appears/moves
+ ↓
+Secondary action becomes visible
+```
+
+The animation should be:
+
+```text
+Fast enough to feel responsive
+Slow enough to feel premium
+```
+
+Do not make artwork bounce, rotate, or move excessively.
+
+---
+
+# 15. ARTWORK DETAIL PAGE
+
+Redesign the artwork detail page into an editorial layout.
+
+Use:
+
+```text
+Large artwork
+        +
+Minimal information panel
+```
+
+Information:
+
+```text
+Artwork Title
+Artist
+Year
+Medium
+Dimensions
+Price
+Availability
+```
+
+Actions:
+
+```text
+Edit
+Share
+Add to Collection
+Add to Exhibition
+```
+
+Then below:
+
+```text
+Description
+Details
+Provenance
+Exhibitions
+Location
+Documents
+Certificate
+Activity
+```
+
+Use whitespace and thin separators.
+
+---
+
+# 16. DASHBOARD
+
+If the current project already contains a dashboard, redesign it completely without changing its functionality.
+
+The dashboard should feel like a calm professional workspace.
+
+Example:
+
+```text
+Good morning
 
 Tuesday, August 11
 
-────────────────────────────────────────
+────────────────────────────────
 
-128 artworks     6 exhibitions     ₹8.4L sales
+128 artworks
+6 exhibitions
+₹8.4L sales
 
-────────────────────────────────────────
+────────────────────────────────
 
 Recent Activity
 
 Upcoming
 
-Artwork
+Tasks
 ```
 
-Dashboard should contain meaningful information.
+Avoid giant colorful metric cards.
 
-## Overview
-
-Show:
-
-* Total artworks
-* Available artworks
-* Sold artworks
-* Reserved artworks
-* Draft artworks
-* Total collections
-* Active exhibitions
-* Upcoming exhibitions
-* Active private rooms
-* Recent sales
-
-## Activity
-
-Show:
-
-* New artwork
-* Artwork sold
-* Artwork moved
-* Exhibition created
-* Contact added
-* Document uploaded
-* Certificate generated
-* Private room viewed
-
-## Quick Actions
-
-```text
-+ Add Artwork
-+ Create Collection
-+ Create Exhibition
-+ Add Contact
-+ Record Sale
-+ Create Private Room
-+ Generate Report
-```
-
-Do not create meaningless statistics.
-
-All metrics must come from real database data.
+Use restrained typography and subtle surfaces.
 
 ---
 
-# 15. ARTWORK INVENTORY
+# 17. SIDEBAR
 
-Artwork inventory is the core feature of ArtWall.
-
-Create a professional inventory system.
-
-Each artwork should support:
-
-```text
-Title
-Artist
-Year
-Medium
-Materials
-Dimensions
-Weight
-Description
-Price
-Currency
-Status
-Availability
-Location
-Collection
-Series
-Edition
-Tags
-Notes
-Exhibitions
-Sales
-Provenance
-Documents
-Certificate
-Created Date
-Updated Date
-```
-
----
-
-# 16. ARTWORK INVENTORY UI
-
-Support multiple views.
-
-## Grid View
-
-Large visual artwork cards.
-
-## List View
-
-Professional list.
-
-## Table View
-
-For managing large inventories.
-
-## Filters
-
-Filter by:
-
-* Artist
-* Collection
-* Series
-* Medium
-* Year
-* Price
-* Status
-* Location
-* Exhibition
-* Availability
-* Tags
-* Sold
-* Available
-* Created date
-
-## Sorting
-
-Support:
-
-* Recently updated
-* Recently created
-* Title
-* Price
-* Year
-* Artist
-
-## Search
-
-Create global artwork search.
-
-## Bulk Actions
-
-Support:
-
-* Archive
-* Delete
-* Add to collection
-* Add tag
-* Change location
-* Change status
-* Add to exhibition
-* Export
-* Generate labels
-* Generate QR codes
-
----
-
-# 17. ARTWORK CARD DESIGN
-
-Artwork cards should feel editorial.
+Create a clean professional application sidebar.
 
 Example:
 
 ```text
-┌──────────────────────┐
-│                      │
-│                      │
-│       ARTWORK        │
-│                      │
-│                      │
-└──────────────────────┘
+ARTWALL
 
-Untitled
-2026
-Oil on canvas
-₹85,000
+Overview
+
+WORK
+
+Artwork
+Collections
+Exhibitions
+Locations
+
+BUSINESS
+
+Contacts
+Sales
+Invoices
+
+MANAGEMENT
+
+Documents
+Certificates
+Private Rooms
+Reports
+
+TOOLS
+
+Calendar
+Tasks
+Insights
+
+────────────
+
+My Profile
+Settings
 ```
 
-On hover:
+The exact structure should be based on the existing routes and functionality.
 
-```text
-Image subtle zoom
-+
-Metadata subtle movement
-+
-Secondary actions appear
-```
-
-Do not over-animate.
+Do not create navigation items for features that do not exist.
 
 ---
 
-# 18. ARTWORK DETAIL PAGE
+# 18. FORMS
 
-Create an editorial artwork detail page.
+Redesign all forms.
 
-Suggested layout:
+Forms should be:
 
-```text
-┌────────────────────────┬───────────────────────┐
-│                        │                       │
-│                        │ Untitled              │
-│       ARTWORK          │ 2026                  │
-│                        │                       │
-│                        │ Oil on canvas         │
-│                        │ 120 × 90 cm           │
-│                        │                       │
-│                        │ ₹85,000               │
-│                        │                       │
-│                        │ Available             │
-│                        │                       │
-│                        │ Edit   Share   More   │
-│                        │                       │
-└────────────────────────┴───────────────────────┘
-```
+* Clean
+* Short
+* Easy to understand
+* Well-spaced
+* Accessible
 
-Below:
+Group fields logically.
 
-* Overview
-* Description
-* Metadata
-* Collections
-* Exhibitions
-* Locations
-* Provenance
-* Sales
-* Documents
-* Certificate
-* Activity
-
-Use thin separators rather than excessive cards.
-
----
-
-# 19. ADD ARTWORK
-
-Create a professional artwork creation workflow.
-
-Fields:
+Example:
 
 ```text
 Basic Information
-    Title
-    Artist
-    Year
 
 Artwork Details
-    Medium
-    Materials
-    Dimensions
-    Weight
-    Description
 
 Pricing
-    Price
-    Currency
-    Availability
 
 Classification
-    Collection
-    Series
-    Edition
-    Tags
 
-Location
-    Current Location
-
-Media
-    Images
-
-Documents
-    Attachments
-
-Notes
-```
-
-Support:
-
-* Multiple image upload
-* Image preview
-* Reordering
-* Primary image
-* Remove image
-* Upload progress
-* Validation
-
-Use Cloudinary for artwork images.
-
----
-
-# 20. ARTIST PROFILE
-
-Create public:
-
-```text
-/artist/[handle]
-```
-
-The public profile should feel like a professional gallery profile.
-
-Include:
-
-* Profile image
-* Cover image
-* Artist name
-* Biography
-* Artist statement
-* Location
-* Website
-* Social links
-* Featured artwork
-* Collections
-* Exhibitions
-* Available works
-* Sold works
-* Contact
-
-Authenticated users should be able to edit their profile.
-
----
-
-# 21. COLLECTIONS
-
-Artists should be able to create collections.
-
-Collection fields:
-
-```text
-Name
-Description
-Cover Image
-Artist
-Artwork
-Tags
-Visibility
-Created Date
-Updated Date
-```
-
-Features:
-
-* Create
-* Edit
-* Delete
-* Reorder
-* Add artwork
-* Remove artwork
-* Public/private
-* Share
-* Analytics
-
----
-
-# 22. SERIES
-
-Support artwork series.
-
-Example:
-
-```text
-Series:
-Urban Memories
-
-Artwork:
-Untitled I
-Untitled II
-Untitled III
-```
-
-Features:
-
-* Create series
-* Add artwork
-* Remove artwork
-* Series description
-* Series cover
-* Public/private visibility
-
----
-
-# 23. EDITIONS
-
-Support:
-
-* Original
-* Limited edition
-* Open edition
-* Edition number
-* Edition size
-* Edition status
-* Edition pricing
-* Sold editions
-
-Example:
-
-```text
-Print 01
-Edition 1 / 25
-```
-
----
-
-# 24. EXHIBITIONS
-
-Create complete exhibition management.
-
-Fields:
-
-```text
-Exhibition Name
-Description
-Venue
-Start Date
-End Date
-Artists
-Artwork
-Curator
-Status
 Images
+
 Documents
 ```
 
-Statuses:
+Avoid showing huge forms with no structure.
 
-```text
-Draft
-Upcoming
-Active
-Completed
-Archived
-```
-
-Features:
-
-* Create exhibition
-* Edit exhibition
-* Add artists
-* Add artworks
-* Assign location
-* Exhibition timeline
-* Exhibition page
-* Exhibition reports
-* Export
-* Public/private visibility
+Use progressive disclosure when appropriate.
 
 ---
 
-# 25. LOCATIONS
+# 19. BUTTONS
 
-Create location management.
+Buttons should be minimal.
 
-Examples:
-
-```text
-Studio
-Gallery
-Collector
-Warehouse
-Museum
-Exhibition
-Storage
-Other
-```
-
-Track:
+Primary button:
 
 ```text
-Current Location
-Previous Location
-Moved From
-Moved To
-Date
-Reason
-Notes
+Dark charcoal / subtle accent
 ```
 
-Every artwork should have location history.
-
----
-
-# 26. PROVENANCE
-
-Create a visual provenance timeline.
-
-Example:
+Secondary:
 
 ```text
-Artwork Created
-      ↓
-Artist Studio
-      ↓
-Gallery Exhibition
-      ↓
-Collector Purchase
-      ↓
-Private Collection
-      ↓
-Museum Exhibition
+Transparent
+Thin border
 ```
 
-Each provenance event should support:
+Tertiary:
 
 ```text
-Date
-Location
-Owner
-Event Type
-Description
-Documents
-Notes
+Text-only
 ```
-
----
-
-# 27. CONTACTS / CRM
-
-Create a professional CRM.
-
-Contact types:
-
-```text
-Collector
-Gallery
-Curator
-Museum
-Artist
-Journalist
-Venue
-Organization
-Other
-```
-
-Contact profile should contain:
-
-* Name
-* Email
-* Phone
-* Company
-* Address
-* Notes
-* Tags
-* Sales
-* Artwork
-* Exhibitions
-* Communication history
-
----
-
-# 28. SALES PIPELINE
-
-Create a professional sales pipeline.
-
-Stages:
-
-```text
-Lead
- ↓
-Inquiry
- ↓
-Interested
- ↓
-Negotiation
- ↓
-Reserved
- ↓
-Sold
- ↓
-Paid
- ↓
-Completed
-```
-
-A sale should support:
-
-```text
-Artwork
-Contact
-Price
-Discount
-Tax
-Commission
-Payment Status
-Invoice
-Sale Date
-Notes
-```
-
----
-
-# 29. INVOICES
-
-Create professional invoices.
-
-Fields:
-
-```text
-Invoice Number
-Customer
-Artwork
-Subtotal
-Discount
-Tax
-Commission
-Total
-Currency
-Due Date
-Payment Status
-Notes
-```
-
-Statuses:
-
-```text
-Draft
-Sent
-Partially Paid
-Paid
-Overdue
-Cancelled
-```
-
-Generate PDF invoices.
-
----
-
-# 30. PAYMENTS
-
-Track:
-
-* Payment amount
-* Payment date
-* Payment method
-* Reference
-* Status
-* Remaining balance
-* Related invoice
-* Related sale
-
-Do not process real payments unless a proper payment gateway is implemented.
-
----
-
-# 31. DOCUMENT MANAGEMENT
-
-Allow documents to be attached to:
-
-* Artwork
-* Artist
-* Exhibition
-* Sale
-* Contact
-* Collection
-
-Document types:
-
-```text
-Certificate
-Contract
-Invoice
-Condition Report
-Provenance
-Receipt
-Image
-Other
-```
-
-Private documents must never become accidentally public.
-
----
-
-# 32. CERTIFICATE OF AUTHENTICITY
-
-Create actual certificate generation.
-
-Certificate should contain:
-
-```text
-Artwork
-Artist
-Artwork Image
-Title
-Year
-Medium
-Dimensions
-Edition
-Certificate Number
-Artist Information
-Date
-Signature Area
-QR Code
-```
-
-Generate a professional PDF.
-
-Every certificate must have a unique verification ID.
-
-Example:
-
-```text
-/artwork/verify/[certificateId]
-```
-
----
-
-# 33. QR CODES
-
-Generate QR codes for:
-
-* Artworks
-* Certificates
-* Artist profiles
-* Collections
-* Exhibitions
-* Private rooms
-
-Create appropriate public verification pages.
-
----
-
-# 34. PRIVATE VIEWING ROOMS
-
-Create private rooms.
-
-Workflow:
-
-```text
-Create Room
-     ↓
-Select Artwork
-     ↓
-Customize Room
-     ↓
-Generate Link
-     ↓
-Share
-```
-
-Room should contain:
-
-* Cover
-* Artist information
-* Selected artwork
-* Artwork details
-* Pricing
-* Contact button
-
-Optional:
-
-* Password protection
-* Expiration date
-* View analytics
-* Hide prices
-* Download permissions
-
----
-
-# 35. CALENDAR
-
-Create a calendar.
-
-Display:
-
-* Exhibitions
-* Events
-* Sales
-* Tasks
-* Deadlines
-* Reminders
-* Artwork movements
-
-Views:
-
-```text
-Month
-Week
-Day
-Agenda
-```
-
----
-
-# 36. TASK MANAGEMENT
-
-Tasks should support:
-
-```text
-Title
-Description
-Due Date
-Priority
-Assignee
-Related Artwork
-Related Exhibition
-Status
-```
-
-Statuses:
-
-```text
-Todo
-In Progress
-Completed
-Cancelled
-```
-
----
-
-# 37. NOTIFICATIONS
-
-Create notifications for:
-
-* New sale
-* Payment received
-* Exhibition approaching
-* Task due
-* Private room viewed
-* Certificate generated
-* Artwork status changed
-* Important system activity
-
----
-
-# 38. GLOBAL SEARCH
-
-Search across:
-
-```text
-Artwork
-Artists
-Collections
-Series
-Exhibitions
-Contacts
-Sales
-Documents
-Locations
-```
-
-Support:
-
-* Search
-* Filters
-* Sorting
-* Recent searches
-* Suggestions
-
----
-
-# 39. REPORTS
-
-Create:
-
-* Artwork inventory report
-* Sales report
-* Revenue report
-* Collection report
-* Exhibition report
-* Location report
-* Provenance report
-* Artist report
-* Valuation report
-
-Allow:
-
-```text
-Preview
-Export PDF
-Export CSV
-Print
-```
-
----
-
-# 40. INSIGHTS / ANALYTICS
-
-Create meaningful analytics.
-
-Possible metrics:
-
-* Artwork count
-* Sales
-* Revenue
-* Average artwork price
-* Sales by collection
-* Sales by medium
-* Sales by year
-* Exhibition performance
-* Private room views
-* Artwork engagement
-
-Do not create fake analytics.
-
-Everything must be based on actual data.
-
----
-
-# 41. ADMIN PANEL
-
-Preserve the existing admin panel.
-
-Improve its UI to match the new design system.
-
-Admin should manage:
-
-* Users
-* Artists
-* Artworks
-* Waitlist
-* Founding artists
-* Reports
-* Moderation
-* Uploaded content
-* Platform statistics
-
-Do not remove current moderation functionality.
-
----
-
-# 42. AUTHENTICATION
-
-Use **Clerk** if it integrates cleanly with the current application.
-
-Support:
-
-* Sign up
-* Sign in
-* Sign out
-* Email verification
-* Password recovery
-* Profile
-* Sessions
-
-Prepare architecture for organizations.
-
-Do not store critical business data only in Clerk metadata.
-
-Business data must live in PostgreSQL.
-
----
-
-# 43. USER ROLES
-
-Design for:
-
-```text
-Artist
-Artist Manager
-Gallery
-Collector
-Curator
-Organization Admin
-Team Member
-Platform Admin
-```
-
-Not all roles need to be exposed immediately.
-
-Implement proper authorization from the beginning.
-
----
-
-# 44. ORGANIZATION / TEAM MANAGEMENT
-
-Prepare architecture for:
-
-```text
-Organization
-    ↓
-Members
-    ↓
-Roles
-    ↓
-Permissions
-```
-
-Potential structure:
-
-```text
-Artist
-├── Manager
-├── Assistant
-├── Gallery
-└── Team Member
-```
-
----
-
-# 45. DATABASE ARCHITECTURE
-
-Use the existing Neon PostgreSQL database.
-
-Do not destroy the existing schema.
-
-Use proper migrations.
-
-Potential entities:
-
-```text
-users
-
-artists
-
-organizations
-organization_members
-roles
-permissions
-
-artworks
-artwork_images
-artwork_tags
-tags
-
-collections
-collection_artworks
-
-series
-series_artworks
-
-editions
-
-exhibitions
-exhibition_artworks
-exhibition_artists
-
-locations
-artwork_locations
-location_history
-
-contacts
-contact_notes
-contact_tags
-
-sales
-sale_items
-
-invoices
-payments
-
-documents
-document_links
-
-certificates
-provenance_events
-
-private_rooms
-private_room_artworks
-
-tasks
-calendar_events
-
-notifications
-
-reports
-
-audit_logs
-```
-
-Also preserve existing tables such as:
-
-```text
-waitlist_entries
-founding artist data
-wall/activity data
-```
-
-Do not create duplicate entities if equivalent tables already exist.
-
-First inspect the current schema.
-
----
-
-# 46. DATABASE REQUIREMENTS
-
-Use:
-
-* Foreign keys
-* Unique constraints
-* Proper indexes
-* Transactions
-* Soft deletion where appropriate
-* Timestamps
-* Audit fields
-* Ownership relationships
-* Data isolation
-
-Important tables should generally include:
-
-```text
-id
-created_at
-updated_at
-```
-
-Use the existing project's ID strategy if it is sound.
-
----
-
-# 47. BACKEND ARCHITECTURE
-
-Keep business logic separate from the UI.
-
-Preferred architecture:
-
-```text
-Frontend
-   ↓
-Server Action / API
-   ↓
-Validation
-   ↓
-Business Logic / Service
-   ↓
-Database
-```
-
-Do not put complex business logic inside React components.
-
----
-
-# 48. VALIDATION
-
-Validate all external input.
-
-Validate:
-
-* Forms
-* API requests
-* Server actions
-* IDs
-* File uploads
-* Prices
-* Dates
-* Permissions
-* File types
-* User input
-
-Use the existing validation system or introduce Zod if appropriate.
-
----
-
-# 49. SECURITY
-
-Maintain and improve:
-
-* Authentication
-* Authorization
-* CSRF protection
-* Rate limiting
-* Input validation
-* Secure file uploads
-* Private document protection
-* Access control
-* Audit logging
-
-Check for:
-
-```text
-IDOR
-SQL Injection
-XSS
-CSRF
-Broken Access Control
-File Upload Vulnerabilities
-Data Leakage
-Exposed Secrets
-```
-
----
-
-# 50. CLOUDINARY
-
-Continue using Cloudinary for artwork images unless there is a strong reason to change.
-
-Support:
-
-* Multiple images
-* Image optimization
-* Thumbnails
-* Responsive images
-* Primary image
-* Image ordering
-* Secure uploads
-* Upload progress
-
-Private documents must be protected appropriately.
-
----
-
-# 51. PERFORMANCE
-
-Optimize:
-
-* Dashboard loading
-* Artwork inventory
-* Image loading
-* Database queries
-* Search
-* Pagination
-* Filtering
-* Server rendering
-* Caching where useful
 
 Avoid:
 
-* N+1 queries
-* Loading thousands of artworks at once
-* Unnecessary client-side fetching
-* Huge JavaScript bundles
+* Excessively rounded pill buttons
+* Bright neon buttons
+* Giant CTA buttons everywhere
 
 ---
 
-# 52. ANIMATION SYSTEM
+# 20. TABLES
 
-I want **beautiful animations**, but they must be subtle.
-
-Animations should feel:
-
-* Elegant
-* Calm
-* Natural
-* Premium
-* Intentional
-
-Use:
-
-* Page transitions
-* Fade-in
-* Slide-in
-* Image reveal
-* Hover image zoom
-* Navigation transitions
-* Modal transitions
-* Drawer transitions
-* Filter transitions
-* Grid/list transitions
-* Skeleton loading
-* Smooth scrolling
-
-Artwork hover:
-
-```text
-Hover
- ↓
-Image slightly scales
- ↓
-Metadata subtly moves
- ↓
-Secondary action appears
-```
-
-Do not animate every element.
-
-Respect:
-
-```text
-prefers-reduced-motion
-```
-
----
-
-# 53. ANIMATION TIMING
-
-Use sensible timing.
-
-Approximately:
-
-```text
-Micro interactions: 150–200ms
-
-Buttons/hover: 150–250ms
-
-Menus/dropdowns: 200–300ms
-
-Cards: 250–400ms
-
-Page transitions: 300–500ms
-```
-
-Avoid slow animations that make the application feel sluggish.
-
----
-
-# 54. FORMS
-
-Redesign forms to be simple and elegant.
-
-Do not show 30 fields at once.
-
-Group information:
-
-```text
-Basic Information
-
-Artwork Details
-
-Pricing
-
-Classification
-
-Media
-
-Documents
-
-Additional Information
-```
-
-Use progressive disclosure where appropriate.
-
----
-
-# 55. TABLES
-
-Tables should be:
-
-* Clean
-* Compact
-* Readable
-* Minimal
+Redesign tables to look professional and minimal.
 
 Use:
 
 * Thin separators
 * Good spacing
+* Small metadata
 * Clear typography
+* Sticky headers when useful
 
-Support:
+Support existing:
 
+* Search
 * Sorting
 * Filtering
+* Pagination
 * Selection
 * Bulk actions
-* Pagination
-* Column customization
 
-Avoid heavy borders.
+Do not change the functionality.
 
 ---
 
-# 56. EMPTY STATES
+# 21. FILTERS
 
-Do not use:
+Make filters easy to understand.
+
+Use:
+
+* Filter button
+* Dropdowns
+* Select menus
+* Search
+* Clear filters
+* Active filter indicators
+
+Animate filter panels smoothly.
+
+---
+
+# 22. EMPTY STATES
+
+Replace generic empty states.
+
+Instead of:
 
 ```text
 No data found.
 ```
 
-Instead:
+Use:
 
 ```text
 Your collection is empty.
@@ -1897,85 +717,358 @@ Start by adding your first artwork.
 + Add Artwork
 ```
 
-Empty states should tell the user what to do next.
+Empty states should guide the user toward the next action.
 
 ---
 
-# 57. LOADING STATES
+# 23. LOADING STATES
 
-Create professional loading states.
+Create elegant loading states.
 
 Use:
 
 * Skeletons
-* Progressive image loading
-* Subtle transitions
+* Image placeholders
+* Progressive loading
+* Subtle opacity transitions
 
-Do not show blank screens while data loads.
+Avoid:
+
+```text
+Loading...
+```
+
+everywhere.
 
 ---
 
-# 58. ERROR STATES
+# 24. ERROR STATES
 
-Create useful error states.
+Create clear error states.
 
 Include:
 
-* Clear explanation
-* Retry button
-* Appropriate fallback
-* Developer logging
+* What happened
+* What the user can do
+* Retry action
 
-Never silently swallow errors.
+Example:
 
----
+```text
+We couldn't load your artworks.
 
-# 59. RESPONSIVE DESIGN
+Please try again.
 
-## Desktop
+Retry
+```
 
-Professional art-management workspace.
-
-## Tablet
-
-Adaptive navigation and grids.
-
-## Mobile
-
-Optimize for:
-
-* Artwork browsing
-* Artwork detail
-* Tasks
-* Notifications
-* Calendar
-* Quick actions
-
-Do not simply shrink the desktop UI.
+Do not expose technical errors directly to users.
 
 ---
 
-# 60. ACCESSIBILITY
+# 25. USER ONBOARDING
 
-Follow good accessibility practices.
+This is extremely important.
 
-Include:
+Make the ArtWall onboarding experience **best-in-class and minimal**.
 
-* Keyboard navigation
-* Proper labels
+The onboarding should not feel like a boring registration form.
+
+---
+
+## STEP 1 — Welcome
+
+```text
+Welcome to ArtWall.
+
+A better way to manage your art.
+
+[Continue]
+```
+
+Minimal.
+
+---
+
+## STEP 2 — Account
+
+Allow:
+
+```text
+Continue with Google
+
+or
+
+Continue with Email
+```
+
+Keep the page extremely clean.
+
+---
+
+## STEP 3 — About You
+
+Ask only what is necessary.
+
+Example:
+
+```text
+What best describes you?
+
+Artist
+Gallery
+Collector
+Curator
+Art Professional
+```
+
+Use beautiful selection cards.
+
+---
+
+## STEP 4 — Artist Information
+
+If the user is an artist:
+
+```text
+Your Name
+Artist Handle
+Location
+Short Bio
+```
+
+Do not ask unnecessary information.
+
+---
+
+## STEP 5 — First Artwork
+
+Immediately guide the artist to add their first artwork.
+
+```text
+Let's add your first artwork.
+
+[Upload Artwork]
+```
+
+Make this experience extremely simple.
+
+---
+
+## STEP 6 — Artwork Details
+
+Ask the most important fields first.
+
+```text
+Title
+Year
+Medium
+Price
+```
+
+Allow:
+
+```text
+Skip for now
+```
+
+Advanced fields can be added later.
+
+---
+
+## STEP 7 — Completion
+
+Show:
+
+```text
+You're ready.
+
+Your ArtWall has been created.
+
+[Go to ArtWall]
+```
+
+Use a subtle animation.
+
+---
+
+# 26. ONBOARDING PRINCIPLES
+
+The onboarding should follow:
+
+```text
+Progressive disclosure
+Minimal questions
+Clear language
+One decision at a time
+Visible progress
+Easy skipping
+Beautiful visuals
+Fast completion
+```
+
+Never overwhelm new users.
+
+Do not ask for information that isn't immediately necessary.
+
+---
+
+# 27. ONBOARDING ANIMATIONS
+
+Use subtle transitions between steps.
+
+Example:
+
+```text
+Step 1
+    ↓ fade + slide
+Step 2
+    ↓ fade + slide
+Step 3
+```
+
+Use:
+
+* Fade
+* Slight vertical movement
+* Image reveal
+* Progress indicator
+
+Avoid:
+
+* Large rotations
+* Bouncing
+* Excessive scaling
+* Long animations
+
+The user should feel like the interface is flowing naturally.
+
+---
+
+# 28. PAGE TRANSITIONS
+
+Add subtle page transitions.
+
+Recommended:
+
+```text
+opacity: 0 → 1
+transform: translateY(8px) → 0
+```
+
+Keep transitions short.
+
+Do not make every route transition slow.
+
+---
+
+# 29. SCROLL ANIMATIONS
+
+Use scroll animations selectively.
+
+Good examples:
+
+* Artwork image reveal
+* Section fade
+* Text reveal
+* Image movement
+* Parallax only where it improves the experience
+
+Avoid animating every section.
+
+---
+
+# 30. PERFORMANCE
+
+Animations must never hurt performance.
+
+Follow:
+
+* Prefer CSS transforms and opacity.
+* Avoid animating layout-heavy properties.
+* Avoid unnecessary JavaScript animation loops.
+* Lazy-load images.
+* Optimize images.
+* Use GPU-friendly transforms where appropriate.
+* Avoid excessive scroll listeners.
+* Use IntersectionObserver where appropriate.
+* Do not animate huge DOM trees.
+* Keep animations lightweight.
+
+Target smooth interaction around:
+
+```text
+60 FPS
+```
+
+where practical.
+
+---
+
+# 31. REDUCED MOTION
+
+Respect:
+
+```text
+prefers-reduced-motion
+```
+
+Users who prefer reduced motion should receive simplified transitions.
+
+Accessibility is mandatory.
+
+---
+
+# 32. RESPONSIVE DESIGN
+
+The redesign must work beautifully on:
+
+```text
+Desktop
+Laptop
+Tablet
+Mobile
+```
+
+Do not simply shrink the desktop layout.
+
+Mobile should have its own interaction patterns.
+
+---
+
+# 33. ACCESSIBILITY
+
+Ensure:
+
 * Semantic HTML
-* Focus states
-* Screen reader support
-* Sufficient contrast
-* Reduced motion support
+* Keyboard navigation
+* Visible focus states
+* Accessible labels
+* Proper contrast
 * Accessible dialogs
 * Accessible forms
+* Screen reader support
+* Reduced motion support
 
 ---
 
-# 61. DESIGN SYSTEM COMPONENTS
+# 34. DESIGN SYSTEM
 
-Create reusable components for:
+Create reusable design tokens for:
+
+```text
+Colors
+Typography
+Spacing
+Radius
+Shadows
+Transitions
+Borders
+```
+
+Create reusable components.
+
+Examples:
 
 ```text
 Button
@@ -1990,686 +1083,462 @@ Tooltip
 Badge
 Card
 Table
-DataTable
 Search
 Filter
 Breadcrumb
 Toast
-Modal
-Sheet
-Avatar
 ArtworkCard
 ArtworkGrid
 ArtworkTable
-ArtworkGallery
 EmptyState
 LoadingState
 ErrorState
-Timeline
-ActivityFeed
 ```
 
-Do not duplicate components.
+Do not duplicate components across pages.
 
 ---
 
-# 62. FRONTEND TODO
+# 35. ANIMATION SYSTEM
+
+Create a consistent animation system instead of manually creating random animations.
+
+Define reusable animation patterns:
 
 ```text
-[ ] Complete design system
-[ ] Global typography
-[ ] Color system
-[ ] Application shell
-[ ] Sidebar
-[ ] Top navigation
-[ ] Global search
-[ ] Notifications
-[ ] User menu
-[ ] Dashboard
-[ ] Artwork grid
-[ ] Artwork table
-[ ] Artwork list
-[ ] Artwork filters
-[ ] Artwork search
-[ ] Artwork detail
-[ ] Add artwork
-[ ] Edit artwork
-[ ] Bulk actions
-[ ] Collections
-[ ] Series
-[ ] Editions
-[ ] Exhibitions
-[ ] Locations
-[ ] Provenance
-[ ] Contacts
-[ ] Sales
-[ ] Sales pipeline
-[ ] Invoices
-[ ] Payments
-[ ] Documents
-[ ] Certificates
-[ ] QR verification
-[ ] Private rooms
-[ ] Calendar
-[ ] Tasks
-[ ] Reports
-[ ] Insights
-[ ] Artist profile
-[ ] Public artist profile
-[ ] Settings
-[ ] Admin
-[ ] Landing page redesign
-[ ] The Wall redesign
-[ ] Responsive UI
-[ ] Loading states
-[ ] Empty states
-[ ] Error states
-[ ] Accessibility
-[ ] Animation system
+fadeIn
+fadeUp
+fadeDown
+scaleIn
+imageReveal
+pageEnter
+modalEnter
+drawerEnter
+hoverImage
+staggerChildren
 ```
+
+Use them consistently.
+
+Do not introduce animation libraries unless necessary.
+
+If the project already uses an animation library, inspect it first and reuse it where appropriate.
 
 ---
 
-# 63. BACKEND TODO
+# 36. EXISTING ANIMATIONS
+
+Review every existing animation.
+
+For each one decide:
 
 ```text
-[ ] Authentication
-[ ] Authorization
-[ ] Artist APIs/server actions
-[ ] Artwork APIs/server actions
-[ ] Collection APIs/server actions
-[ ] Series APIs/server actions
-[ ] Edition APIs/server actions
-[ ] Exhibition APIs/server actions
-[ ] Location APIs/server actions
-[ ] Provenance APIs/server actions
-[ ] Contact APIs/server actions
-[ ] Sales APIs/server actions
-[ ] Invoice APIs/server actions
-[ ] Payment tracking
-[ ] Document management
-[ ] Certificate generation
-[ ] QR verification
-[ ] Private rooms
-[ ] Calendar
-[ ] Tasks
-[ ] Notifications
-[ ] Search
-[ ] Reports
-[ ] Analytics
-[ ] Admin APIs
-[ ] Audit logs
-[ ] Rate limiting
-[ ] Validation
-[ ] Error handling
-[ ] File security
+KEEP
+IMPROVE
+REPLACE
+REMOVE
 ```
+
+If an existing animation does not fit the new minimal/off-white visual language, replace it.
+
+Do not keep animations simply because they already exist.
+
+Animations must support the new design.
 
 ---
 
-# 64. DATABASE TODO
+# 37. THE WALL
+
+Preserve the existing Collaborative Wall functionality.
+
+Redesign its visual presentation.
+
+The Wall should feel like:
+
+> A digital contemporary exhibition.
+
+Use:
+
+* Large artwork
+* Editorial grid
+* Asymmetric layout
+* Artist information
+* Artwork metadata
+* Search
+* Filters
+* Subtle hover animations
+
+Keep:
+
+* Existing search
+* Real-time activity
+* Existing interactions
+* Existing backend functionality
+
+---
+
+# 38. PUBLIC ARTIST PROFILE
+
+Make public artist profiles feel like professional gallery profiles.
+
+Example:
 
 ```text
-[ ] Audit current schema
-[ ] Design relationships
-[ ] Add artist relationships
-[ ] Add user relationships
-[ ] Add organizations
-[ ] Add organization members
-[ ] Add artworks
-[ ] Add artwork images
-[ ] Add collections
-[ ] Add tags
-[ ] Add series
-[ ] Add editions
-[ ] Add exhibitions
-[ ] Add locations
-[ ] Add location history
-[ ] Add provenance
-[ ] Add contacts
-[ ] Add sales
-[ ] Add invoices
-[ ] Add payments
-[ ] Add documents
-[ ] Add certificates
-[ ] Add private rooms
-[ ] Add tasks
-[ ] Add calendar events
-[ ] Add notifications
-[ ] Add audit logs
-[ ] Add indexes
-[ ] Add constraints
-[ ] Create migrations
-[ ] Test migrations
+ARTIST NAME
+
+Artist statement...
+
+[Featured Artwork]
+
+Selected Works
+
+Artwork    Artwork    Artwork
+
+Exhibitions
+
+About
+
+Contact
 ```
+
+Avoid generic social-media profile design.
 
 ---
 
-# 65. TESTING TODO
+# 39. PAGE CONSISTENCY
 
-Test every major feature.
+Every page should use the same visual language.
+
+For example:
 
 ```text
-[ ] Authentication tests
-[ ] Authorization tests
-[ ] Artwork CRUD tests
-[ ] Collection tests
-[ ] Series tests
-[ ] Edition tests
-[ ] Exhibition tests
-[ ] Location tests
-[ ] Provenance tests
-[ ] Contact tests
-[ ] Sales tests
-[ ] Invoice tests
-[ ] Payment tests
-[ ] Document tests
-[ ] Certificate tests
-[ ] QR verification tests
-[ ] Private room tests
-[ ] Search tests
-[ ] Permission tests
-[ ] File upload tests
-[ ] Server action/API tests
-[ ] Integration tests
-[ ] E2E tests
-[ ] Mobile testing
-[ ] Accessibility testing
-[ ] Regression testing
-[ ] Performance testing
+Landing
+   ↓
+Artist Profile
+   ↓
+Dashboard
+   ↓
+Artwork
+   ↓
+Collections
+   ↓
+Exhibitions
 ```
 
-Test both:
+All should feel like the same ArtWall product.
 
-### Happy paths
+---
 
-and:
+# 40. DO NOT CHANGE BUSINESS LOGIC
 
-### Failure paths
+This is critical.
 
-Examples:
+Do not change:
+
+* Database logic
+* API behavior
+* Server actions
+* Authentication logic
+* Upload logic
+* Validation logic
+* Existing workflows
+
+unless absolutely necessary.
+
+If an existing component mixes UI and business logic:
+
+1. Extract the business logic.
+2. Preserve it.
+3. Redesign only the presentation.
+
+---
+
+# 41. BEFORE CODING
+
+First inspect:
 
 ```text
-Artist creates artwork
-Artist edits artwork
-Artist archives artwork
-Unauthorized user tries to edit artwork
-Artwork is sold
-Certificate is generated
-Private room is accessed
-Private document is requested
-Invalid file uploaded
-Invalid price submitted
-Invalid artwork ID submitted
-Unauthorized API request
+package.json
+app/
+pages/
+components/
+lib/
+actions/
+api/
+database/
+styles/
+public/
+configuration
 ```
 
----
+Also inspect:
 
-# 66. MIGRATION STRATEGY
-
-Before changing the database:
-
-1. Inspect the current schema.
-2. Understand existing relationships.
-3. Verify existing data.
-4. Create migration.
-5. Test migration locally.
-6. Verify existing functionality.
-7. Apply migration.
-8. Run tests.
-9. Verify production safety.
-
-Never perform destructive database changes without understanding the consequences.
+* Existing routes
+* Existing layouts
+* Existing design tokens
+* Existing animation implementation
+* Existing responsive behavior
+* Existing reusable components
 
 ---
 
-# 67. IMPLEMENTATION PHASES
+# 42. CREATE A UI AUDIT
 
-## PHASE 0 — AUDIT
+Before making changes, create a table:
 
-```text
-[ ] Repository audit
-[ ] Database audit
-[ ] UI audit
-[ ] API audit
-[ ] Authentication audit
-[ ] Existing feature map
-```
+| Page     | Current UI     | Functionality | Keep | Redesign | New UX       |
+| -------- | -------------- | ------------- | ---- | -------- | ------------ |
+| Landing  | Dark/cinematic | Existing      | ✅    | ✅        | Editorial    |
+| Wall     | Existing       | Existing      | ✅    | ✅        | Art-first    |
+| Waitlist | Existing       | Existing      | ✅    | ✅        | Minimal      |
+| Admin    | Existing       | Existing      | ✅    | ✅        | Professional |
+| ...      | ...            | ...           | ...  | ...      | ...          |
 
----
-
-## PHASE 1 — DESIGN SYSTEM + APPLICATION SHELL
-
-```text
-[ ] New color system
-[ ] Typography
-[ ] Spacing
-[ ] Components
-[ ] Sidebar
-[ ] Header
-[ ] Dashboard shell
-[ ] Responsive navigation
-[ ] Animation system
-```
+Complete this for every route.
 
 ---
 
-## PHASE 2 — AUTHENTICATION + ARTIST
+# 43. IMPLEMENTATION PROCESS
 
-```text
-[ ] Authentication
-[ ] User model
-[ ] Artist model
-[ ] Artist dashboard
-[ ] Artist profile
-[ ] Public artist profile
-```
-
----
-
-## PHASE 3 — ARTWORK
-
-```text
-[ ] Artwork database
-[ ] Artwork CRUD
-[ ] Image management
-[ ] Artwork inventory
-[ ] Grid view
-[ ] List view
-[ ] Table view
-[ ] Search
-[ ] Filters
-[ ] Sorting
-[ ] Bulk actions
-```
-
----
-
-## PHASE 4 — ORGANIZATION
-
-```text
-[ ] Collections
-[ ] Series
-[ ] Editions
-[ ] Tags
-```
-
----
-
-## PHASE 5 — EXHIBITIONS + LOCATIONS
-
-```text
-[ ] Exhibitions
-[ ] Exhibition artwork
-[ ] Exhibition artists
-[ ] Locations
-[ ] Location history
-```
-
----
-
-## PHASE 6 — PROVENANCE + CERTIFICATES
-
-```text
-[ ] Provenance
-[ ] Certificate generation
-[ ] QR generation
-[ ] QR verification
-```
-
----
-
-## PHASE 7 — CRM + SALES
-
-```text
-[ ] Contacts
-[ ] Contact profiles
-[ ] Sales
-[ ] Sales pipeline
-[ ] Invoices
-[ ] Payments
-```
-
----
-
-## PHASE 8 — DOCUMENTS + PRIVATE ROOMS
-
-```text
-[ ] Documents
-[ ] Private rooms
-[ ] Sharing
-[ ] Permissions
-[ ] Password protection
-[ ] Expiration
-```
-
----
-
-## PHASE 9 — PROFESSIONAL TOOLS
-
-```text
-[ ] Calendar
-[ ] Tasks
-[ ] Notifications
-[ ] Reports
-[ ] Analytics
-[ ] Import/export
-```
-
----
-
-## PHASE 10 — FINAL POLISH
-
-```text
-[ ] Performance audit
-[ ] Accessibility audit
-[ ] Security audit
-[ ] Responsive audit
-[ ] UX audit
-[ ] Animation audit
-[ ] Database audit
-[ ] API audit
-[ ] Regression testing
-[ ] Production deployment preparation
-```
-
----
-
-# 68. DEVELOPMENT RULE
-
-Do not start by coding random pages.
-
-Follow:
+Follow this order:
 
 ```text
 AUDIT
-   ↓
-PRODUCT ARCHITECTURE
-   ↓
-DATABASE ARCHITECTURE
-   ↓
+ ↓
 DESIGN SYSTEM
-   ↓
+ ↓
 APPLICATION SHELL
-   ↓
-CORE WORKFLOWS
-   ↓
-IMPLEMENTATION
-   ↓
-TESTING
-   ↓
-REVIEW
-   ↓
-REFACTOR
+ ↓
+LANDING PAGE
+ ↓
+ONBOARDING
+ ↓
+ARTIST PROFILE
+ ↓
+WALL
+ ↓
+DASHBOARD
+ ↓
+ARTWORK UI
+ ↓
+OTHER EXISTING PAGES
+ ↓
+RESPONSIVE POLISH
+ ↓
+ANIMATION POLISH
+ ↓
+ACCESSIBILITY
+ ↓
+PERFORMANCE
+ ↓
+REGRESSION TESTING
 ```
 
 ---
 
-# 69. HOW YOU SHOULD WORK WITH ME
+# 44. DO NOT REBUILD EVERYTHING AT ONCE
 
-Treat me as the **Founder/Product Owner**.
+Implement incrementally.
 
-You are my senior technical team.
+After every major section:
 
-Do not blindly agree with everything I say.
+1. Run the application.
+2. Check the page.
+3. Check desktop.
+4. Check mobile.
+5. Check existing functionality.
+6. Check animations.
+7. Check console errors.
+8. Fix regressions.
 
-If something is:
-
-* Unnecessary
-* Technically risky
-* Expensive
-* Difficult to scale
-* Bad UX
-* Bad architecture
-* Over-engineered
-
-Tell me.
-
-Give me a better alternative.
-
-For major architectural decisions, explain the options before implementing.
+Then continue.
 
 ---
 
-# 70. CODE QUALITY RULES
+# 45. QUALITY CHECK
 
-Always:
-
-* Reuse existing code where appropriate.
-* Keep components modular.
-* Keep business logic separate.
-* Use strict TypeScript.
-* Avoid `any`.
-* Avoid duplicated code.
-* Avoid giant components.
-* Avoid unnecessary abstractions.
-* Avoid premature microservices.
-* Use proper database transactions.
-* Validate all inputs.
-* Handle errors properly.
-* Write tests.
-* Follow accessibility practices.
-* Follow responsive design practices.
-* Follow security best practices.
-* Keep the codebase maintainable.
-
----
-
-# 71. FINAL PRODUCT GOAL
-
-The final ArtWall should feel like:
-
-> **A professional operating system for an artist's art business.**
-
-Not simply:
-
-> **An artist portfolio website.**
-
-An artist should be able to open ArtWall every day and manage:
+Before considering the redesign complete, verify:
 
 ```text
-ARTWORK
-   ↓
-COLLECTIONS
-   ↓
-SERIES
-   ↓
-EDITIONS
-   ↓
-EXHIBITIONS
-   ↓
-LOCATIONS
-   ↓
-COLLECTORS
-   ↓
-SALES
-   ↓
-DOCUMENTS
-   ↓
-PROVENANCE
-   ↓
-CERTIFICATES
-   ↓
-REPORTS
-```
-
-while the public side remains beautiful, artistic, premium, and immersive.
-
-The product should combine:
-
-```text
-Artwork Archive-style management
-+
-VarisArt-style art workflows
-+
-ArtWall's own visual identity
-+
-ArtWall's Collaborative Wall
-+
-Professional artist tools
+[ ] Existing features still work
+[ ] Existing routes still work
+[ ] Existing forms still work
+[ ] Existing uploads still work
+[ ] Existing authentication still works
+[ ] Existing database interactions still work
+[ ] Existing Wall functionality still works
+[ ] Admin functionality still works
+[ ] Waitlist still works
+[ ] Founding artist flow still works
+[ ] Desktop UI works
+[ ] Mobile UI works
+[ ] Animations are smooth
+[ ] Animations are not excessive
+[ ] Reduced motion works
+[ ] No console errors
+[ ] No TypeScript errors
+[ ] No broken images
+[ ] No layout shifts
+[ ] No unnecessary loading
+[ ] Accessibility is reasonable
+[ ] UI is consistent
+[ ] Onboarding is simple
 ```
 
 ---
 
-# 72. MOST IMPORTANT UI GOAL
+# 46. FINAL DESIGN TEST
 
-The current ArtWall looks like:
+Before finishing, ask:
+
+### Does it feel minimal?
+
+### Does it feel premium?
+
+### Does the artwork remain the visual focus?
+
+### Is the interface calm?
+
+### Is the navigation obvious?
+
+### Can a new artist understand what to do immediately?
+
+### Is onboarding fast?
+
+### Are animations helping rather than distracting?
+
+### Does mobile feel intentionally designed?
+
+### Does the product feel like one coherent system?
+
+If any answer is no, improve it.
+
+---
+
+# 47. FINAL PRODUCT DIRECTION
+
+The final ArtWall should move from:
 
 ```text
 Dark
 Cinematic
 Futuristic
-Launch-focused
 High contrast
+Startup-like
 ```
 
-The new ArtWall should look like:
+to:
 
 ```text
-Warm white
-Editorial
+Warm off-white
 Minimal
-Quiet
+Editorial
 Premium
 Professional
-Art-focused
-Image-first
-Sophisticated
+Art-first
+Calm
+Human
 ```
 
-Think:
+The public ArtWall experience can retain some artistic/immersive character.
+
+The authenticated product should feel like a **professional art-management workspace**.
+
+The final experience should feel like:
 
 ```text
-Contemporary gallery
-+
-Art archive
-+
-Editorial magazine
-+
-Professional SaaS
+Contemporary Art Gallery
+        +
+Editorial Design
+        +
+Professional Art Archive
+        +
+Modern SaaS
 ```
-
-The authenticated management interface should be highly functional and minimal.
-
-The public ArtWall/WALL experience can retain more artistic expression and immersive interactions.
 
 ---
 
-# 73. FIRST TASK — DO NOT CODE YET
+# 48. FIRST TASK
 
-Before changing anything, inspect the complete repository and return:
+## DO NOT CODE YET.
 
-## 1. Existing Architecture
+First inspect the entire repository and return:
 
-* Frontend
-* Backend
-* Database
-* Authentication
-* Storage
-* Routes
-* Server actions
-* Existing components
+### 1. Current frontend architecture
 
-## 2. Existing Features
+### 2. All existing routes/pages
 
-List everything currently working.
+### 3. All existing reusable components
 
-## 3. Existing Database
+### 4. Existing design system
 
-Show current tables and relationships.
+### 5. Existing animations
 
-## 4. UI Audit
+### 6. Existing business logic that must be preserved
 
-Explain which existing pages should be:
+### 7. Existing responsive behavior
 
-* Redesigned
-* Preserved
-* Merged
-* Replaced
-* Extended
+### 8. Complete UI audit
 
-## 5. New Information Architecture
+### 9. Proposed new ArtWall design system
 
-Show proposed ArtWall navigation.
+### 10. Proposed navigation
 
-## 6. New Design System
+### 11. Proposed landing page structure
 
-Explain:
+### 12. Proposed onboarding flow
 
-* Colors
-* Typography
-* Spacing
-* Components
-* Buttons
-* Cards
-* Tables
-* Forms
-* Artwork layouts
+### 13. Proposed dashboard structure
 
-## 7. Dashboard Wireframe
+### 14. Proposed artwork UI
 
-Show the proposed dashboard structure.
+### 15. Animation strategy
 
-## 8. Artwork Inventory Wireframe
+### 16. Migration strategy
 
-Show:
+### 17. Potential regression risks
 
-* Grid
-* List
-* Table
-* Filters
-* Search
-* Bulk actions
-
-## 9. Artwork Detail Wireframe
-
-Show the proposed artwork detail structure.
-
-## 10. Public Artist Profile
-
-Show the proposed public profile structure.
-
-## 11. Database ERD
-
-Show proposed entities and relationships.
-
-## 12. Backend Architecture
-
-Explain:
-
-* Server actions
-* APIs
-* Services
-* Validation
-* Authorization
-* Database access
-
-## 13. Animation Strategy
-
-Explain where animations will be used and how they will behave.
-
-## 14. Implementation Roadmap
-
-Break the work into small, safe milestones.
-
-## 15. Risk Assessment
-
-Identify anything that could potentially break existing functionality.
+Then wait for approval before making major changes.
 
 ---
 
 # FINAL INSTRUCTION
 
-**Do not start making major code changes until you have completed the audit and presented the architecture and UI plan.**
+**Redesign the entire ArtWall frontend, not just individual pages.**
 
-Once approved, implement the redesign incrementally.
+Keep all existing functionality intact.
 
-Never sacrifice existing working functionality just to implement a new feature.
+Make the UI:
 
-The goal is not to make ArtWall look like a copy of Artwork Archive.
+> **Minimal + Warm Off-White + Editorial + Premium + Art-First + Professional**
 
-The goal is to make ArtWall feel like a **much more polished, premium, minimal, professional art-management platform inspired by the best parts of Artwork Archive and VarisArt, with its own identity.**
+Make onboarding:
+
+> **Simple + Fast + Beautiful + Clear**
+
+Make animations:
+
+> **Smooth + Subtle + Performant + Purposeful**
+
+And make sure the final application feels like a **real professional art platform**, not a generic template.
+
+**Do not sacrifice functionality for visual design.**
+
+**Do not sacrifice performance for animations.**
+
+**Do not sacrifice usability for aesthetics.**
+
+Build a UI where all three work together:
+
+```text
+              ARTWALL
+
+       BEAUTIFUL
+          +
+       USABLE
+          +
+       FAST
+```
 
 ```
 ```

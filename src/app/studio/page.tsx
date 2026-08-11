@@ -1,38 +1,15 @@
-import { ArrowUpRight, Plus, Sparkles } from "lucide-react";
+import { ArrowUpRight, Plus, Send, Sparkles } from "lucide-react";
+import { redirect } from "next/navigation";
 
+import { getStudioArtistProfile } from "@/app/actions/artist-profile";
+import { getArtworks } from "@/app/actions/artworks";
 import { StudioButton, StudioEmptyState, StudioMetric, StudioPageHeader } from "@/components/dashboard/studio-shell";
 
-const activity = [
-  { title: "Studio workspace created", detail: "Your catalogue is ready for its first work.", date: "Today" },
-  { title: "Public profile reserved", detail: "Your artist profile will appear here when published.", date: "Today" },
-];
+export default async function StudioOverviewPage() {
+  const [profile, artworks] = await Promise.all([getStudioArtistProfile(), getArtworks()]);
+  if (!profile.onboardingCompleted) redirect("/studio/onboarding");
 
-export default function StudioOverviewPage() {
-  return (
-    <div className="flex flex-col gap-8">
-      <StudioPageHeader
-        eyebrow="Monday, 11 August 2026"
-        title="Good morning, Aarav."
-        description="A quiet place to keep the shape of your practice in view. Start with your first work, then let the archive grow with you."
-        action={<StudioButton href="/studio/artworks/new"><Plus data-icon="inline-start" />Add artwork</StudioButton>}
-      />
-
-      <section aria-label="Studio summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StudioMetric label="Catalogue" value="0 works" detail="Your archive begins here" />
-        <StudioMetric label="Available" value="—" detail="No works marked available" />
-        <StudioMetric label="Exhibitions" value="0" detail="No upcoming exhibitions" />
-        <StudioMetric label="Contacts" value="0" detail="Your collector book is empty" />
-      </section>
-
-      <section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        <div className="studio-card p-6 md:p-8">
-          <div className="flex items-start justify-between gap-4"><div><p className="studio-eyebrow">Your archive</p><h2 className="mt-2 text-2xl text-studio-ink">Make the first mark</h2></div><Sparkles className="text-studio-accent" aria-hidden /></div>
-          <StudioEmptyState title="No artworks yet" description="Add a work to begin building the living record of your practice — images, materials, provenance, and its next place." action={<StudioButton href="/studio/artworks/new">Add your first artwork <ArrowUpRight data-icon="inline-end" /></StudioButton>} />
-        </div>
-        <div className="studio-card p-6 md:p-8"><div className="flex items-end justify-between gap-4"><div><p className="studio-eyebrow">Recent activity</p><h2 className="mt-2 text-2xl text-studio-ink">The paper trail</h2></div><span className="text-xs text-studio-muted">Last 30 days</span></div><div className="mt-7 flex flex-col gap-5">{activity.map((item) => <div key={item.title} className="flex gap-3 border-b border-studio-border pb-5 last:border-0 last:pb-0"><span className="mt-1 size-2 shrink-0 rounded-full bg-studio-accent" aria-hidden /><div className="min-w-0"><p className="text-sm font-medium text-studio-ink">{item.title}</p><p className="mt-1 text-xs leading-5 text-studio-muted">{item.detail}</p></div><time className="ml-auto shrink-0 text-xs text-studio-muted">{item.date}</time></div>)}</div></div>
-      </section>
-
-      <section className="studio-note"><p className="studio-eyebrow">A note from the studio</p><p className="mt-3 max-w-2xl font-heading text-xl leading-8 text-studio-ink">The best catalogues are not just records of what exists. They are a way of noticing what is becoming.</p></section>
-    </div>
-  );
+  const available = artworks.filter((artwork) => artwork.status === "available").length;
+  const publicWorks = artworks.filter((artwork) => artwork.isPublic).length;
+  return <div className="flex flex-col gap-8"><StudioPageHeader eyebrow="Your ArtWall Studio" title={`Welcome back, ${profile.displayName.split(" ")[0]}.`} description={profile.published ? "Your public profile is live. Keep building the catalogue behind it." : "Your profile is private until you decide it is ready for the ArtWall community."} action={profile.published ? <StudioButton href={`/artist/${profile.handle}`}>View profile <ArrowUpRight data-icon="inline-end" /></StudioButton> : <StudioButton href="/studio/settings"><Send data-icon="inline-start" />Publish profile</StudioButton>} /><section aria-label="Studio summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StudioMetric label="Catalogue" value={`${artworks.length} ${artworks.length === 1 ? "work" : "works"}`} detail="Your living archive" /><StudioMetric label="Available" value={String(available)} detail="Works marked available" /><StudioMetric label="Public works" value={String(publicWorks)} detail="Ready for your profile" /><StudioMetric label="Profile" value={profile.published ? "Live" : "Private"} detail={profile.published ? "Visible on ArtWall" : "Only you can see it"} /></section><section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]"><div className="studio-card p-6 md:p-8"><div className="flex items-start justify-between gap-4"><div><p className="studio-eyebrow">Your archive</p><h2 className="mt-2 text-2xl text-studio-ink">{artworks.length ? "Keep the record growing" : "Make the first mark"}</h2></div><Sparkles className="text-studio-accent" aria-hidden /></div>{artworks.length === 0 ? <StudioEmptyState title="No artworks yet" description="Add a work to begin building the living record of your practice — image, materials, dimensions, and story." action={<StudioButton href="/studio/artworks/new">Add your first artwork <ArrowUpRight data-icon="inline-end" /></StudioButton>} /> : <div className="mt-6 flex items-center justify-between rounded-xl border border-studio-border bg-studio-bg p-5"><div><p className="font-medium text-studio-ink">Your catalogue has room to breathe.</p><p className="mt-1 text-sm text-studio-muted">Add the next work or refine how the public profile tells your story.</p></div><StudioButton href="/studio/artworks/new"><Plus data-icon="inline-start" />Add work</StudioButton></div>}</div><div className="studio-card p-6 md:p-8"><p className="studio-eyebrow">Public profile</p><h2 className="mt-2 text-2xl text-studio-ink">{profile.published ? "On the wall" : "Almost there"}</h2><p className="mt-3 text-sm leading-6 text-studio-muted">{profile.published ? `Visitors can find your practice at artwall.in/artist/${profile.handle}.` : "Complete the profile, choose the works to show, then publish only when it feels right."}</p><div className="mt-6"><StudioButton href="/studio/settings">{profile.published ? "Edit public profile" : "Prepare profile"} <ArrowUpRight data-icon="inline-end" /></StudioButton></div></div></section></div>;
 }

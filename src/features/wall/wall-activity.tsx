@@ -53,20 +53,20 @@ function Event({ event }: { event: WallEvent }) {
   const when = useRelativeTime(event.at);
 
   return (
-    <li className="border-border flex min-w-56 shrink-0 items-center gap-3 border-l pl-4 first:border-l-0 first:pl-0">
+    <li className="flex min-w-56 items-center gap-3 rounded-xl border border-[#e8e8e7] bg-white px-4 py-3 shadow-[0_4px_16px_rgb(16_17_20/0.03)]">
       {/* An initial, not a photograph — we have no right to show a face here
           without the artist having chosen to publish one. */}
-      <span className="bg-ember/15 text-ember font-heading inline-flex size-9 shrink-0 items-center justify-center rounded-full text-sm">
+      <span className="font-heading inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[#edf3ff] text-sm text-[#245fc5]">
         {event.name.charAt(0).toUpperCase()}
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="text-small truncate font-medium">{event.name}</span>
-        <span className="text-caption text-muted-foreground truncate">
+        <span className="text-caption truncate text-[#747b86]">
           {event.hasArtwork ? "Hung a work" : "Claimed a place"}
           {event.city && ` · ${event.city}`}
         </span>
       </span>
-      <span className="text-caption text-ink-muted ml-auto shrink-0 tabular-nums">
+      <span className="text-caption ml-auto shrink-0 text-[#8b8f96] tabular-nums">
         {when}
       </span>
     </li>
@@ -82,29 +82,29 @@ function Event({ event }: { event: WallEvent }) {
  */
 export function WallActivity({ events, cohortSize }: WallActivityProps) {
   return (
-    <div className="border-border bg-wall-charcoal/60 flex flex-col gap-4 rounded-xl border p-5 backdrop-blur-md sm:flex-row sm:items-center sm:gap-6">
+    <section className="flex flex-col gap-4 border-y border-[#e7e7e5] py-5 sm:flex-row sm:items-center sm:gap-7">
       <div className="flex shrink-0 items-center gap-2">
-        <span className="text-label tracking-[0.14em] uppercase">
-          Wall activity
+        <span className="text-label tracking-[0.14em] text-[#34363a] uppercase">
+          Fresh on the wall
         </span>
-        <span className="text-caption text-ember flex items-center gap-1.5">
-          <span className="bg-ember size-1.5 animate-pulse rounded-full" />
+        <span className="text-caption flex items-center gap-1.5 text-[#245fc5]">
+          <span className="size-1.5 animate-pulse rounded-full bg-[#4385f4]" />
           Live
         </span>
       </div>
 
       {events.length === 0 ? (
-        <p className="text-muted-foreground text-small">
+        <p className="text-small text-[#747b86]">
           Nobody has taken a place yet. All {cohortSize} founding places are
           open — the first one is still there.
         </p>
       ) : (
-        <ul className="flex gap-4 overflow-x-auto sm:gap-6">
+        <ul className="flex gap-3 overflow-x-auto pb-1 sm:gap-4">
           {events.map((event) => (
             <Event key={`${event.founderNumber}-${event.at}`} event={event} />
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowUpRight } from "lucide-react";
 
 import { Wordmark } from "@/components/brand/wordmark";
 import { navItems, primaryCta, secondaryNavItems } from "@/config/nav";
@@ -29,7 +30,24 @@ export function SiteFooter() {
           {siteConfig.tagline}
         </p>
 
-        <div className="mt-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Link
+            href="/preview"
+            className="bg-ember text-wall-paper text-body hover:bg-ember-glow inline-flex h-12 items-center gap-2 rounded-md px-5 font-medium transition-[background-color,transform] duration-200 hover:-translate-y-px active:translate-y-0"
+          >
+            See your work hung
+            <ArrowUpRight className="size-4" aria-hidden />
+          </Link>
+          <Link
+            href="/wall"
+            className="border-border text-body hover:border-ink/30 inline-flex h-12 items-center gap-2 rounded-md border px-5 transition-[border-color,transform] duration-200 hover:-translate-y-px active:translate-y-0"
+          >
+            Explore The Wall
+            <ArrowUpRight className="size-4" aria-hidden />
+          </Link>
+        </div>
+
+        <div className="mt-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
             <Wordmark markClassName="size-6" />
             <p className="text-muted-foreground text-small mt-4 max-w-xs">
@@ -61,12 +79,12 @@ export function SiteFooter() {
             </dl>
           </div>
 
-          <nav aria-label="Footer">
+          <nav aria-label="Explore">
             <h2 className="text-label text-muted-foreground font-sans tracking-wider uppercase">
               Explore
             </h2>
             <ul className="mt-4 flex flex-col gap-3">
-              {[...navItems, ...secondaryNavItems].map((item) => (
+              {navItems.map((item) => (
                 <li key={item.href}>
                   <Link
                     href={item.href}
@@ -82,6 +100,32 @@ export function SiteFooter() {
                   className="text-ember hover:text-ember-glow text-small transition-colors"
                 >
                   {primaryCta.label}
+                </Link>
+              </li>
+            </ul>
+          </nav>
+
+          <nav aria-label="Practice">
+            <h2 className="text-label text-muted-foreground font-sans tracking-wider uppercase">
+              Practice
+            </h2>
+            <ul className="mt-4 flex flex-col gap-3">
+              {secondaryNavItems.map((item) => (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className="text-muted-foreground hover:text-foreground text-small transition-colors"
+                  >
+                    {item.label}
+                  </Link>
+                </li>
+              ))}
+              <li>
+                <Link
+                  href="/sign-in"
+                  className="text-muted-foreground hover:text-foreground text-small transition-colors"
+                >
+                  ArtWall Studio
                 </Link>
               </li>
             </ul>
@@ -108,7 +152,7 @@ export function SiteFooter() {
           </div>
         </div>
 
-        <div className="border-border mt-16 flex flex-col gap-4 border-t pt-8">
+        <div className="border-border mt-16 flex flex-col gap-4 border-t pt-8 sm:flex-row sm:items-end sm:justify-between">
           <div className="text-muted-foreground text-caption flex flex-wrap gap-x-6 gap-y-2">
             <span>{siteConfig.credentials.recognition}</span>
             <span>{siteConfig.credentials.origin}</span>
@@ -124,7 +168,7 @@ export function SiteFooter() {
               </a>
             </span>
           </div>
-          <p className="text-muted-foreground text-caption">
+          <p className="text-muted-foreground text-caption shrink-0">
             &copy; {new Date().getFullYear()} {siteConfig.legalName}. All rights
             reserved.
           </p>

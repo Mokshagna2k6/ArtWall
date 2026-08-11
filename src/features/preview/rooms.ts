@@ -1,31 +1,14 @@
-/**
- * The rooms an artwork can be previewed in.
- *
- * Each room is described as CSS (gradients + geometry) rather than a
- * photograph. Three reasons that is the better engineering call here:
- *
- *  1. Weight — five licensed interior photographs would add megabytes to a page
- *     whose entire argument is that it loads instantly on an Indian 4G phone.
- *  2. Consistency — a generated room can be lit to match the brand exactly,
- *     where stock photography drags in someone else's colour grade.
- *  3. Focus — an abstract room keeps attention on the artwork, which is the
- *     whole point. A photorealistic sofa competes with the painting.
- *
- * If real photography is added later, only this table and the room renderer
- * change; the upload and framing logic is untouched.
- */
+/** CSS-defined rooms keep the preview lightweight and keep the artwork central. */
 export interface Room {
   id: string;
   label: string;
-  /** Short line shown under the preview — sets the scene. */
+  eyebrow: string;
   caption: string;
-  /** The wall surface behind the artwork. */
+  detail: string;
   wall: string;
-  /** Floor/foreground band. */
   floor: string;
-  /** Ambient light wash over the scene. */
   light: string;
-  /** Frame treatment that suits the room. */
+  accent: string;
   frame: "thin-dark" | "wide-light" | "none";
 }
 
@@ -33,51 +16,66 @@ export const rooms: readonly Room[] = [
   {
     id: "gallery",
     label: "Gallery",
-    caption: "A white-cube gallery, lit from above.",
-    wall: "linear-gradient(180deg, #EFEDE8 0%, #E2DFD8 100%)",
-    floor: "linear-gradient(180deg, #CFCAC1 0%, #B8B2A8 100%)",
+    eyebrow: "The white cube",
+    caption: "A considered, day-lit gallery wall.",
+    detail: "Clean light · quiet attention",
+    wall: "linear-gradient(180deg, #fbfaf7 0%, #e9e6df 100%)",
+    floor: "linear-gradient(180deg, #d2cec6 0%, #aaa59c 100%)",
     light:
-      "radial-gradient(60% 45% at 50% 8%, rgb(255 250 235 / 0.85), transparent 70%)",
+      "radial-gradient(58% 46% at 50% 6%, rgb(255 255 255 / 0.95), transparent 72%)",
+    accent: "#4385f4",
     frame: "thin-dark",
   },
   {
     id: "museum",
     label: "Museum",
-    caption: "A deep-toned museum hall.",
-    wall: "linear-gradient(180deg, #2A3038 0%, #1D222A 100%)",
-    floor: "linear-gradient(180deg, #171B21 0%, #101317 100%)",
+    eyebrow: "The long view",
+    caption: "A deep museum hall with focused light.",
+    detail: "Dramatic light · lasting presence",
+    wall: "linear-gradient(180deg, #303640 0%, #1b2027 100%)",
+    floor: "linear-gradient(180deg, #1a1e24 0%, #0e1115 100%)",
     light:
-      "radial-gradient(55% 40% at 50% 10%, rgb(255 226 170 / 0.35), transparent 72%)",
+      "radial-gradient(52% 42% at 50% 8%, rgb(255 231 187 / 0.4), transparent 74%)",
+    accent: "#e4b16e",
     frame: "wide-light",
   },
   {
     id: "hotel",
-    label: "Luxury hotel",
-    caption: "A warm hotel suite at dusk.",
-    wall: "linear-gradient(180deg, #3B322A 0%, #2A231D 100%)",
-    floor: "linear-gradient(180deg, #241D18 0%, #191411 100%)",
+    label: "Virtual 3D room",
+    eyebrow: "Coming soon",
+    caption: "A first look at ArtWall's immersive virtual exhibition.",
+    detail: "Walk-through preview · coming soon",
+    wall: "linear-gradient(180deg, #f5f4f0 0%, #e8e6df 100%)",
+    floor: "linear-gradient(180deg, #a29b91 0%, #756f67 100%)",
     light:
-      "radial-gradient(65% 50% at 50% 15%, rgb(232 163 61 / 0.28), transparent 74%)",
-    frame: "wide-light",
+      "radial-gradient(58% 48% at 50% 8%, rgb(255 255 255 / 0.96), transparent 74%)",
+    accent: "#4385f4",
+    frame: "thin-dark",
   },
   {
     id: "cafe",
     label: "Café",
-    caption: "An afternoon café wall.",
-    wall: "linear-gradient(180deg, #C9B79E 0%, #B29B7E 100%)",
-    floor: "linear-gradient(180deg, #7C6349 0%, #5D4936 100%)",
+    eyebrow: "The everyday wall",
+    caption: "An afternoon wall made for discovery.",
+    detail: "Human scale · warm encounter",
+    wall: "linear-gradient(180deg, #d8c5aa 0%, #bfa386 100%)",
+    floor: "linear-gradient(180deg, #896d52 0%, #5a4536 100%)",
     light:
-      "radial-gradient(70% 55% at 35% 12%, rgb(255 236 196 / 0.6), transparent 72%)",
+      "radial-gradient(68% 56% at 32% 10%, rgb(255 242 214 / 0.7), transparent 72%)",
+    accent: "#b5573b",
     frame: "thin-dark",
   },
   {
     id: "home",
-    label: "Minimal home",
-    caption: "A quiet room at home.",
-    wall: "linear-gradient(180deg, #E8E3DA 0%, #D6CFC3 100%)",
-    floor: "linear-gradient(180deg, #B9AE9D 0%, #9C9081 100%)",
+    label: "Home",
+    eyebrow: "The intimate room",
+    caption: "A quiet home, made personal by the work.",
+    detail: "Soft morning · lived-in calm",
+    wall: "linear-gradient(180deg, #f0ece4 0%, #ded7cc 100%)",
+    floor: "linear-gradient(180deg, #c1b4a2 0%, #968979 100%)",
     light:
-      "radial-gradient(60% 50% at 70% 10%, rgb(255 248 232 / 0.7), transparent 70%)",
+      "radial-gradient(60% 54% at 72% 7%, rgb(255 251 240 / 0.86), transparent 72%)",
+    accent: "#4385f4",
     frame: "none",
   },
 ];

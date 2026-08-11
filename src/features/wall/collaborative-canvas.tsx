@@ -2,6 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { PenLine } from "lucide-react";
 
 import { transition } from "@/lib/motion";
 
@@ -90,45 +91,73 @@ export function CollaborativeCanvas() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <svg
-        ref={svgRef}
-        viewBox="0 0 100 40"
-        preserveAspectRatio="none"
-        onPointerDown={start}
-        onPointerMove={move}
-        onPointerUp={end}
-        onPointerLeave={end}
-        onPointerCancel={end}
-        aria-hidden
-        className="border-border bg-wall-charcoal h-48 w-full touch-none rounded-xl border sm:h-64"
-        style={{ cursor: spent ? "default" : "crosshair" }}
-      >
-        {strokes.map((stroke, index) => (
-          <motion.path
-            key={index}
-            d={stroke.d}
+    <div className="overflow-hidden rounded-2xl border border-[#e2ded7] bg-white p-3 shadow-[0_12px_30px_rgb(16_17_20/0.04)] sm:p-4">
+      <div className="relative overflow-hidden rounded-xl bg-[#f0ede7]">
+        <svg
+          ref={svgRef}
+          viewBox="0 0 100 40"
+          preserveAspectRatio="none"
+          onPointerDown={start}
+          onPointerMove={move}
+          onPointerUp={end}
+          onPointerLeave={end}
+          onPointerCancel={end}
+          aria-hidden
+          className="h-48 w-full touch-none sm:h-56"
+          style={{ cursor: spent ? "default" : "crosshair" }}
+        >
+          <rect width="100" height="40" fill="#f0ede7" />
+          <path
+            d="M -10 30 C 15 18, 28 38, 48 27 S 80 11, 112 20"
             fill="none"
-            stroke={stroke.hue}
+            stroke="#d9d1c6"
+            strokeWidth="0.18"
+          />
+          <path
+            d="M -5 12 C 14 20, 29 3, 50 13 S 80 31, 105 17"
+            fill="none"
+            stroke="#d9d1c6"
+            strokeWidth="0.12"
+            strokeDasharray="1 1.5"
+          />
+          <circle cx="16" cy="10" r="0.45" fill="#4385f4" opacity="0.38" />
+          <circle cx="80" cy="30" r="0.55" fill="#db861b" opacity="0.45" />
+          {strokes.map((stroke, index) => (
+            <motion.path
+              key={index}
+              d={stroke.d}
+              fill="none"
+              stroke={stroke.hue}
+              strokeWidth={0.8}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              initial={{ pathLength: 0, opacity: 0.4 }}
+              animate={{ pathLength: 1, opacity: 1 }}
+              transition={transition.slow}
+            />
+          ))}
+          <path
+            ref={liveRef}
+            fill="none"
+            stroke="#db861b"
             strokeWidth={0.8}
             strokeLinecap="round"
             strokeLinejoin="round"
-            initial={{ pathLength: 0, opacity: 0.4 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={transition.slow}
           />
-        ))}
-        <path
-          ref={liveRef}
-          fill="none"
-          stroke="var(--color-ember)"
-          strokeWidth={0.8}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-
-      <p className="text-muted-foreground text-small">
+        </svg>
+        {!spent && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#d8d2c9] bg-[#faf9f5]/90 px-4 py-2 text-sm text-[#5b6472] shadow-sm backdrop-blur-sm">
+              <PenLine
+                className="size-4 text-[#db861b] motion-safe:animate-pulse"
+                aria-hidden
+              />{" "}
+              Draw one stroke
+            </span>
+          </div>
+        )}
+      </div>
+      <p className="mt-4 text-sm text-[#666f7b]">
         {spent ? (
           <>
             That&rsquo;s your stroke. One each — that&rsquo;s the whole rule.{" "}

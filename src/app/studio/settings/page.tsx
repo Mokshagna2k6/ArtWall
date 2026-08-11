@@ -1,3 +1,8 @@
-import { Settings2 } from "lucide-react";
-import { StudioEmptyState, StudioPageHeader } from "@/components/dashboard/studio-shell";
-export default function SettingsPage() { return <div className="flex flex-col gap-8"><StudioPageHeader eyebrow="Workspace" title="Settings" description="Shape the identity and defaults of your ArtWall Studio." /><div className="studio-card"><StudioEmptyState title="Workspace settings are coming together" description="Profile, publishing, permissions, and notification controls will live here." action={<Settings2 className="text-studio-accent" aria-hidden />} /></div></div>; }
+import { getStudioArtistProfile } from "@/app/actions/artist-profile";
+import { ArtistProfileForm } from "@/components/dashboard/artist-profile-form";
+import { StudioPageHeader } from "@/components/dashboard/studio-shell";
+
+export default async function SettingsPage() {
+  const profile = await getStudioArtistProfile();
+  return <div className="flex flex-col gap-8"><StudioPageHeader eyebrow="Public profile" title="Your ArtWall profile" description="Edit the identity visitors see, then choose exactly when to make it public." /><ArtistProfileForm profile={profile} /></div>;
+}

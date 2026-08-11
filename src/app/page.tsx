@@ -1,13 +1,13 @@
-import { FeatureMap } from "@/features/home/feature-map";
-import { PlatformTeaser } from "@/features/home/platform-teaser";
-import { Hero } from "@/features/hero/hero";
+import type { Metadata } from "next";
+
+import { LandingPage } from "@/features/home/landing-page";
+
+export const metadata: Metadata = {
+  title: "ArtWall Labs — Art lives on the wall.",
+  description:
+    "Reimagining and revolutionising India's art economy through exhibition, trusted exchange, and lasting provenance.",
+};
 
 export default function HomePage() {
-  return (
-    <>
-      <Hero />
-      <PlatformTeaser />
-      <FeatureMap />
-    </>
-  );
+  return <LandingPage />;
 }

@@ -84,8 +84,8 @@ const organisationJsonLd = {
 };
 
 export const viewport = {
-  themeColor: "#06070A",
-  colorScheme: "dark",
+  themeColor: "#fbf6ef",
+  colorScheme: "light",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

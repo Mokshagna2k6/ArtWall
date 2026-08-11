@@ -14,8 +14,8 @@ export default function ArchetypePage() {
     <section className="section-y max-w-wall mx-auto px-5 md:px-12 lg:px-16">
       <SectionHeading
         eyebrow="Archetype"
-        title="Find the artist you already are."
-        description="Five questions about what you notice, not what you think of yourself. There are no good answers, and nothing is saved."
+        title="Discover how your eye sees."
+        description="Five quiet encounters with observation, texture, space, memory and light. There are no right answers, and nothing is saved."
       />
 
       <div className="mt-12 max-w-3xl">

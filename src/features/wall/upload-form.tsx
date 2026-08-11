@@ -127,7 +127,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
   }
 
   const fieldClass =
-    "border-border bg-background placeholder:text-muted-foreground text-body h-11 rounded-md border px-3 focus-visible:border-ember";
+    "h-10 rounded-lg border border-[#e7e7e7] bg-[#fcfbf8] px-3 text-sm text-[#17181a] placeholder:text-[#9a9da3] transition-colors focus-visible:border-[#4385f4] focus-visible:bg-white";
 
   if (state.status === "success") {
     return (
@@ -161,7 +161,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
     <form
       ref={formRef}
       action={formAction}
-      className="border-border bg-wall-charcoal/40 flex flex-col gap-8 rounded-xl border p-6 sm:p-8"
+      className="flex flex-col gap-5 rounded-2xl border border-[#e8e8e7] bg-white p-5 shadow-[0_16px_48px_rgb(16_17_20/0.06)] sm:p-6"
     >
       {/* Hidden fields carrying what the browser already uploaded. */}
       <input type="hidden" name="artworkUrl" value={artwork.asset?.url ?? ""} />
@@ -201,7 +201,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
         className="pointer-events-none absolute -left-[9999px] size-0 opacity-0"
       />
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <DropSlot
           label="Your artwork"
           hint="The piece itself. Photograph it straight on, in daylight if you can."
@@ -224,7 +224,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
         />
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2">
         <Field id={nameId} label="Your name">
           <input
             id={nameId}
@@ -314,7 +314,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
         <button
           type="submit"
           disabled={pending || !artwork.asset}
-          className="bg-ember text-wall-black hover:bg-ember-glow text-body inline-flex h-12 items-center justify-center gap-2 rounded-md font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#17181a] text-sm font-semibold text-white transition hover:bg-[#33353a] disabled:cursor-not-allowed disabled:bg-[#ebe8e3] disabled:text-[#a5a19a]"
         >
           {pending ? (
             <>
@@ -391,8 +391,8 @@ function DropSlot({
       <label
         htmlFor={inputId}
         className={cn(
-          "group border-border hover:border-ember/50 relative flex aspect-4/3 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-lg border border-dashed transition-colors",
-          slot.asset && "border-ember/50 border-solid"
+          "group relative flex h-28 cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-dashed border-[#dfe1e5] bg-[#fcfbf8] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#4385f4] hover:bg-[#f6f8ff] hover:shadow-[0_12px_24px_rgb(67_133_244/0.10)] sm:h-32",
+          slot.asset && "border-solid border-[#4385f4]"
         )}
       >
         {slot.preview ? (
@@ -414,19 +414,19 @@ function DropSlot({
               </div>
             )}
             {slot.asset && !busy && (
-              <span className="bg-ember text-wall-black absolute top-2 right-2 inline-flex size-6 items-center justify-center rounded-full">
+              <span className="absolute top-3 right-3 inline-flex size-6 items-center justify-center rounded-full bg-[#4385f4] text-white shadow-sm">
                 <Check className="size-3.5" aria-hidden />
               </span>
             )}
           </>
         ) : (
           <>
-            <span className="text-muted-foreground group-hover:text-ember transition-colors">
+            <span className="text-[#7d828b] transition-colors group-hover:text-[#4385f4]">
               {icon}
             </span>
-            <span className="text-small font-medium">
+            <span className="text-small font-semibold text-[#17181a]">
               {label}
-              {required && <span className="text-ember"> *</span>}
+              {required && <span className="text-[#db861b]"> *</span>}
             </span>
           </>
         )}

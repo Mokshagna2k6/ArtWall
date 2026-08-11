@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Bell,
@@ -29,7 +30,7 @@ const navigation = [
   { label: "Tasks", href: "/studio/tasks", icon: ClipboardList },
 ];
 
-export function StudioShell({ children }: { children: ReactNode }) {
+export function StudioShell({ children, artistName, avatarUrl }: { children: ReactNode; artistName: string; avatarUrl: string | null }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -63,7 +64,7 @@ export function StudioShell({ children }: { children: ReactNode }) {
         <header className="studio-topbar">
           <button className="studio-icon-button md:hidden" onClick={() => setOpen(true)} aria-label="Open navigation"><Menu /></button>
           <div className="studio-search"><Search aria-hidden /><span>Search artworks, contacts, exhibitions</span><kbd>⌘ K</kbd></div>
-          <div className="ml-auto flex items-center gap-3"><button className="studio-icon-button" aria-label="Notifications"><Bell /></button><div className="studio-avatar">AS</div><button className="hidden items-center gap-1 text-sm font-medium text-studio-ink md:flex">Aarav Sharma<ChevronDown /></button></div>
+          <div className="ml-auto flex items-center gap-3"><button className="studio-icon-button" aria-label="Notifications"><Bell /></button>{avatarUrl ? <div className="studio-avatar relative overflow-hidden rounded-full"><Image src={avatarUrl} alt="" fill className="object-cover" sizes="32px" /></div> : <div className="studio-avatar rounded-full">{artistName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>}<Link href="/studio/settings" className="hidden items-center gap-1 text-sm font-medium text-studio-ink md:flex">{artistName}<ChevronDown /></Link></div>
         </header>
         <main className="studio-content">{children}</main>
       </div>

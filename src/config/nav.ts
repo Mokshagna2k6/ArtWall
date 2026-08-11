@@ -37,6 +37,16 @@ export const navItems: readonly NavItem[] = [
     href: "/journey",
     description: "From a sketch to a legacy",
   },
+  {
+    label: "The Platform",
+    href: "/platform",
+    description: "The system behind a fairer art economy",
+  },
+  {
+    label: "Living Map",
+    href: "/india",
+    description: "India's art cities, lighting up one artist at a time",
+  },
 ] as const;
 
 export const primaryCta = {
@@ -50,19 +60,9 @@ export const primaryCta = {
  */
 export const secondaryNavItems: readonly NavItem[] = [
   {
-    label: "The Platform",
-    href: "/platform",
-    description: "The problem, the three layers, and the artist's share",
-  },
-  {
     label: "Certification",
     href: "/certificate",
     description: "How we prove a work is yours",
-  },
-  {
-    label: "Living Map",
-    href: "/india",
-    description: "India's art cities, lighting up one artist at a time",
   },
   {
     label: "About",
