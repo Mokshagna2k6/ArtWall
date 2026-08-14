@@ -4,10 +4,10 @@
  * Scope and honesty about it: this is in-process memory. On a single long-lived
  * server it is a genuine control. On serverless it is per-instance, so a
  * determined attacker spread across cold starts gets a higher effective ceiling
- * — it stops casual abuse and accidental double-submits, not a botnet.
+ * - it stops casual abuse and accidental double-submits, not a botnet.
  *
  * For production hardening behind real traffic, back this with a shared store
- * (Vercel KV, Upstash, Redis) — the `check` signature is deliberately narrow so
+ * (Vercel KV, Upstash, Redis) - the `check` signature is deliberately narrow so
  * swapping the backing store touches nothing else.
  */
 interface Window {

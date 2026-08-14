@@ -1,18 +1,130 @@
-import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
-  id: text("id").primaryKey(), name: text("name").notNull(), email: text("email").notNull().unique(), emailVerified: boolean("emailVerified").notNull().default(false), image: text("image"), createdAt: timestamp("createdAt").notNull().defaultNow(), updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("emailVerified").notNull().default(false),
+  image: text("image"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
-export const session = pgTable("session", { id: text("id").primaryKey(), expiresAt: timestamp("expiresAt").notNull(), token: text("token").notNull().unique(), createdAt: timestamp("createdAt").notNull().defaultNow(), updatedAt: timestamp("updatedAt").notNull().defaultNow(), ipAddress: text("ipAddress"), userAgent: text("userAgent"), userId: text("userId").notNull() });
-export const account = pgTable("account", { id: text("id").primaryKey(), accountId: text("accountId").notNull(), providerId: text("providerId").notNull(), userId: text("userId").notNull(), accessToken: text("accessToken"), refreshToken: text("refreshToken"), idToken: text("idToken"), accessTokenExpiresAt: timestamp("accessTokenExpiresAt"), refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt"), scope: text("scope"), password: text("password"), createdAt: timestamp("createdAt").notNull().defaultNow(), updatedAt: timestamp("updatedAt").notNull().defaultNow() });
-export const verification = pgTable("verification", { id: text("id").primaryKey(), identifier: text("identifier").notNull(), value: text("value").notNull(), expiresAt: timestamp("expiresAt").notNull(), createdAt: timestamp("createdAt").defaultNow(), updatedAt: timestamp("updatedAt").defaultNow() });
+export const session = pgTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
+  userId: text("userId").notNull(),
+});
+export const account = pgTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("accountId").notNull(),
+  providerId: text("providerId").notNull(),
+  userId: text("userId").notNull(),
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  idToken: text("idToken"),
+  accessTokenExpiresAt: timestamp("accessTokenExpiresAt"),
+  refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt"),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+export const verification = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+});
 
-export const artistProfiles = pgTable("artist_profiles", { userId: text("userId").primaryKey(), handle: text("handle").notNull().unique(), displayName: text("displayName").notNull(), discipline: text("discipline"), location: text("location"), bio: text("bio"), website: text("website"), instagram: text("instagram"), avatarUrl: text("avatarUrl"), published: boolean("published").notNull().default(false), publishedAt: timestamp("publishedAt"), onboardingCompleted: boolean("onboardingCompleted").notNull().default(false), createdAt: timestamp("createdAt").notNull().defaultNow(), updatedAt: timestamp("updatedAt").notNull().defaultNow() });
+export const artistProfiles = pgTable("artist_profiles", {
+  userId: text("userId").primaryKey(),
+  handle: text("handle").notNull().unique(),
+  displayName: text("displayName").notNull(),
+  discipline: text("discipline"),
+  location: text("location"),
+  bio: text("bio"),
+  website: text("website"),
+  instagram: text("instagram"),
+  avatarUrl: text("avatarUrl"),
+  published: boolean("published").notNull().default(false),
+  publishedAt: timestamp("publishedAt"),
+  onboardingCompleted: boolean("onboardingCompleted").notNull().default(false),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
 
-export const artworks = pgTable("artworks", { id: text("id").primaryKey(), userId: text("userId").notNull(), title: text("title").notNull(), year: integer("year"), medium: text("medium"), description: text("description"), dimensions: text("dimensions"), status: text("status").notNull().default("available"), imageUrl: text("imageUrl"), imagePublicId: text("imagePublicId"), isPublic: boolean("isPublic").notNull().default(true), createdAt: timestamp("createdAt").notNull().defaultNow(), updatedAt: timestamp("updatedAt").notNull().defaultNow() });
-export const contacts = pgTable("contacts", { id: text("id").primaryKey(), userId: text("userId").notNull(), name: text("name").notNull(), email: text("email"), kind: text("kind").notNull().default("collector"), createdAt: timestamp("createdAt").notNull().defaultNow() });
-export const collections = pgTable("collections", { id: text("id").primaryKey(), userId: text("userId").notNull(), name: text("name").notNull(), description: text("description"), createdAt: timestamp("createdAt").notNull().defaultNow() });
-export const tasks = pgTable("tasks", { id: text("id").primaryKey(), userId: text("userId").notNull(), title: text("title").notNull(), status: text("status").notNull().default("open"), dueAt: timestamp("dueAt"), createdAt: timestamp("createdAt").notNull().defaultNow() });
-export const sales = pgTable("sales", { id: text("id").primaryKey(), userId: text("userId").notNull(), contactId: text("contactId"), artworkId: text("artworkId"), status: text("status").notNull().default("lead"), amount: integer("amount"), createdAt: timestamp("createdAt").notNull().defaultNow() });
-export const documents = pgTable("documents", { id: text("id").primaryKey(), userId: text("userId").notNull(), title: text("title").notNull(), kind: text("kind").notNull().default("certificate"), url: text("url"), createdAt: timestamp("createdAt").notNull().defaultNow() });
-export const rooms = pgTable("rooms", { id: text("id").primaryKey(), userId: text("userId").notNull(), name: text("name").notNull(), slug: text("slug").notNull(), createdAt: timestamp("createdAt").notNull().defaultNow() });
+export const artworks = pgTable("artworks", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  title: text("title").notNull(),
+  year: integer("year"),
+  medium: text("medium"),
+  description: text("description"),
+  dimensions: text("dimensions"),
+  status: text("status").notNull().default("available"),
+  imageUrl: text("imageUrl"),
+  imagePublicId: text("imagePublicId"),
+  isPublic: boolean("isPublic").notNull().default(true),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+export const contacts = pgTable("contacts", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  name: text("name").notNull(),
+  email: text("email"),
+  kind: text("kind").notNull().default("collector"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+export const collections = pgTable("collections", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+export const tasks = pgTable("tasks", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("open"),
+  dueAt: timestamp("dueAt"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+export const sales = pgTable("sales", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  contactId: text("contactId"),
+  artworkId: text("artworkId"),
+  status: text("status").notNull().default("lead"),
+  amount: integer("amount"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+export const documents = pgTable("documents", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  title: text("title").notNull(),
+  kind: text("kind").notNull().default("certificate"),
+  url: text("url"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+export const rooms = pgTable("rooms", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});

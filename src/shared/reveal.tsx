@@ -10,7 +10,7 @@ import { fadeUp, staggerContainer, viewportOnce } from "@/lib/motion";
  *
  * Resolved from a table declared once at module scope rather than by calling
  * `motion.create()` per render. A factory call during render mints a new
- * component type every pass, so React unmounts and remounts the subtree —
+ * component type every pass, so React unmounts and remounts the subtree -
  * state lost, animations restarted from nothing. This is the same capability
  * with none of that risk, and it keeps the wrapper honest about which
  * semantic elements it is willing to produce.
@@ -34,7 +34,7 @@ type RevealTag = keyof typeof motionTags;
 interface RevealProps {
   children: ReactNode;
   className?: string;
-  /** Render as something other than a div — `ul`, `section`, `li`, etc. */
+  /** Render as something other than a div - `ul`, `section`, `li`, etc. */
   as?: RevealTag;
   /** Delay before this element's own entrance, in seconds. */
   delay?: number;
@@ -46,13 +46,13 @@ interface RevealProps {
  *
  * Every narrative section wants the same thing: content that fades up once as
  * it arrives and then stays put. Writing that inline in each component invites
- * drift — one section at 20px, another at 8px, a third re-triggering on every
+ * drift - one section at 20px, another at 8px, a third re-triggering on every
  * scroll past. This owns the ceremony so all of them are identical.
  *
  * `viewportOnce` is the important detail: a reveal that re-fires when you
  * scroll back up reads as a page that cannot settle (§12).
  *
- * Reduced motion is handled globally by `MotionProvider` — the fade survives,
+ * Reduced motion is handled globally by `MotionProvider` - the fade survives,
  * the travel does not.
  */
 export function Reveal({

@@ -136,7 +136,7 @@ export function LivingMap({ litCities = [] }: LivingMapProps) {
                       cx={x}
                       cy={y}
                       r={3.6}
-                      fill="var(--color-ember)"
+                      fill="var(--color-signal)"
                       initial={{ opacity: 0.08 }}
                       animate={
                         prefersReducedMotion
@@ -155,18 +155,26 @@ export function LivingMap({ litCities = [] }: LivingMapProps) {
                     <motion.circle
                       cx={x}
                       cy={y}
+                      r={1.8}
                       fill="none"
-                      stroke="var(--color-ember)"
+                      stroke="var(--color-signal)"
                       strokeWidth="0.35"
                       initial={{ r: 1.8, opacity: 0 }}
                       animate={{ r: 3, opacity: 0.9 }}
                       transition={transition.moderate}
                     />
                   )}
+                  {/* `r` is set as a real attribute as well as animated: on
+                      the first paint Framer has nothing to read otherwise, and
+                      the browser rejects r="undefined". A lit city is drawn in
+                      the signal colour, a map whose on and off states are the
+                      same hue is not saying anything. */}
                   <motion.circle
                     cx={x}
                     cy={y}
-                    fill={isLit ? "var(--color-ember)" : "var(--color-ink)"}
+                    r={1.05}
+                    fill={isLit ? "var(--color-signal)" : "var(--color-ink)"}
+                    initial={{ r: 1.05 }}
                     animate={{
                       r: isActive ? 1.5 : 1.05,
                       opacity: isLit ? 1 : 0.34,
@@ -181,7 +189,7 @@ export function LivingMap({ litCities = [] }: LivingMapProps) {
                     tabIndex={0}
                     role="button"
                     aria-pressed={isSelected}
-                    aria-label={`${city.name}, ${city.state} — ${city.known}${isLit ? ", has artists on The Wall" : ", waiting for its first artist"}`}
+                    aria-label={`${city.name}, ${city.state}, ${city.known}${isLit ? ", has artists on The Wall" : ", waiting for its first artist"}`}
                     className="cursor-pointer focus:outline-none"
                     onClick={() => chooseCity(city.name)}
                     onMouseEnter={() => setHoveredCity(city.name)}
@@ -276,7 +284,7 @@ export function LivingMap({ litCities = [] }: LivingMapProps) {
                 )}
               >
                 {city.name}
-                <span className="text-muted-foreground"> — {city.known}</span>
+                <span className="text-muted-foreground">, {city.known}</span>
               </button>
             </li>
           ))}

@@ -23,7 +23,7 @@ export const roles = ["artist", "collector"] as const;
  *
  * The client uploads directly and reports back the resulting URL, so this field
  * is attacker-controlled. Without a host check, anyone could POST a link to any
- * image on the internet and have the wall render it under our brand — an open
+ * image on the internet and have the wall render it under our brand - an open
  * hotlinking and defacement hole. Restricting the host closes it.
  */
 const cloudinaryUrl = z
@@ -47,7 +47,7 @@ const cloudinaryUrl = z
  * The single source of truth for waitlist input, shared by the client form and
  * the server action.
  *
- * It is defined once and validated *again* on the server — client validation is
+ * It is defined once and validated *again* on the server - client validation is
  * a UX affordance, never a security control, since anyone can POST directly to
  * the action endpoint.
  */
@@ -91,6 +91,15 @@ export const waitlistSchema = z.object({
   selfiePublicId: z.string().max(300).optional().or(z.literal("")),
   artworkTitle: z.string().trim().max(120).optional().or(z.literal("")),
   quote: z.string().trim().max(280).optional().or(z.literal("")),
+
+  /**
+   * Founding Member is opt-in, not a consequence of arriving early.
+   *
+   * Everyone who joins gets a numbered place; claiming founding status is a
+   * separate, deliberate yes. An unchecked box posts nothing at all, which is
+   * why this is coerced from "absent" rather than validated as a boolean.
+   */
+  foundingMember: z.boolean().default(false),
 });
 
 export type WaitlistInput = z.infer<typeof waitlistSchema>;

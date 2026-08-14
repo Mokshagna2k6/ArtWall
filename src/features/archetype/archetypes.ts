@@ -35,7 +35,7 @@ export const archetypes: Record<ArchetypeId, Archetype> = {
     line: "You recognise the future in what has been carefully carried forward.",
     body: "Your eye notices lineage: a motif repeated by hand, a colour held across generations, the evidence of a maker who knew where they came from. You are drawn to work with memory in its grain, and to the quiet freedom that comes from treating inheritance as a living material.",
     visualInstinct:
-      "You look for the hand behind the tradition — and the new mark it dares to make.",
+      "You look for the hand behind the tradition, and the new mark it dares to make.",
     traits: ["Lineage-aware", "Tactile", "Ritual-minded", "Patient looking"],
     visualDna: [
       { label: "Memory", value: "Deeply rooted" },
@@ -66,7 +66,7 @@ export const archetypes: Record<ArchetypeId, Archetype> = {
     line: "The world keeps giving you images before you have names for them.",
     body: "Place is your material: a particular weather, a face on a train, the colour of a wall at four in the afternoon. Your eye follows the living edge of things. You are drawn to work that still carries the time and air in which it was made.",
     visualInstinct:
-      "You trust the encounter — the image that arrives before the explanation.",
+      "You trust the encounter, the image that arrives before the explanation.",
     traits: ["Observant", "Place-led", "Open to accident", "Light-sensitive"],
     visualDna: [
       { label: "Memory", value: "In transit" },
@@ -94,7 +94,7 @@ export const archetypes: Record<ArchetypeId, Archetype> = {
   alchemist: {
     id: "alchemist",
     name: "The Alchemist",
-    line: "For you, matter is never only matter — it is a way of thinking.",
+    line: "For you, matter is never only matter, it is a way of thinking.",
     body: "You follow a surface until it tells you what it can become. Pigment, metal, fibre, ash, paper: the material is not a vehicle for the idea but an equal author of it. Your eye stays with the evidence of process, where transformation is still visible.",
     visualInstinct:
       "You look for the moment a material begins to speak in its own voice.",
@@ -187,7 +187,7 @@ export const archetypes: Record<ArchetypeId, Archetype> = {
     id: "builder",
     name: "The Builder",
     line: "You feel the architecture beneath an image before you name its subject.",
-    body: "Structure gives you pleasure: a grid that holds, a proportion that settles, a repetition with one deliberate interruption. You are drawn to work whose bones reward long looking — where craft and instinct have reached an exact, generous agreement.",
+    body: "Structure gives you pleasure: a grid that holds, a proportion that settles, a repetition with one deliberate interruption. You are drawn to work whose bones reward long looking, where craft and instinct have reached an exact, generous agreement.",
     visualInstinct:
       "You see the decisions that let a work stand quietly on its own.",
     traits: ["Structural", "Exacting", "Pattern-aware", "Composition-led"],

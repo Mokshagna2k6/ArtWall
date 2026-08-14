@@ -1,15 +1,15 @@
 /**
- * Genesis tiles — the art the wall is made of before artists arrive.
+ * Genesis tiles - the art the wall is made of before artists arrive.
  *
  * The brief is explicit that the wall must never look empty, and it is right:
  * an empty grid reads as an unfinished product, while a wall of real work reads
- * as a gallery that is already alive. Crucially this is not fake data — no
+ * as a gallery that is already alive. Crucially this is not fake data - no
  * invented artist, no borrowed artwork, nothing scraped. It is generative work
  * we draw ourselves, openly labelled as ours, and the narrative depends on that:
  * each tile is later *replaced* by a real artist until the wall belongs
  * entirely to the community.
  *
- * Each tile is a nod to a living Indian tradition — Warli, Madhubani, Phad,
+ * Each tile is a nod to a living Indian tradition - Warli, Madhubani, Phad,
  * Gond, Ajrakh, kolam, Jaipur blue pottery, mandala, Pattachitra, and the
  * Rajput jharokha. They are respectful abstractions in each form's own palette
  * and grammar, not reproductions of anyone's work.
@@ -21,7 +21,7 @@
  * hydration matches and a returning visitor sees the wall they remember.
  */
 
-/** Small deterministic PRNG (mulberry32) — same seed, same tile, every time. */
+/** Small deterministic PRNG (mulberry32) - same seed, same tile, every time. */
 function rng(seed: number) {
   let t = seed + 0x6d2b79f5;
   return () => {
@@ -32,6 +32,23 @@ function rng(seed: number) {
 }
 
 type Random = () => number;
+
+/**
+ * Round a coordinate to a stable precision.
+ *
+ * ECMAScript does not require `Math.sin`/`Math.cos` to be bit-identical
+ * across implementations, and Node and Chrome genuinely disagree in the last
+ * few bits: the server rendered `cy="24.885263290251284"` where the browser
+ * computed `24.885263290251288`, and React reported it as a hydration
+ * mismatch on every tile using trigonometry.
+ *
+ * Three decimals on a 100-unit viewBox is a thousandth of a tile, far below
+ * anything visible, and many orders of magnitude coarser than the
+ * disagreement, so both runtimes land on the same number.
+ */
+function p3(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}
 
 /** Pick one item deterministically. */
 function pick<T>(random: Random, items: readonly T[]): T {
@@ -58,14 +75,35 @@ const SAFFRON = "#E07B2C";
 const LOTUS = "#C2426A";
 
 interface FormProps {
-  random: Random;
   seed: number;
+}
+
+/**
+ * Each form's own generator, derived from the tile seed.
+ *
+ * Forms used to receive a single shared `Random` closure created by
+ * `GenesisTile`. That closure carries mutable state, so anything that invoked
+ * a form's body twice - React StrictMode double-renders in development -
+ * continued the number stream instead of restarting it, and the second pass
+ * drew different colours than the server had. The result was a hydration
+ * mismatch that swapped a tile's ground and motif.
+ *
+ * Building the generator inside the form makes each render a pure function of
+ * the seed, so server and client cannot diverge no matter how many times
+ * React chooses to call it.
+ *
+ * Offset by 1 so a form's palette does not correlate with the single draw
+ * that selected which form to use.
+ */
+function formRandom(seed: number): Random {
+  return rng(seed + 1);
 }
 
 /* ── 01 · Warli ───────────────────────────────────────────────────────────
    Chalk-white figures on mud. The whole tradition is built from two triangles
    and a circle, so the abstraction is honest rather than lossy. */
-function Warli({ random }: FormProps) {
+function Warli({ seed }: FormProps) {
+  const random = formRandom(seed);
   const dancers = 3 + Math.floor(random() * 2);
   const baseline = 68 + random() * 8;
 
@@ -86,10 +124,10 @@ function Warli({ random }: FormProps) {
         return (
           <line
             key={i}
-            x1={78 + Math.cos(angle) * 9}
-            y1={22 + Math.sin(angle) * 9}
-            x2={78 + Math.cos(angle) * 12.5}
-            y2={22 + Math.sin(angle) * 12.5}
+            x1={p3(78 + Math.cos(angle) * 9)}
+            y1={p3(22 + Math.sin(angle) * 9)}
+            x2={p3(78 + Math.cos(angle) * 12.5)}
+            y2={p3(22 + Math.sin(angle) * 12.5)}
             stroke={CHALK}
             strokeWidth={1}
           />
@@ -114,7 +152,7 @@ function Warli({ random }: FormProps) {
               fill={CHALK}
               stroke="none"
             />
-            {/* Two triangles, apex to apex — the Warli body */}
+            {/* Two triangles, apex to apex, the Warli body */}
             <path
               d={`M${x - 5} ${baseline - 22} L${x + 5} ${baseline - 22} L${x} ${baseline - 13} Z`}
             />
@@ -151,7 +189,8 @@ function Warli({ random }: FormProps) {
 /* ── 02 · Madhubani ───────────────────────────────────────────────────────
    A fish, double-outlined and hatched, inside the dense border the form is
    never without. */
-function Madhubani({ random }: FormProps) {
+function Madhubani({ seed }: FormProps) {
+  const random = formRandom(seed);
   const body = pick(random, [MADDER, INDIGO, VERDIGRIS, LOTUS]);
 
   return (
@@ -203,7 +242,7 @@ function Madhubani({ random }: FormProps) {
           stroke={INK}
           strokeWidth={1.6}
         />
-        {/* Hatching — the fill that makes it Madhubani rather than a logo */}
+        {/* Hatching, the fill that makes it Madhubani rather than a logo */}
         {Array.from({ length: 7 }).map((_, i) => (
           <line
             key={i}
@@ -246,7 +285,8 @@ function Madhubani({ random }: FormProps) {
 /* ── 03 · Phad ────────────────────────────────────────────────────────────
    Rajasthan's narrative scroll: flat red and saffron grounds, figures in
    profile, the horse of Pabuji at the centre. */
-function Phad({ random }: FormProps) {
+function Phad({ seed }: FormProps) {
+  const random = formRandom(seed);
   const ground = pick(random, [MADDER, SAFFRON]);
 
   return (
@@ -262,7 +302,7 @@ function Phad({ random }: FormProps) {
           fill={CREAM}
         />
         <circle cx={23} cy={-16} r={1.4} fill={INK} stroke="none" />
-        {/* Caparison dots — Phad horses are never plain */}
+        {/* Caparison dots, Phad horses are never plain */}
         {Array.from({ length: 6 }).map((_, i) => (
           <circle
             key={i}
@@ -288,7 +328,8 @@ function Phad({ random }: FormProps) {
 
 /* ── 04 · Gond ────────────────────────────────────────────────────────────
    A tree of life built from the signature dot-and-dash fill. */
-function Gond({ random }: FormProps) {
+function Gond({ seed }: FormProps) {
+  const random = formRandom(seed);
   const canopy = pick(random, [VERDIGRIS, COBALT, LOTUS, TURMERIC]);
 
   return (
@@ -313,7 +354,7 @@ function Gond({ random }: FormProps) {
         strokeWidth={1.2}
       />
 
-      {/* Dot rows — the Gond signature */}
+      {/* Dot rows, the Gond signature */}
       {Array.from({ length: 5 }).map((_, row) =>
         Array.from({ length: 9 }).map((__, i) => {
           const y = 24 + row * 8;
@@ -342,7 +383,8 @@ function Gond({ random }: FormProps) {
 /* ── 05 · Ajrakh ──────────────────────────────────────────────────────────
    Resist block printing from Kachchh: madder, indigo, and undyed cream in a
    strict geometric repeat. */
-function Ajrakh({ random }: FormProps) {
+function Ajrakh({ seed }: FormProps) {
+  const random = formRandom(seed);
   const ground = pick(random, [INDIGO, MADDER]);
   const motif = ground === INDIGO ? MADDER : INDIGO;
 
@@ -409,7 +451,8 @@ function Ajrakh({ random }: FormProps) {
 /* ── 06 · Kolam ───────────────────────────────────────────────────────────
    The rice-flour threshold drawing: a dot grid, and one continuous line
    looping around every dot without lifting. */
-function Kolam({ random }: FormProps) {
+function Kolam({ seed }: FormProps) {
+  const random = formRandom(seed);
   const line = pick(random, [CHALK, TURMERIC]);
 
   return (
@@ -452,9 +495,10 @@ function Kolam({ random }: FormProps) {
 }
 
 /* ── 07 · Jaipur blue pottery ─────────────────────────────────────────────
-   Cobalt on quartz-white — the one Indian pottery tradition that uses no clay
+   Cobalt on quartz-white, the one Indian pottery tradition that uses no clay
    at all, and the Pink City's own. */
-function BluePottery({ random }: FormProps) {
+function BluePottery({ seed }: FormProps) {
+  const random = formRandom(seed);
   const petals = 6 + Math.floor(random() * 3);
 
   return (
@@ -506,7 +550,8 @@ function BluePottery({ random }: FormProps) {
 
 /* ── 08 · Mandala ─────────────────────────────────────────────────────────
    Concentric symmetry, drawn in turmeric and copper on a dark ground. */
-function Mandala({ random }: FormProps) {
+function Mandala({ seed }: FormProps) {
+  const random = formRandom(seed);
   const tint = pick(random, [TURMERIC, SAFFRON, LOTUS]);
   const rings = 3;
 
@@ -523,8 +568,8 @@ function Mandala({ random }: FormProps) {
               return (
                 <circle
                   key={i}
-                  cx={50 + Math.cos(angle) * radius}
-                  cy={50 + Math.sin(angle) * radius}
+                  cx={p3(50 + Math.cos(angle) * radius)}
+                  cy={p3(50 + Math.sin(angle) * radius)}
                   r={ring === 0 ? 3.4 : ring === 1 ? 2.4 : 1.6}
                   fill={ring % 2 === 0 ? tint : CHALK}
                 />
@@ -550,7 +595,8 @@ function Mandala({ random }: FormProps) {
 /* ── 09 · Pattachitra ─────────────────────────────────────────────────────
    Odisha's palm-leaf painting: an unbroken decorated border, and the great
    elongated eye. */
-function Pattachitra({ random }: FormProps) {
+function Pattachitra({ seed }: FormProps) {
+  const random = formRandom(seed);
   const iris = pick(random, [INK, INDIGO]);
 
   return (
@@ -603,9 +649,10 @@ function Pattachitra({ random }: FormProps) {
 }
 
 /* ── 10 · Jharokha ────────────────────────────────────────────────────────
-   The Rajput cusped window a miniature is framed by — sandstone, and a garden
+   The Rajput cusped window a miniature is framed by, sandstone, and a garden
    glimpsed through it. */
-function Jharokha({ random }: FormProps) {
+function Jharokha({ seed }: FormProps) {
+  const random = formRandom(seed);
   const sky = pick(random, [INDIGO, VERDIGRIS, "#2A2350"]);
 
   return (
@@ -690,8 +737,9 @@ interface GenesisTileProps {
 }
 
 export function GenesisTile({ seed, className }: GenesisTileProps) {
-  const random = rng(seed);
-  const Form = FORMS[Math.floor(random() * FORMS.length)];
+  // A fresh generator, and exactly one draw from it, so re-invoking this
+  // component always selects the same form.
+  const Form = FORMS[Math.floor(rng(seed)() * FORMS.length)];
 
   return (
     <svg
@@ -700,7 +748,7 @@ export function GenesisTile({ seed, className }: GenesisTileProps) {
       aria-hidden
       preserveAspectRatio="xMidYMid slice"
     >
-      <Form random={random} seed={seed} />
+      <Form seed={seed} />
 
       {/* A whisper of the wall's own darkness over everything, so a grid of
           ten traditions still reads as one wall rather than ten posters. Kept

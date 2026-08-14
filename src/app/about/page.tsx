@@ -1,193 +1,141 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 
 import { ArtWallLogo } from "@/components/brand/artwall-logo";
-import { primaryCta } from "@/config/nav";
-import { lifecycle, markElements, products } from "@/config/products";
+import { faqs, stats, team } from "@/config/content";
+import { markElements } from "@/config/products";
 import { siteConfig } from "@/config/site";
-import { SectionHeading } from "@/shared/section-heading";
+import { ArtworkBand } from "@/features/home/artwork-band";
+import { Faqs } from "@/features/about/faqs";
+import { Container, Eyebrow, Section } from "@/shared/editorial";
 
 export const metadata: Metadata = {
   title: "About",
   description:
-    "Artwall Labs builds the platform where artists exhibit, certify, and sell their work — physical exhibitions, tamper-proof provenance, and a fair marketplace.",
+    "ArtWall Labs is a DPIIT-recognised company building India's art operating system: registry, exhibitions, provenance, a fair marketplace, anti-fraud, and demand-triggered sale.",
+  alternates: { canonical: "/about" },
 };
 
+/**
+ * About.
+ *
+ * The company, the mark, the people, and the questions everyone asks. Ordered
+ * so a sceptical reader gets the credentials before the story: who this is,
+ * then who is building it, then what they usually want to check.
+ */
 export default function AboutPage() {
-  const launching = products.filter((product) => product.atLaunch);
-  const later = products.filter((product) => !product.atLaunch);
-
   return (
     <>
-      <section className="section-y max-w-wall mx-auto px-5 md:px-12 lg:px-16">
-        <SectionHeading
-          eyebrow="About us"
-          title="The platform behind every wall."
-          description="Artwall Labs builds the place where artists exhibit, certify, and sell. We connect creators with audiences through physical exhibitions, tamper-proof provenance, and a marketplace that pays the maker properly — in one system rather than five."
-        />
+      <section className="pt-32 pb-16 sm:pt-40 sm:pb-20 lg:pt-48 lg:pb-24">
+        <div className="max-w-page mx-auto px-5 sm:px-8 lg:px-16">
+          <Eyebrow>About</Eyebrow>
+          <h1 className="font-heading text-display mt-8 max-w-[18ch] text-balance">
+            The platform behind every wall.
+          </h1>
+          <p className="text-muted-foreground text-lead mt-6 max-w-2xl">
+            ArtWall Labs builds the place where artists exhibit, certify and
+            sell. Physical exhibitions, tamper-proof provenance, and a
+            marketplace that pays the maker properly, in one system rather than
+            five.
+          </p>
+        </div>
       </section>
 
-      {/* The mark, explained. */}
-      <section className="section-y border-border max-w-wall mx-auto border-t px-5 md:px-12 lg:px-16">
-        <SectionHeading
-          eyebrow="The mark"
-          title="Four things, holding each other in place."
-        />
+      <ArtworkBand />
 
-        <div className="mt-12 grid items-start gap-12 lg:grid-cols-2">
-          <div className="border-border bg-wall-charcoal/40 flex items-center justify-center rounded-xl border p-12">
+
+      {/* ── The mark ─────────────────────────────────────────────────── */}
+      <Section id="mark">
+        <Eyebrow index="01">The mark</Eyebrow>
+        <h2 className="font-heading text-section mt-10 max-w-3xl text-balance">
+          Four things, holding each other in place.
+        </h2>
+
+        <div className="mt-12 grid items-start gap-12 lg:grid-cols-2 lg:gap-24">
+          <div className="border-border flex items-center justify-center border p-12">
             <ArtWallLogo className="size-40" titled />
           </div>
 
-          <dl className="flex flex-col gap-8">
+          <dl className="border-border border-t">
             {markElements.map((element) => (
-              <div key={element.name} className="flex flex-col gap-1.5">
-                <dt className="font-heading text-h4 tracking-tight">
-                  {element.name}
-                </dt>
-                <dd className="text-muted-foreground text-body">
+              <div
+                key={element.name}
+                className="border-border grid gap-2 border-b py-6 sm:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)] sm:gap-8"
+              >
+                <dt className="font-heading text-card">{element.name}</dt>
+                <dd className="text-muted-foreground leading-7">
                   {element.line}
                 </dd>
               </div>
             ))}
           </dl>
         </div>
-      </section>
+      </Section>
 
-      {/* Lifecycle */}
-      <section className="section-y border-border max-w-wall mx-auto border-t px-5 md:px-12 lg:px-16">
-        <SectionHeading
-          eyebrow="The lifecycle"
-          title="The wall to exhibit. The ledger to prove."
-          description="Five stages an artwork moves through in the ArtWall system."
-        />
+      {/* ── The team ─────────────────────────────────────────────────── */}
+      <Section id="team">
+        <Eyebrow index="02">The team</Eyebrow>
+        <div className="mt-10 max-w-3xl">
+          <h2 className="font-heading text-section text-balance">
+            Built by people who understand the problem.
+          </h2>
+          <p className="text-muted-foreground text-lead mt-5">
+            Indian law, AI and ML engineering, art community building, and
+            startup operations.
+          </p>
+        </div>
 
-        <ol className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-5">
-          {lifecycle.map((stage, index) => (
-            <li key={stage.step} className="flex flex-col gap-3">
-              <span className="text-ember text-label tracking-wider tabular-nums">
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <span className="font-heading text-h4 tracking-tight">
-                {stage.step}
-              </span>
-              <span className="text-muted-foreground text-small">
-                {stage.line}
-              </span>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      {/* Products */}
-      <section className="section-y border-border max-w-wall mx-auto border-t px-5 md:px-12 lg:px-16">
-        <SectionHeading
-          eyebrow="What we're building"
-          title="Nine products, one system."
-          description="Everything below shares one artist account, one certificate standard, and one marketplace."
-        />
-
-        <ul className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {launching.map((product) => (
+        <ul className="border-border mt-12 border-t">
+          {team.map((member) => (
             <li
-              key={product.name}
-              className="border-border bg-wall-charcoal/40 flex flex-col gap-2 rounded-xl border p-6"
+              key={member.name}
+              className="border-border grid gap-4 border-b py-8 lg:grid-cols-[4rem_minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-10"
             >
-              <span className="text-ember text-caption tracking-wider uppercase">
-                {product.audience}
+              <span
+                aria-hidden
+                className="border-border text-muted-foreground flex size-12 items-center justify-center border text-sm font-medium"
+              >
+                {member.initials}
               </span>
-              <span className="font-heading text-h4 tracking-tight">
-                {product.name}
-              </span>
-              <span className="text-muted-foreground text-small">
-                {product.line}
-              </span>
+              <div>
+                <h3 className="font-heading text-card">{member.name}</h3>
+                <p className="text-muted-foreground text-eyebrow mt-1.5">
+                  {member.role}
+                </p>
+              </div>
+              <p className="text-muted-foreground leading-7">{member.bio}</p>
             </li>
           ))}
         </ul>
+      </Section>
 
-        {later.length > 0 && (
-          <>
-            <h3 className="text-muted-foreground text-label mt-12 tracking-wider uppercase">
-              After launch
-            </h3>
-            <ul className="mt-4 grid gap-4 sm:grid-cols-2">
-              {later.map((product) => (
-                <li
-                  key={product.name}
-                  className="border-border flex flex-col gap-1.5 rounded-xl border border-dashed p-6"
-                >
-                  <span className="font-heading text-h4 tracking-tight">
-                    {product.name}
-                  </span>
-                  <span className="text-muted-foreground text-small">
-                    {product.line}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-      </section>
+      {/* ── FAQs ─────────────────────────────────────────────────────── */}
+      <Section id="faq">
+        <Eyebrow index="03">Frequently asked</Eyebrow>
+        <h2 className="font-heading text-section mt-10 max-w-3xl text-balance">
+          The questions people actually ask.
+        </h2>
+        <div className="mt-12 max-w-3xl">
+          <Faqs items={faqs} />
+        </div>
+      </Section>
 
-      {/* Company */}
-      <section className="section-y border-border max-w-wall mx-auto border-t px-5 md:px-12 lg:px-16">
-        <SectionHeading eyebrow="The company" title={siteConfig.legalName} />
-
-        <dl className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <dt className="text-muted-foreground text-label tracking-wider uppercase">
-              Recognition
-            </dt>
-            <dd className="text-body mt-2">
-              {siteConfig.credentials.recognition}
-            </dd>
+      <div className="border-border border-t">
+        <Container>
+          <div className="flex flex-col gap-6 py-16 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-muted-foreground max-w-xl text-sm leading-7">
+              {siteConfig.legalName}. {siteConfig.credentials.recognition}.{" "}
+              {siteConfig.credentials.origin}.
+            </p>
+            <Link
+              href="/contact"
+              className="bg-foreground inline-flex h-11 shrink-0 items-center px-5 text-sm font-medium text-white transition-colors hover:bg-[#2b3245]"
+            >
+              Contact the team
+            </Link>
           </div>
-          <div>
-            <dt className="text-muted-foreground text-label tracking-wider uppercase">
-              Origin
-            </dt>
-            <dd className="text-body mt-2">{siteConfig.credentials.origin}</dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground text-label tracking-wider uppercase">
-              Technology partner
-            </dt>
-            <dd className="text-body mt-2">
-              <a
-                href={siteConfig.techPartner.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-ember underline underline-offset-4 transition-colors"
-              >
-                {siteConfig.techPartner.name}
-              </a>
-            </dd>
-          </div>
-          <div>
-            <dt className="text-muted-foreground text-label tracking-wider uppercase">
-              Reach us
-            </dt>
-            <dd className="text-body mt-2">
-              <a
-                href={`mailto:${siteConfig.contact.email}`}
-                className="hover:text-ember underline underline-offset-4 transition-colors"
-              >
-                {siteConfig.contact.email}
-              </a>
-            </dd>
-          </div>
-        </dl>
-
-        <Link
-          href={primaryCta.href}
-          className="bg-ember text-wall-black hover:bg-ember-glow text-body mt-12 inline-flex h-12 items-center gap-2 rounded-md px-6 font-medium transition-colors"
-        >
-          {primaryCta.label}
-          <ArrowRight className="size-4" aria-hidden />
-        </Link>
-      </section>
+        </Container>
+      </div>
     </>
   );
 }

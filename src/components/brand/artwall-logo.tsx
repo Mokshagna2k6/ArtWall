@@ -12,18 +12,23 @@ interface ArtWallLogoProps {
 /**
  * The ArtWall mark, drawn to the brand's own reading of it:
  *
- *   THE WALL — two interlocking L-shapes forming an *open* frame. It is broken
+ *   THE WALL - two interlocking L-shapes forming an *open* frame. It is broken
  *              on purpose: an exhibition is an invitation, not an enclosure.
- *   THE LAB  — a sealed square. Closed because immutability is the point.
- *   THE SEED — the amber dot at the origin, where the artist begins.
- *   THE VOID — the overlap. Not emptiness; where creator meets collector.
+ *   THE LAB  - a sealed square. Closed because immutability is the point.
+ *   THE SEED - the amber dot at the origin, where the artist begins.
+ *   THE VOID - the overlap. Not emptiness; where creator meets collector.
  *
  * The open/closed contrast is the whole idea, so the wall is drawn as two L
- * strokes with a deliberate gap rather than as a rectangle — a closed wall
+ * strokes with a deliberate gap rather than as a rectangle - a closed wall
  * would say the opposite of what the brand means.
  *
  * Inline SVG rather than a raster asset: sharp at every size, inherits
  * `currentColor` so it works on light and dark surfaces, and costs no request.
+ *
+ * Every part is drawn from `currentColor` at a different opacity rather than
+ * from fixed brand values. A hardcoded near-black seed vanished against the
+ * slate footer; deriving from the inherited colour means the mark re-tunes
+ * itself to whatever ground it is placed on, with no dark-mode variant.
  */
 export function ArtWallLogo({ className, titled = false }: ArtWallLogoProps) {
   return (
@@ -35,32 +40,33 @@ export function ArtWallLogo({ className, titled = false }: ArtWallLogoProps) {
       aria-label={titled ? "ArtWall" : undefined}
       aria-hidden={titled ? undefined : true}
     >
-      {/* THE VOID — the overlap zone, faintly held so it reads as a place */}
+      {/* THE VOID, the overlap zone, faintly held so it reads as a place */}
       <rect
         x="12.75"
         y="11.75"
         width="7.5"
         height="7.5"
-        fill="var(--color-lab-blue)"
-        fillOpacity="0.1"
+        fill="currentColor"
+        fillOpacity="0.12"
       />
 
-      {/* THE LAB — sealed square */}
+      {/* THE LAB, sealed square */}
       <rect
         x="12.75"
         y="11.75"
         width="14.5"
         height="14.5"
-        stroke="var(--color-lab-blue)"
+        stroke="currentColor"
+        strokeOpacity="0.55"
         strokeWidth="1.5"
       />
 
-      {/* THE WALL — two L strokes, open at the corners */}
+      {/* THE WALL, two L strokes, open at the corners */}
       <path d="M5.75 13.5V4.75h8.75" stroke="currentColor" strokeWidth="1.5" />
       <path d="M20.25 10.5v8.75H11.5" stroke="currentColor" strokeWidth="1.5" />
 
-      {/* THE SEED — the origin point */}
-      <circle cx="5.75" cy="13.5" r="1.9" fill="var(--color-ember)" />
+      {/* THE SEED, the origin point */}
+      <circle cx="5.75" cy="13.5" r="1.9" fill="currentColor" />
     </svg>
   );
 }

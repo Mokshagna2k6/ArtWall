@@ -1,4 +1,58 @@
 import { Plus, Users } from "lucide-react";
 import { getContacts } from "@/app/actions/contacts";
-import { StudioButton, StudioEmptyState, StudioPageHeader } from "@/components/dashboard/studio-shell";
-export default async function ContactsPage() { const contacts = await getContacts(); return <div className="flex flex-col gap-8"><StudioPageHeader eyebrow="Network" title="Contacts" description="Build a thoughtful record of collectors, curators, galleries, and collaborators." action={<StudioButton><Plus data-icon="inline-start" />Add contact</StudioButton>} />{contacts.length === 0 ? <div className="studio-card"><StudioEmptyState title="Your collector book is empty" description="Contacts will become the connective tissue between your work and its next home." action={<StudioButton><Users data-icon="inline-start" />Add your first contact</StudioButton>} /></div> : <div className="studio-card overflow-hidden"><div className="flex flex-col divide-y divide-studio-border">{contacts.map((contact) => <div key={contact.id} className="flex items-center justify-between gap-4 p-5"><div><p className="font-medium text-studio-ink">{contact.name}</p><p className="mt-1 text-sm text-studio-muted">{contact.email ?? "No email"}</p></div><span className="studio-eyebrow">{contact.kind}</span></div>)}</div></div>}</div>; }
+import {
+  StudioButton,
+  StudioEmptyState,
+  StudioPageHeader,
+} from "@/components/dashboard/studio-shell";
+export default async function ContactsPage() {
+  const contacts = await getContacts();
+  return (
+    <div className="flex flex-col gap-8">
+      <StudioPageHeader
+        eyebrow="Network"
+        title="Contacts"
+        description="Build a thoughtful record of collectors, curators, galleries, and collaborators."
+        action={
+          <StudioButton>
+            <Plus data-icon="inline-start" />
+            Add contact
+          </StudioButton>
+        }
+      />
+      {contacts.length === 0 ? (
+        <div className="studio-card">
+          <StudioEmptyState
+            title="Your collector book is empty"
+            description="Contacts will become the connective tissue between your work and its next home."
+            action={
+              <StudioButton>
+                <Users data-icon="inline-start" />
+                Add your first contact
+              </StudioButton>
+            }
+          />
+        </div>
+      ) : (
+        <div className="studio-card overflow-hidden">
+          <div className="divide-studio-border flex flex-col divide-y">
+            {contacts.map((contact) => (
+              <div
+                key={contact.id}
+                className="flex items-center justify-between gap-4 p-5"
+              >
+                <div>
+                  <p className="text-studio-ink font-medium">{contact.name}</p>
+                  <p className="text-studio-muted mt-1 text-sm">
+                    {contact.email ?? "No email"}
+                  </p>
+                </div>
+                <span className="studio-eyebrow">{contact.kind}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

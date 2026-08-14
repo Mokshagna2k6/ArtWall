@@ -78,7 +78,7 @@ function Result({
             visible: { opacity: 1, y: 0 },
           }}
           transition={transition.slow}
-          className="font-heading text-h2 sm:text-h1 lg:text-display-s mt-4 tracking-tight"
+          className="font-heading text-section mt-4"
         >
           {result.name}
         </motion.h2>
@@ -368,7 +368,7 @@ export function ArchetypeQuiz() {
             <h2
               ref={questionHeadingRef}
               tabIndex={-1}
-              className="font-heading text-h2 lg:text-h1 mt-3 max-w-3xl tracking-tight text-balance"
+              className="font-heading text-subsection mt-3 max-w-3xl text-balance"
             >
               {question.prompt}
             </h2>

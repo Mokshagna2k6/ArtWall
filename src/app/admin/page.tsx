@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function AdminPage() {
   return (
-    <section className="section-y mx-auto max-w-xl px-5 md:px-12">
+    <section className="mx-auto max-w-xl px-5 pt-32 pb-20 sm:px-8 sm:pt-40">
       <SectionHeading
         eyebrow="Admin"
         title="Take a tile down."

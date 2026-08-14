@@ -4,11 +4,11 @@ import type { Transition, Variants } from "framer-motion";
  * Shared motion vocabulary.
  *
  * Source of truth: docs/ArtWall_Experience_Design_System.md §12 and §17.
- * Values mirror the CSS custom properties in globals.css — if you change one,
+ * Values mirror the CSS custom properties in globals.css - if you change one,
  * change both, so a ceremony feels identical whether it is driven by CSS or JS.
  *
  * Principle: motion tells the story, it does not decorate. Linear easing is
- * never used anywhere in this system — a hand placing a canvas on a wall does
+ * never used anywhere in this system - a hand placing a canvas on a wall does
  * not move at constant velocity.
  */
 
@@ -53,7 +53,7 @@ export const fadeIn: Variants = {
   visible: { opacity: 1, transition: transition.moderate },
 };
 
-/** Modal/overlay entrance — fade while scaling up from 96% (§14, #66). */
+/** Modal/overlay entrance - fade while scaling up from 96% (§14, #66). */
 export const fadeScale: Variants = {
   hidden: { opacity: 0, scale: 0.96 },
   visible: { opacity: 1, scale: 1, transition: transition.base },
@@ -62,7 +62,7 @@ export const fadeScale: Variants = {
 
 /**
  * Parent container that reveals children in sequence.
- * Stagger is capped at 90ms per §12 — beyond that a grid feels sluggish
+ * Stagger is capped at 90ms per §12 - beyond that a grid feels sluggish
  * rather than choreographed.
  */
 export function staggerContainer(stagger = 0.06, delayChildren = 0): Variants {

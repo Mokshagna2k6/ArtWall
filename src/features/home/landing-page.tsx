@@ -1,317 +1,324 @@
 import Link from "next/link";
-import { ArrowDown, ArrowUpRight, Check, Sparkles } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
+import { painStages, stats, testimonials } from "@/config/content";
 import { siteConfig } from "@/config/site";
+import { ArtworkBand } from "@/features/home/artwork-band";
+import { Assurances } from "@/features/home/assurances";
+import { Audiences } from "@/features/home/audiences";
+import {
+  ServiceCards,
+  ServicesFooterLink,
+} from "@/features/home/service-cards";
+import { LivingMap } from "@/features/india/living-map";
+import { PainStages } from "@/features/platform/pain-stages";
+import { getLitCities } from "@/features/waitlist/roster";
+import {
+  Band,
+  ChapterNumeral,
+  Container,
+  Eyebrow,
+  Section,
+} from "@/shared/editorial";
 
-const layers = [
-  {
-    number: "01",
-    title: "The Exhibition Engine",
-    detail:
-      "AI matches physical artworks with real-world walls in hotels, galleries and coworking spaces, where discovery naturally happens.",
-  },
-  {
-    number: "02",
-    title: "Trust at the point of sale",
-    detail:
-      "Bank-grade escrow and an AI fraud layer trained for Indian traditional forms help stop counterfeits before they reach a collector.",
-  },
-  {
-    number: "03",
-    title: "Provenance for life",
-    detail:
-      "Every work receives a tamper-proof certificate that travels with it, records its history, and enables royalties when it is resold.",
-  },
-] as const;
+/**
+ * The home page.
+ *
+ * Structure follows the argument rather than a template: what this is, the
+ * scale of the problem, the six systems, who it serves, what people say, and
+ * the way in. Each chapter is separated by a hairline instead of a coloured
+ * band, so the page reads as one continuous white wall.
+ *
+ * Server Component throughout except the audience tabs and the map, which are
+ * the only things here that need state.
+ *
+ * Async because the Living Map reads which cities already have a founding
+ * artist. That query is cached against the roster tag, so it costs one round
+ * trip per revalidation rather than one per visitor.
+ */
+export async function LandingPage() {
+  const litCities = await getLitCities();
 
-const people = [
-  [
-    "Artists & artisans",
-    "A fairer route from making to meaningful discovery, with a record that honours the work and its maker.",
-  ],
-  [
-    "Collectors",
-    "A calmer way to discover original work, understand its story and buy with confidence.",
-  ],
-  [
-    "Spaces & galleries",
-    "A thoughtful way to bring art into the places people already gather, stay and work.",
-  ],
-] as const;
-
-/** A deliberately quiet, information-first homepage for ArtWall Labs. */
-export function LandingPage() {
   return (
-    <div className="bg-[#faf9f5] text-[#101114]">
-      <section
-        id="top"
-        className="relative min-h-[42rem] overflow-hidden border-b border-[#e7e4df]"
-      >
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-[radial-gradient(circle_at_72%_18%,rgba(67,133,244,0.07),transparent_22rem),radial-gradient(circle_at_22%_85%,rgba(226,139,41,0.06),transparent_19rem)]"
-        />
-        <div className="relative mx-auto flex min-h-[42rem] max-w-[1040px] flex-col items-center justify-center px-5 pt-36 pb-20 text-center sm:px-8">
-          <BrandMark />
-          <p className="mt-7 text-[11px] font-semibold tracking-[0.34em] uppercase">
-            ArtWall Labs
-          </p>
-          <div className="mt-16 max-w-4xl">
-            <h1 className="font-heading text-[clamp(3.4rem,8vw,6.8rem)] leading-[0.95] tracking-[-0.055em] text-balance">
-              Art lives on the wall.
-            </h1>
-            <p className="mt-6 text-lg leading-8 text-[#4e5667] sm:text-2xl sm:leading-9">
-              Reimagining and revolutionising India&apos;s art economy.
+    <div className="bg-background">
+      {/* ── Hero ─────────────────────────────────────────────────────── */}
+      {/* Typographic and full width. A gallery announces a show with a wall
+          text, not a carousel, the statement is the whole first screen, and
+          the supporting line sits opposite it rather than beneath, so the eye
+          crosses the page instead of running down a single column. */}
+      <section className="pt-32 pb-16 sm:pt-40 sm:pb-20 lg:pt-48 lg:pb-24">
+        <div className="max-w-page mx-auto px-5 sm:px-8 lg:px-16">
+          <Eyebrow>Every wall, an exhibition</Eyebrow>
+          <h1 className="font-heading text-display mt-8 max-w-[16ch] text-balance">
+            India&apos;s art operating system.
+          </h1>
+
+          <div className="border-border mt-14 grid gap-10 border-t pt-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-20">
+            <p className="text-lead max-w-2xl">
+              Six integrated systems: artist registry, exhibition engine,
+              provenance and certification, a fair marketplace, a nine-layer
+              anti-fraud engine, and patented demand-triggered sale, built for
+              seven million Indian artisans.
             </p>
-          </div>
-          <div className="mt-10 flex flex-wrap justify-center gap-3">
-            <Link
-              href="#what-is-artwall"
-              className="inline-flex h-12 items-center gap-2 rounded-full bg-[#101114] px-5 text-sm font-semibold text-white transition hover:bg-[#2b2d33]"
-            >
-              Discover ArtWall <ArrowDown className="size-4" aria-hidden />
-            </Link>
-            <Link
-              href="/join"
-              className="inline-flex h-12 items-center rounded-full border border-[#d9d5cf] px-5 text-sm font-semibold transition hover:border-[#4385f4] hover:text-[#245fc5]"
-            >
-              Add your voice
-            </Link>
+
+            <div>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href="/join"
+                  className="bg-foreground inline-flex h-11 items-center px-5 text-sm font-medium text-white transition-colors hover:bg-[#2b3245]"
+                >
+                  Join the Wall
+                </Link>
+                <Link
+                  href="/platform"
+                  className="border-border hover:border-foreground inline-flex h-11 items-center px-5 text-sm font-medium transition-colors"
+                >
+                  Explore the platform
+                </Link>
+              </div>
+              <p className="text-muted-foreground mt-7 max-w-md text-sm leading-7">
+                <span className="text-foreground font-medium">
+                  First 10,000 artists = Founding Members.
+                </span>{" "}
+                We are building ArtWall with our founding community. Shape the
+                platform and carry the badge forever.
+              </p>
+            </div>
           </div>
         </div>
       </section>
 
-      <Section id="what-is-artwall" index="01" label="What is ArtWall">
-        <div className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-24">
-          <h2 className="font-heading text-4xl leading-tight tracking-[-0.035em] sm:text-5xl">
+      {/* ── The wall itself ──────────────────────────────────────────── */}
+      {/* Full-bleed and immediately after the headline: the first thing you
+          should meet on an art platform is the art, not another paragraph. */}
+      <ArtworkBand />
+
+
+      {/* Placed before the argument, not after it. Someone deciding whether to
+          upload a painting needs the rights question answered first. */}
+      {/* ── The three promises ───────────────────────────────────────── */}
+      <Band id="assurances">
+        <Assurances />
+      </Band>
+
+      {/* ── What this is ─────────────────────────────────────────────── */}
+      <Section id="what-is-artwall">
+        <div className="flex items-baseline gap-6">
+          <Eyebrow index="01">What is ArtWall</Eyebrow>
+          <ChapterNumeral className="ml-auto hidden lg:block">
+            01
+          </ChapterNumeral>
+        </div>
+        <div className="mt-10 grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
+          <h2 className="font-heading text-section text-balance">
             The infrastructure behind a fairer art economy.
           </h2>
-          <div className="space-y-6 text-lg leading-8 text-[#4e5667]">
+          <div className="text-muted-foreground text-lead space-y-5">
             <p>
               India has 42 million artists and artisans. Most never see fair
               value for their work: middlemen can absorb up to 85% of what a
-              buyer pays, fakes flood the market, and first-time collectors have
+              buyer pays, forgeries move freely, and a first-time collector has
               little reason to trust what they find.
             </p>
             <p>
               ArtWall Labs exists to change that. We are building a
-              creator-first platform that helps original work be discovered,
-              protected and fairly exchanged.
+              creator-first platform where original work is discovered,
+              protected, and fairly exchanged, and where the record of a piece
+              outlives the sale.
             </p>
           </div>
         </div>
       </Section>
 
-      <Section
-        id="how-we-do-it"
-        index="02"
-        label="How we do it"
-        className="border-y border-[#e7e4df] bg-[#f3f1ec]"
-      >
-        <div className="max-w-2xl">
-          <h2 className="font-heading text-4xl tracking-[-0.035em] sm:text-5xl">
-            Three connected layers. One stronger ecosystem.
+      {/* ── Services ─────────────────────────────────────────────────── */}
+      <Section id="services">
+        <div className="flex items-baseline gap-6">
+          <Eyebrow index="02">Services</Eyebrow>
+          <ChapterNumeral className="ml-auto hidden lg:block">
+            02
+          </ChapterNumeral>
+        </div>
+        <div className="mt-10 max-w-3xl">
+          <h2 className="font-heading text-section text-balance">
+            Six integrated systems. One platform.
           </h2>
-          <p className="mt-5 text-lg leading-8 text-[#4e5667]">
-            Each layer solves a different break in the path from artist to
-            collector—and works better because the others are there.
+          <p className="text-muted-foreground text-lead mt-5">
+            Every stage of the life of an artwork, from creation to legacy. Each
+            system is useful alone and stronger because the others are there.
           </p>
         </div>
-        <ol className="mt-14 border-t border-[#d9d5cf]">
-          {layers.map((layer) => (
-            <li
-              key={layer.number}
-              className="grid gap-4 border-b border-[#d9d5cf] py-7 sm:grid-cols-[5rem_minmax(0,0.75fr)_minmax(0,1.25fr)] sm:gap-8 sm:py-9"
-            >
-              <span className="font-heading text-xl text-[#4385f4]">
-                {layer.number}
-              </span>
-              <h3 className="font-heading text-2xl tracking-[-0.025em]">
-                {layer.title}
-              </h3>
-              <p className="leading-7 text-[#4e5667]">{layer.detail}</p>
-            </li>
-          ))}
-        </ol>
-        <p className="mt-7 inline-flex items-center gap-2 text-sm text-[#4e5667]">
-          <Check className="size-4 text-[#db861b]" aria-hidden /> Not an NFT or
-          a speculative token—just durable proof of a work&apos;s history.
-        </p>
+
+        {/* Boxes rather than rows. Six systems read as six things when each
+            one has its own edges; as a list they read as one long spec. */}
+        <div className="mt-12">
+          <ServiceCards />
+        </div>
+
+        <ServicesFooterLink />
       </Section>
 
-      <Section id="for-everyone" index="03" label="What's in it for everyone">
-        <div className="flex max-w-3xl flex-col gap-5">
-          <h2 className="font-heading text-4xl tracking-[-0.035em] sm:text-5xl">
-            A better art economy makes room for everyone.
+      {/* ── Why ArtWall Labs ─────────────────────────────────────────── */}
+      {/* The problem, after the solution. Leading with twenty-four failures
+          is a wall of bad news; leading with the six systems earns the right
+          to explain what each one is actually for. */}
+      <Section id="why">
+        <div className="flex items-baseline gap-6">
+          <Eyebrow index="03">Why ArtWall Labs</Eyebrow>
+          <ChapterNumeral className="ml-auto hidden lg:block">
+            03
+          </ChapterNumeral>
+        </div>
+        <div className="mt-10 max-w-3xl">
+          <h2 className="font-heading text-section text-balance">
+            Twenty-four failures across six stages. All answered.
           </h2>
-          <p className="text-lg leading-8 text-[#4e5667]">
-            ArtWall connects the people who make culture with the people and
-            places that keep it moving.
+          <p className="text-muted-foreground text-lead mt-5">
+            India has 42 million artists and a ₹30,000 crore market with no
+            integrated infrastructure underneath it. These are the failures that
+            compound, stage by stage.
           </p>
         </div>
-        <div className="mt-14 grid divide-y divide-[#e0dcd6] border-y border-[#e0dcd6] md:grid-cols-3 md:divide-x md:divide-y-0">
-          {people.map(([title, detail]) => (
-            <article
-              key={title}
-              className="px-0 py-7 md:px-8 md:first:pl-0 md:last:pr-0"
-            >
-              <Sparkles className="size-5 text-[#db861b]" aria-hidden />
-              <h3 className="font-heading mt-7 text-2xl tracking-[-0.025em]">
-                {title}
-              </h3>
-              <p className="mt-3 leading-7 text-[#4e5667]">{detail}</p>
-            </article>
-          ))}
+        <div className="mt-12">
+          <PainStages stages={painStages} />
         </div>
       </Section>
 
-      <Section
-        id="help-build"
-        index="04"
-        label="Help us build this"
-        className="border-y border-[#e7e4df] bg-[#f3f1ec]"
-      >
-        <div className="grid gap-12 lg:grid-cols-[1fr_1fr] lg:gap-24">
+      {/* ── Who it is for ────────────────────────────────────────────── */}
+      <Section id="for">
+        <div className="flex items-baseline gap-6">
+          <Eyebrow index="04">ArtWall for</Eyebrow>
+          <ChapterNumeral className="ml-auto hidden lg:block">
+            04
+          </ChapterNumeral>
+        </div>
+        <div className="mt-10">
+          <Audiences />
+        </div>
+      </Section>
+
+      {/* ── The living map ───────────────────────────────────────────── */}
+      <Section id="living-map">
+        <div className="flex items-baseline gap-6">
+          <Eyebrow index="05">Living map</Eyebrow>
+          <ChapterNumeral className="ml-auto hidden lg:block">
+            05
+          </ChapterNumeral>
+        </div>
+        <div className="mt-10 grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
           <div>
-            <h2 className="font-heading text-4xl tracking-[-0.035em] sm:text-5xl">
+            <h2 className="font-heading text-section text-balance">
+              A country that lights up one artist at a time.
+            </h2>
+            <p className="text-muted-foreground text-lead mt-5">
+              Twenty cities with traditions worth the world&apos;s attention.
+              Each one stays dark until an artist from there takes a place on
+              the wall.
+            </p>
+          </div>
+          <LivingMap litCities={litCities} />
+        </div>
+      </Section>
+
+      {/* ── Testimonials ─────────────────────────────────────────────── */}
+      {/* On the quiet band rather than plain white. One tonal shift halfway
+          down keeps a monochrome page from reading as one endless sheet. */}
+      <Band id="testimonials">
+        <Eyebrow index="06">What our community says</Eyebrow>
+        <div className="border-hairline-strong mt-12 grid gap-px border-t md:grid-cols-3">
+          {testimonials.map((testimonial) => (
+            <figure
+              key={testimonial.attribution}
+              className="border-hairline-strong flex flex-col justify-between gap-8 border-b py-10 md:border-r md:px-8 md:first:pl-0 md:last:border-r-0 md:last:pr-0"
+            >
+              <blockquote className="text-lead text-balance">
+                {testimonial.quote}
+              </blockquote>
+              <figcaption>
+                <span className="block text-sm font-medium">
+                  {testimonial.attribution}
+                </span>
+                <span className="text-muted-foreground block text-sm">
+                  {testimonial.context}
+                </span>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </Band>
+
+      {/* ── The way in ───────────────────────────────────────────────── */}
+      <Section id="join">
+        <div className="flex items-baseline gap-6">
+          <Eyebrow index="07">Take your place</Eyebrow>
+          <ChapterNumeral className="ml-auto hidden lg:block">
+            07
+          </ChapterNumeral>
+        </div>
+        <div className="mt-10 grid gap-14 lg:grid-cols-2 lg:gap-24">
+          <div>
+            <h2 className="font-heading text-section text-balance">
               This wall gets better with more voices on it.
             </h2>
-            <p className="mt-5 max-w-xl text-lg leading-8 text-[#4e5667]">
-              ArtWall is not being built from a distance. Explore the wall, tell
-              us what needs to work better, and help define what a trusted art
+            <p className="text-muted-foreground text-lead mt-5 max-w-xl">
+              ArtWall is not being built from a distance. Take a place, tell us
+              what needs to work better, and help decide what a trusted art
               economy should feel like.
             </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
-            <ActionCard
-              href="/wall"
-              title="The Wall"
-              detail="Meet the founding artists and add your own mark."
-            />
-            <ActionCard
-              href="/contact"
-              title="Suggestions & feedback"
-              detail="Tell the team what would make ArtWall more useful."
-            />
-          </div>
-        </div>
-      </Section>
-
-      <Section id="share" index="05" label="Pass the torch">
-        <div className="rounded-[2rem] border border-[#dad5ce] bg-white px-6 py-10 sm:px-10 sm:py-14 lg:flex lg:items-end lg:justify-between lg:gap-10">
-          <div className="max-w-2xl">
-            <h2 className="font-heading text-4xl tracking-[-0.035em] sm:text-5xl">
-              Know someone who belongs on the wall?
-            </h2>
-            <p className="mt-5 text-lg leading-8 text-[#4e5667]">
-              Challenge a friend to share their work. Pass on the idea that art
-              deserves to be seen, trusted and fairly valued.
+            <p className="text-muted-foreground mt-6 max-w-xl text-sm leading-7">
+              {siteConfig.credentials.recognition}.
             </p>
           </div>
-          <Link
-            href="/wall"
-            className="mt-8 inline-flex h-12 shrink-0 items-center gap-2 rounded-full border border-[#101114] px-5 text-sm font-semibold transition hover:bg-[#101114] hover:text-white lg:mt-0"
-          >
-            Share the wall <ArrowUpRight className="size-4" aria-hidden />
-          </Link>
+
+          <ul className="border-border border-t">
+            {[
+              {
+                href: "/wall",
+                title: "The Wall",
+                detail:
+                  "Meet the founding artists and hang your own work beside them.",
+              },
+              {
+                href: "/community#archetype",
+                title: "The Archetype",
+                detail:
+                  "How much do you know about art? Five questions, two minutes.",
+              },
+              {
+                href: "/survey",
+                title: "The Survey",
+                detail:
+                  "Tell us which of the twenty-four failures you have lived through.",
+              },
+              {
+                href: "/community",
+                title: "The Community",
+                detail:
+                  "Indiagrapher: chapters, spotlights, and people who show up in person.",
+              },
+            ].map((item) => (
+              <li key={item.href} className="border-border border-b">
+                <Link
+                  href={item.href}
+                  className="group flex items-start justify-between gap-6 py-7 transition-colors"
+                >
+                  <div>
+                    <h3 className="font-heading text-subsection transition-opacity group-hover:opacity-60">
+                      {item.title}
+                    </h3>
+                    <p className="text-muted-foreground mt-2 max-w-sm leading-7">
+                      {item.detail}
+                    </p>
+                  </div>
+                  <ArrowUpRight
+                    className="mt-1.5 size-5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                    aria-hidden
+                  />
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       </Section>
-
-      <Section
-        id="community"
-        index="06"
-        label="Join the voice communities"
-        className="border-t border-[#e7e4df] bg-[#101114] text-[#faf9f5]"
-      >
-        <div className="grid gap-10 lg:grid-cols-[1fr_auto] lg:items-end">
-          <div className="max-w-3xl">
-            <h2 className="font-heading text-4xl tracking-[-0.035em] sm:text-5xl">
-              Help keep culture alive.
-            </h2>
-            <p className="mt-5 text-lg leading-8 text-[#c7c6c2]">
-              Our mission is to democratise opportunity for India&apos;s
-              creative economy—so every artisan has digital access, every
-              artwork can carry verified provenance, and every transaction can
-              support a sustainable creative life.
-            </p>
-          </div>
-          <Link
-            href="/join"
-            className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#4385f4] px-6 text-sm font-semibold text-white transition hover:bg-[#2f72dc]"
-          >
-            Join the community <ArrowUpRight className="size-4" aria-hidden />
-          </Link>
-        </div>
-        <p className="mt-16 border-t border-white/15 pt-5 text-sm text-[#a4a39e]">
-          Vision 2030: India&apos;s most trusted platform for creative commerce.
-        </p>
-      </Section>
-    </div>
-  );
-}
-
-function Section({
-  id,
-  index,
-  label,
-  className = "",
-  children,
-}: {
-  id: string;
-  index: string;
-  label: string;
-  className?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section id={id} className={`px-5 py-20 sm:px-8 sm:py-28 ${className}`}>
-      <div className="mx-auto max-w-[1040px]">
-        <p className="mb-8 text-[11px] font-semibold tracking-[0.24em] text-[#6d7480] uppercase">
-          <span className="mr-3 text-[#db861b]">{index}</span>
-          {label}
-        </p>
-        {children}
-      </div>
-    </section>
-  );
-}
-
-function ActionCard({
-  href,
-  title,
-  detail,
-}: {
-  href: string;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="group flex items-start justify-between gap-6 border border-[#d9d5cf] bg-[#faf9f5] p-6 transition hover:border-[#4385f4] hover:bg-white"
-    >
-      <div>
-        <h3 className="font-heading text-2xl tracking-[-0.025em]">{title}</h3>
-        <p className="mt-2 max-w-sm leading-7 text-[#4e5667]">{detail}</p>
-      </div>
-      <ArrowUpRight
-        className="mt-1 size-5 shrink-0 text-[#4385f4] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-        aria-hidden
-      />
-    </Link>
-  );
-}
-
-function BrandMark() {
-  return (
-    <div
-      className="relative h-30 w-35"
-      aria-label={`${siteConfig.name} mark`}
-      role="img"
-    >
-      <span className="absolute top-0 left-0 h-18 w-18 border-t-[3px] border-l-[3px] border-[#101114]" />
-      <span className="absolute top-[2.4rem] left-[2.4rem] h-18 w-18 border-[3px] border-[#4385f4]" />
-      <span className="absolute top-[2.1rem] left-[-0.32rem] size-3 rounded-full border-[3px] border-[#faf9f5] bg-[#db861b]" />
     </div>
   );
 }

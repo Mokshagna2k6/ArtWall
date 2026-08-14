@@ -26,7 +26,7 @@ const QUALITY = 0.82;
  * photo does not freeze the page while it is being read. WebP is preferred when
  * the browser can encode it (smaller at equal quality) with JPEG as fallback.
  *
- * EXIF is intentionally dropped by the canvas round-trip — camera files carry
+ * EXIF is intentionally dropped by the canvas round-trip - camera files carry
  * GPS coordinates, and an artist uploading from home should not be publishing
  * their address along with their painting.
  */

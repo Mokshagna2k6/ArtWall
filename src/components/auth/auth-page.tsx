@@ -6,21 +6,21 @@ type AuthMode = "sign-in" | "sign-up";
 
 const copy = {
   "sign-in": {
-    eyebrow: "ArtWall Studio",
+    eyebrow: "ArtWall",
     title: "Welcome back to the work.",
     description:
-      "Return to the artworks, records and relationships that make up your practice.",
-    formLabel: "Continue your practice",
-    alternate: "New to ArtWall Studio?",
-    alternateAction: "Create your studio",
+      "Sign in to hold your place on the wall, add work, and keep your record of it in one place.",
+    formLabel: "Sign in",
+    alternate: "New to ArtWall?",
+    alternateAction: "Create an account",
   },
   "sign-up": {
-    eyebrow: "ArtWall Studio",
-    title: "Give your practice a considered home.",
+    eyebrow: "ArtWall",
+    title: "An account, so the work stays yours.",
     description:
-      "Begin with your work, then carry it from the studio to the wall with its story intact.",
-    formLabel: "Begin your studio",
-    alternate: "Already have a studio?",
+      "A place on the wall is tied to a person, not an email address. Create an account and your work, your number and your record travel together.",
+    formLabel: "Create your account",
+    alternate: "Already have an account?",
     alternateAction: "Sign in",
   },
 } as const;
@@ -48,11 +48,13 @@ export function AuthPage({
     : alternatePath;
 
   return (
-    <main className="bg-background min-h-screen px-5 pt-28 pb-16 sm:px-8 sm:pt-36 lg:px-16 lg:pb-24">
-      <div className="mx-auto grid max-w-6xl items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,0.72fr)] lg:gap-24">
+    <main className="bg-background min-h-screen px-5 pt-32 pb-16 sm:px-8 sm:pt-40 sm:pb-20 lg:px-16 lg:pt-48 lg:pb-24">
+      <div className="max-w-page mx-auto grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(24rem,0.72fr)] lg:gap-24">
         <section className="pt-2 lg:pt-10">
-          <p className="studio-eyebrow">{content.eyebrow}</p>
-          <h1 className="font-heading mt-4 max-w-xl text-4xl leading-[1.02] tracking-[-0.035em] text-balance sm:text-5xl lg:text-[3.6rem]">
+          <p className="text-muted-foreground text-eyebrow">
+            {content.eyebrow}
+          </p>
+          <h1 className="font-heading text-display mt-4 max-w-[18ch] text-balance">
             {content.title}
           </h1>
           <p className="text-muted-foreground mt-5 max-w-md text-base leading-7">
@@ -60,23 +62,21 @@ export function AuthPage({
           </p>
 
           <div className="border-border mt-10 max-w-lg border-t pt-5">
-            <p className="text-ember text-caption tracking-[0.14em] uppercase">
-              From studio to wall
-            </p>
-            <p className="font-heading text-h4 mt-3 max-w-md text-balance">
+            <p className="text-muted-foreground text-eyebrow">Why an account</p>
+            <p className="font-heading text-subsection mt-3 max-w-md text-balance">
               The work stays connected to its story, wherever it goes next.
             </p>
             <Link
               href="/journey"
-              className="text-foreground decoration-ember hover:text-ember mt-5 inline-flex text-sm underline underline-offset-4 transition-colors"
+              className="text-foreground hover:text-muted-foreground mt-5 inline-flex text-sm underline underline-offset-4 transition-colors"
             >
-              See the ArtWall journey
+              See how it works
             </Link>
           </div>
         </section>
 
         <section className="w-full max-w-md lg:justify-self-end">
-          <p className="text-muted-foreground text-caption mb-3 tracking-[0.14em] uppercase">
+          <p className="text-muted-foreground text-eyebrow mb-3">
             {content.formLabel}
           </p>
           <AuthForm
@@ -87,7 +87,7 @@ export function AuthPage({
           <p className="text-muted-foreground mt-5 text-center text-sm">
             {content.alternate}{" "}
             <Link
-              className="text-foreground decoration-ember hover:text-ember underline underline-offset-4 transition-colors"
+              className="text-foreground hover:text-muted-foreground underline underline-offset-4 transition-colors"
               href={alternateHref}
             >
               {content.alternateAction}

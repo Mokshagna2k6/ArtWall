@@ -17,12 +17,19 @@ const profileSchema = z.object({
     .string()
     .trim()
     .toLowerCase()
-    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Use lowercase letters, numbers, and hyphens only.")
+    .regex(
+      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+      "Use lowercase letters, numbers, and hyphens only."
+    )
     .min(3)
     .max(60),
   discipline: z.string().trim().min(2).max(100),
   location: z.string().trim().min(2).max(120),
-  bio: z.string().trim().min(40, "Tell visitors a little more about your practice.").max(1_800),
+  bio: z
+    .string()
+    .trim()
+    .min(40, "Tell visitors a little more about your practice.")
+    .max(1_800),
   website: z
     .string()
     .trim()
@@ -34,7 +41,15 @@ const profileSchema = z.object({
     .string()
     .trim()
     .transform((value) => value.replace(/^@/, ""))
-    .pipe(z.string().regex(/^[a-zA-Z0-9._]*$/, "Enter an Instagram username, without a URL.").max(30))
+    .pipe(
+      z
+        .string()
+        .regex(
+          /^[a-zA-Z0-9._]*$/,
+          "Enter an Instagram username, without a URL."
+        )
+        .max(30)
+    )
     .transform((value) => value || null),
   avatarUrl: z
     .string()
@@ -60,7 +75,9 @@ export async function saveArtistProfile(input: unknown) {
   const data = profileSchema.parse(input);
 
   if (data.avatarUrl && !isOwnAsset(data.avatarUrl, "artwall/selfie")) {
-    throw new Error("That profile image could not be verified. Please upload it again.");
+    throw new Error(
+      "That profile image could not be verified. Please upload it again."
+    );
   }
 
   if (data.handle !== current.handle) {
@@ -94,13 +111,20 @@ export async function publishArtistProfile() {
   const user = await currentUser();
   const profile = await ensureArtistProfile(user);
   if (!profile.onboardingCompleted) {
-    throw new Error("Complete your artist profile before publishing it to ArtWall.");
+    throw new Error(
+      "Complete your artist profile before publishing it to ArtWall."
+    );
   }
 
   await db
     .update(artistProfiles)
     .set({ published: true, publishedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(artistProfiles.userId, user.id), eq(artistProfiles.onboardingCompleted, true)));
+    .where(
+      and(
+        eq(artistProfiles.userId, user.id),
+        eq(artistProfiles.onboardingCompleted, true)
+      )
+    );
 
   revalidatePath("/studio");
   revalidatePath("/studio/settings");

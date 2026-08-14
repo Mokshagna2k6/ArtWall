@@ -9,7 +9,7 @@ export function SkipLink() {
   return (
     <a
       href="#main"
-      className="bg-ember text-wall-black text-label sr-only rounded-md px-4 py-2 font-medium tracking-wide uppercase focus-visible:not-sr-only focus-visible:absolute focus-visible:top-4 focus-visible:left-4 focus-visible:z-600"
+      className="bg-ember text-label sr-only rounded-md px-4 py-2 font-medium tracking-wide text-white uppercase focus-visible:not-sr-only focus-visible:absolute focus-visible:top-4 focus-visible:left-4 focus-visible:z-600"
     >
       Skip to content
     </a>

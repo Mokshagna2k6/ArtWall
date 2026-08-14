@@ -12,16 +12,16 @@ interface Stroke {
 }
 
 const PIGMENTS = [
-  "#E8A33D",
-  "#B5573B",
-  "#2E4374",
-  "#3F6B5E",
-  "#7D4A5C",
-  "#C98A2E",
+  "#0f0f0f",
+  "#b23c3c",
+  "#0f0f0f",
+  "#3d3d3d",
+  "#5a5a5a",
+  "#0f0f0f",
 ] as const;
 
 /**
- * The Collaborative Canvas — one stroke each, forever.
+ * The Collaborative Canvas - one stroke each, forever.
  *
  * Every artist gets exactly one mark. The constraint is the whole idea: a
  * canvas anyone can paint on endlessly becomes noise, while a canvas where you
@@ -31,7 +31,7 @@ const PIGMENTS = [
  * Current scope, stated plainly: strokes live in this browser session only.
  * Persisting them to a shared canvas needs moderation (anything a stranger can
  * draw on a public surface *will* eventually be drawn), rate limiting, and an
- * append-only store — none of which should be improvised. The interaction is
+ * append-only store - none of which should be improvised. The interaction is
  * real and complete; the shared backing store is the next step, and the
  * component is shaped so that swapping local state for a server feed touches
  * nothing else.
@@ -91,8 +91,8 @@ export function CollaborativeCanvas() {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[#e2ded7] bg-white p-3 shadow-[0_12px_30px_rgb(16_17_20/0.04)] sm:p-4">
-      <div className="relative overflow-hidden rounded-xl bg-[#f0ede7]">
+    <div className="overflow-hidden rounded-2xl border border-[#e6e6e6] bg-white p-3 shadow-[0_12px_30px_rgb(16_17_20/0.04)] sm:p-4">
+      <div className="relative overflow-hidden rounded-xl bg-[#f7f7f7]">
         <svg
           ref={svgRef}
           viewBox="0 0 100 40"
@@ -106,22 +106,22 @@ export function CollaborativeCanvas() {
           className="h-48 w-full touch-none sm:h-56"
           style={{ cursor: spent ? "default" : "crosshair" }}
         >
-          <rect width="100" height="40" fill="#f0ede7" />
+          <rect width="100" height="40" fill="#f7f7f7" />
           <path
             d="M -10 30 C 15 18, 28 38, 48 27 S 80 11, 112 20"
             fill="none"
-            stroke="#d9d1c6"
+            stroke="#d4d4d4"
             strokeWidth="0.18"
           />
           <path
             d="M -5 12 C 14 20, 29 3, 50 13 S 80 31, 105 17"
             fill="none"
-            stroke="#d9d1c6"
+            stroke="#d4d4d4"
             strokeWidth="0.12"
             strokeDasharray="1 1.5"
           />
-          <circle cx="16" cy="10" r="0.45" fill="#4385f4" opacity="0.38" />
-          <circle cx="80" cy="30" r="0.55" fill="#db861b" opacity="0.45" />
+          <circle cx="16" cy="10" r="0.45" fill="#0f0f0f" opacity="0.38" />
+          <circle cx="80" cy="30" r="0.55" fill="#0f0f0f" opacity="0.45" />
           {strokes.map((stroke, index) => (
             <motion.path
               key={index}
@@ -139,7 +139,7 @@ export function CollaborativeCanvas() {
           <path
             ref={liveRef}
             fill="none"
-            stroke="#db861b"
+            stroke="#0f0f0f"
             strokeWidth={0.8}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -147,9 +147,9 @@ export function CollaborativeCanvas() {
         </svg>
         {!spent && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#d8d2c9] bg-[#faf9f5]/90 px-4 py-2 text-sm text-[#5b6472] shadow-sm backdrop-blur-sm">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#d4d4d4] bg-[#ffffff]/90 px-4 py-2 text-sm text-[#5a5a5a] shadow-sm backdrop-blur-sm">
               <PenLine
-                className="size-4 text-[#db861b] motion-safe:animate-pulse"
+                className="size-4 text-[#0f0f0f] motion-safe:animate-pulse"
                 aria-hidden
               />{" "}
               Draw one stroke
@@ -157,10 +157,10 @@ export function CollaborativeCanvas() {
           </div>
         )}
       </div>
-      <p className="mt-4 text-sm text-[#666f7b]">
+      <p className="mt-4 text-sm text-[#5a5a5a]">
         {spent ? (
           <>
-            That&rsquo;s your stroke. One each — that&rsquo;s the whole rule.{" "}
+            That&rsquo;s your stroke. One each. That&rsquo;s the whole rule.{" "}
             <button
               type="button"
               onClick={() => {

@@ -34,7 +34,9 @@ export async function ensureArtistProfile(user: AuthUser) {
     .from(artistProfiles)
     .where(eq(artistProfiles.handle, baseHandle))
     .limit(1);
-  const handle = collision[0] ? `${baseHandle}-${user.id.slice(0, 8)}` : baseHandle;
+  const handle = collision[0]
+    ? `${baseHandle}-${user.id.slice(0, 8)}`
+    : baseHandle;
 
   await db
     .insert(artistProfiles)
@@ -54,7 +56,9 @@ export async function getPublicArtistProfile(handle: string) {
   const profiles = await db
     .select()
     .from(artistProfiles)
-    .where(and(eq(artistProfiles.handle, handle), eq(artistProfiles.published, true)))
+    .where(
+      and(eq(artistProfiles.handle, handle), eq(artistProfiles.published, true))
+    )
     .limit(1);
   const profile = profiles[0];
   if (!profile) return null;
@@ -62,7 +66,9 @@ export async function getPublicArtistProfile(handle: string) {
   const publicArtworks = await db
     .select()
     .from(artworks)
-    .where(and(eq(artworks.userId, profile.userId), eq(artworks.isPublic, true)))
+    .where(
+      and(eq(artworks.userId, profile.userId), eq(artworks.isPublic, true))
+    )
     .orderBy(desc(artworks.createdAt));
 
   return { profile, artworks: publicArtworks };

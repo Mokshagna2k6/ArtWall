@@ -30,6 +30,8 @@ interface WallExperienceProps {
   tiles: WallTile[];
   events: WallEvent[];
   cohortSize: number;
+  /** Hanging a work requires an account; signed-out visitors get the door. */
+  signedIn: boolean;
 }
 
 /** Long enough that a name is not searched letter by letter, short enough to
@@ -42,7 +44,7 @@ const DEBOUNCE_MS = 280;
  * State lives here rather than inside the wall so publishing a work and seeing
  * it appear are the same event: `UploadForm` hands the finished tile straight
  * up, this sets it as `pending`, and the wall walks the camera to the region
- * it landed in and burns our surface off it — no reload, no waiting for a
+ * it landed in and burns our surface off it - no reload, no waiting for a
  * cache to turn over. Server revalidation happens in parallel and the
  * optimistic tile is de-duplicated against the real one once it arrives.
  */
@@ -50,6 +52,7 @@ export function WallExperience({
   tiles,
   events,
   cohortSize,
+  signedIn,
 }: WallExperienceProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<WallTile[] | null>(null);
@@ -63,7 +66,7 @@ export function WallExperience({
   const searchActive = trimmed.length >= 2;
 
   /* Derived, not stored. Clearing the box must not need an effect to notice
-     and write state — that leaves a frame where an empty search still shows
+     and write state, that leaves a frame where an empty search still shows
      the last results, and it is the cascading-render pattern React warns on. */
   const activeResults = searchActive ? results : null;
 
@@ -97,26 +100,26 @@ export function WallExperience({
 
   return (
     <div className="flex flex-col gap-10">
-      <div className="flex flex-col gap-4 border-y border-[#e2ded7] py-5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm leading-6 text-[#5b6472]">
-          <span className="font-semibold text-[#101114]">
+      <div className="flex flex-col gap-4 border-y border-[#e6e6e6] py-5 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm leading-6 text-[#5a5a5a]">
+          <span className="font-semibold text-[#0f0f0f]">
             A living collection.
           </span>{" "}
-          Explore slowly—drag across the wall or scroll to move closer.
+          Explore slowly. Drag across the wall or scroll to move closer.
         </p>
         <a
           href="#hang-your-work"
-          className="inline-flex items-center gap-2 text-sm font-semibold text-[#245fc5] transition hover:text-[#101114]"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[#0f0f0f] transition hover:text-[#0f0f0f]"
         >
           Hang your work <ArrowRight className="size-4" aria-hidden />
         </a>
       </div>
       {/* ── The installation ─────────────────────────────────────────────
           The wall is full-bleed and the copy sits on it, because the wall is
-          the product — not an illustration next to a description of one. */}
+          the product, not an illustration next to a description of one. */}
       <div
         ref={wallRef}
-        className="relative overflow-hidden rounded-[1.75rem] border border-[#242427] shadow-[0_24px_70px_rgb(16_17_20/0.18)]"
+        className="relative overflow-hidden rounded-[1.75rem] border border-[#0f0f0f] shadow-[0_24px_70px_rgb(16_17_20/0.18)]"
       >
         {activeResults !== null ? (
           <SearchResults results={activeResults} onOpen={setOpenTile} />
@@ -128,7 +131,7 @@ export function WallExperience({
           <>
             {/* Copy sits on the artwork, so it needs its own darkness to sit
                 on. Without this the headline lands on whatever tile happens to
-                be behind it — which on a wall of Madhubani cream and Phad
+                be behind it, which on a wall of Madhubani cream and Phad
                 saffron means unreadable, at random. */}
             <div
               aria-hidden
@@ -151,23 +154,23 @@ export function WallExperience({
             <div className="pointer-events-none absolute inset-x-0 top-0 z-30 hidden p-6 lg:block lg:p-8">
               <div className="flex items-start justify-between gap-8">
                 <Reveal className="max-w-sm">
-                  <p className="text-label tracking-[0.18em] text-[#e0a15d] uppercase">
+                  <p className="text-label tracking-[0.18em] text-[#8a8a8a] uppercase">
                     The living collection
                   </p>
-                  <h2 className="font-heading text-h2 mt-3 leading-[1.1] tracking-tight text-[#fffaf4]">
+                  <h2 className="font-heading text-h2 mt-3 leading-[1.1] tracking-tight text-[#ffffff]">
                     One wall.
                     <br />
-                    <span className="text-[#e8bd89]">One place each.</span>
+                    <span className="text-[#8a8a8a]">One place each.</span>
                   </h2>
-                  <p className="text-small mt-4 leading-relaxed text-[#d5cec5]">
-                    It begins as ours — a wall of Warli, Madhubani, Phad, Gond,
+                  <p className="text-small mt-4 leading-relaxed text-[#d4d4d4]">
+                    It begins as ours: a wall of Warli, Madhubani, Phad, Gond,
                     and Ajrakh that we drew ourselves. As artists join, each
                     piece of it dissolves into real work. The wall was only ever
                     ours on loan.
                   </p>
                   <Link
                     href={primaryCta.href}
-                    className="text-small pointer-events-auto mt-6 inline-flex h-10 items-center rounded-full bg-[#fffaf4] px-5 font-semibold text-[#161618] transition-colors hover:bg-[#e8bd89]"
+                    className="text-small pointer-events-auto mt-6 inline-flex h-10 items-center rounded-full bg-[#ffffff] px-5 font-semibold text-[#0f0f0f] transition-colors hover:bg-[#8a8a8a]"
                   >
                     {primaryCta.label}
                   </Link>
@@ -254,13 +257,11 @@ export function WallExperience({
 
       <section
         id="hang-your-work"
-        className="grid gap-8 border-t border-[#e7e7e5] pt-16 lg:grid-cols-[0.7fr_1.3fr] lg:gap-16"
+        className="border-border grid gap-8 border-t pt-16 lg:grid-cols-[0.7fr_1.3fr] lg:gap-16"
       >
         <div>
-          <p className="text-label tracking-[0.18em] text-[#245fc5] uppercase">
-            Add your work
-          </p>
-          <h2 className="font-heading mt-4 text-4xl tracking-tight text-balance">
+          <p className="text-muted-foreground text-eyebrow">Add your work</p>
+          <h2 className="font-heading text-section mt-4 text-balance">
             Hang your work where people can find it.
           </h2>
           <p className="text-muted-foreground mt-5 leading-7">
@@ -269,18 +270,47 @@ export function WallExperience({
           </p>
         </div>
         <div>
-          <UploadForm
-            onPublished={(tile) => {
-              setPending(tile);
-              setQuery("");
-              // Put the wall back on screen — their work has just been hung on it,
-              // and they are looking at a form.
-              wallRef.current?.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-              });
-            }}
-          />
+          {!signedIn ? (
+            // The action re-checks this server-side; showing the door rather
+            // than a form the artist cannot submit is the honest version.
+            <div className="border-border border p-6 sm:p-8">
+              <p className="font-heading text-subsection">
+                Sign in to hang your work.
+              </p>
+              <p className="text-muted-foreground mt-4 leading-7">
+                A place on the wall belongs to a person, not to an email
+                address. Create an account and your work, your number and your
+                record stay together.
+              </p>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <a
+                  href="/sign-in?callbackUrl=%2Fwall%23hang-your-work"
+                  className="bg-foreground inline-flex h-11 items-center px-5 text-sm font-medium text-white transition-colors hover:bg-[#2b3245]"
+                >
+                  Sign in
+                </a>
+                <a
+                  href="/sign-up?callbackUrl=%2Fwall%23hang-your-work"
+                  className="border-border hover:border-foreground inline-flex h-11 items-center px-5 text-sm font-medium transition-colors"
+                >
+                  Create an account
+                </a>
+              </div>
+            </div>
+          ) : (
+            <UploadForm
+              onPublished={(tile) => {
+                setPending(tile);
+                setQuery("");
+                // Put the wall back on screen - their work has just been hung on it,
+                // and they are looking at a form.
+                wallRef.current?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                });
+              }}
+            />
+          )}
         </div>
       </section>
 

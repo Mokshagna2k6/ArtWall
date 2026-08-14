@@ -1,105 +1,206 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowDown } from "lucide-react";
 
-import { layers } from "@/config/platform";
-import { Earnings } from "@/features/platform/earnings";
-import { LayerStack } from "@/features/platform/layer-stack";
-import { TheGap } from "@/features/platform/the-gap";
-import { Vision } from "@/features/platform/vision";
-import { Reveal, RevealGroup, RevealItem } from "@/shared/reveal";
+import {
+  competitorDomains,
+  competitors,
+  painStages,
+  services,
+} from "@/config/content";
+import { ArtworkBand } from "@/features/home/artwork-band";
+import { PainStages } from "@/features/platform/pain-stages";
+import { Container, Eyebrow, Section } from "@/shared/editorial";
 
 export const metadata: Metadata = {
-  title: "The Platform",
+  title: "Services",
   description:
-    "India has 42 million artists and artisans, and up to 85% of what a buyer pays never reaches them. ArtWall answers that with three connected layers: an AI Exhibition Engine, bank-grade escrow with fraud detection built for Indian art, and provenance that pays royalties for the life of the work.",
+    "Six integrated systems: artist registry, exhibition engine, provenance and certification, a fair marketplace, a nine-layer anti-fraud engine, and patented demand-triggered sale.",
   alternates: { canonical: "/platform" },
 };
 
 /**
- * The argument page.
+ * Services - the argument page.
  *
- * Every other route on this site is an experience — hang a work, find your
- * archetype, take a place on the wall. This one is the reasoning underneath
- * them, in the order an unconvinced person needs it: the size of the problem,
- * the machine that answers it, the money it puts back in an artist's hands,
- * and only then what we say we are for.
+ * Every other route is an experience: hang a work, find your archetype, take a
+ * place. This one is the reasoning underneath them, in the order an
+ * unconvinced person needs it - what we built, what was broken, and why no one
+ * else covers the whole of it.
  *
- * The headline is server-rendered and unanimated — it is the LCP element, and
- * a fade-up on the largest text on the page would mean measuring our own
- * paint as slower than it is.
+ * The headline is server-rendered and unanimated: it is the LCP element, and
+ * fading in the largest text on the page would mean measuring our own paint as
+ * slower than it is.
  */
-export default function PlatformPage() {
+export default function ServicesPage() {
   return (
     <>
-      <section className="section-y max-w-wall relative mx-auto overflow-hidden px-5 pt-32 md:px-12 lg:px-16">
-        {/* A single wash of ember behind the statement, no more. */}
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{
-            backgroundImage:
-              "radial-gradient(ellipse 70% 55% at 25% 0%, rgb(232 163 61 / 0.10), transparent 70%)",
-          }}
-        />
-
-        <p className="text-label text-ember tracking-[0.18em] uppercase">
-          The platform
-        </p>
-
-        <h1 className="font-heading text-h1 lg:text-display-s mt-6 max-w-4xl tracking-tight text-balance">
-          Built to fix one specific thing.
-        </h1>
-
-        <Reveal delay={0.05}>
-          <p className="text-muted-foreground text-lead mt-8 max-w-2xl text-balance">
-            Forty-two million Indians make things by hand. Middlemen absorb up
-            to 85% of what a buyer pays, counterfeits circulate unchallenged,
-            and a first-time buyer has nowhere to check anything. ArtWall exists
-            for that, and nothing else.
+      <section className="pt-32 pb-16 sm:pt-40 sm:pb-20 lg:pt-48 lg:pb-24">
+        <div className="max-w-page mx-auto px-5 sm:px-8 lg:px-16">
+          <Eyebrow>Services</Eyebrow>
+          <h1 className="font-heading text-display mt-8 max-w-[18ch] text-balance">
+            Six integrated systems. One platform.
+          </h1>
+          <p className="text-muted-foreground text-lead mt-6 max-w-2xl">
+            Every stage of the life of an artwork, from creation to legacy. Each
+            system solves a different break in the path from artist to
+            collector, and each one works better because the others are there.
           </p>
-        </Reveal>
-
-        <RevealGroup
-          as="ul"
-          stagger={0.08}
-          className="mt-14 grid gap-px sm:grid-cols-3"
-        >
-          {layers.map((layer) => (
-            <RevealItem
-              as="li"
-              key={layer.id}
-              className="border-border flex flex-col gap-2 border-t pt-5 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-6 sm:first:border-l-0 sm:first:pl-0"
-            >
-              <span className="font-heading text-ember text-label tabular-nums">
-                {layer.index}
-              </span>
-              <Link
-                href={`#${layer.id}`}
-                className="font-heading text-h4 hover:text-ember tracking-tight transition-colors"
-              >
-                {layer.name}
-              </Link>
-              <span className="text-muted-foreground text-small">
-                {layer.claim}
-              </span>
-            </RevealItem>
-          ))}
-        </RevealGroup>
-
-        <a
-          href="#the-gap"
-          className="text-muted-foreground hover:text-foreground text-small mt-16 inline-flex items-center gap-2 transition-colors"
-        >
-          Start with the problem
-          <ArrowDown aria-hidden className="size-4" />
-        </a>
+        </div>
       </section>
 
-      <TheGap />
-      <LayerStack />
-      <Earnings />
-      <Vision />
+      <ArtworkBand />
+
+      {/* ── The six ──────────────────────────────────────────────────── */}
+      <Section id="systems">
+        <ol className="border-border border-t">
+          {services.map((service) => (
+            <li
+              key={service.number}
+              className="border-border grid gap-4 border-b py-10 lg:grid-cols-[5rem_minmax(0,1fr)_minmax(0,1.3fr)] lg:gap-10 lg:py-14"
+            >
+              <span className="text-muted-foreground font-heading text-lg tabular-nums">
+                {service.number}
+              </span>
+              <div>
+                <h2 className="font-heading text-subsection">
+                  {service.title}
+                </h2>
+                <p className="text-lead mt-2.5 text-balance">
+                  {service.summary}
+                </p>
+              </div>
+              <p className="text-muted-foreground leading-7">
+                {service.detail}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </Section>
+
+      {/* ── The 24 failures ──────────────────────────────────────────── */}
+      <Section id="why">
+        <Eyebrow index="02">Why ArtWall Labs</Eyebrow>
+        <div className="mt-10 max-w-3xl">
+          <h2 className="font-heading text-section text-balance">
+            Twenty-four failures across six stages. All answered.
+          </h2>
+          <p className="text-muted-foreground text-lead mt-5">
+            India has 42 million artists and a ₹30,000 crore market with no
+            integrated infrastructure underneath it. These are the failures that
+            compound, stage by stage.
+          </p>
+        </div>
+        <div className="mt-12">
+          <PainStages stages={painStages} />
+        </div>
+      </Section>
+
+      {/* ── Competitive landscape ────────────────────────────────────── */}
+      <Section id="landscape">
+        <Eyebrow index="03">Competitive landscape</Eyebrow>
+        <div className="mt-10 max-w-3xl">
+          <h2 className="font-heading text-section text-balance">
+            No competitor covers more than two of the seven domains.
+          </h2>
+          <p className="text-muted-foreground text-lead mt-5">
+            ArtWall Labs is the only platform we know of integrating all seven
+            infrastructure layers in one place.
+          </p>
+        </div>
+
+        <div className="mt-12 overflow-x-auto">
+          <table className="w-full min-w-[42rem] border-collapse text-sm">
+            <caption className="sr-only">
+              Coverage of seven infrastructure domains by platform
+            </caption>
+            <thead>
+              <tr className="border-border border-b-2">
+                <th
+                  scope="col"
+                  className="text-muted-foreground text-eyebrow py-3 pr-4 text-left"
+                >
+                  Platform
+                </th>
+                {competitorDomains.map((domain) => (
+                  <th
+                    key={domain}
+                    scope="col"
+                    className="text-muted-foreground text-eyebrow px-2 py-3 text-center"
+                  >
+                    {domain}
+                  </th>
+                ))}
+                <th scope="col" className="text-eyebrow py-3 pl-2 text-center">
+                  Total
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {competitors.map((competitor) => (
+                <tr key={competitor.name} className="border-border border-b">
+                  <th
+                    scope="row"
+                    className="text-muted-foreground py-4 pr-4 text-left font-normal"
+                  >
+                    {competitor.name}
+                  </th>
+                  {competitor.covers.map((covered, index) => (
+                    <td
+                      key={competitorDomains[index]}
+                      className="text-muted-foreground px-2 py-4 text-center"
+                    >
+                      <span className="sr-only">
+                        {covered ? "Covered" : "Not covered"}
+                      </span>
+                      <span aria-hidden>{covered ? "●" : "–"}</span>
+                    </td>
+                  ))}
+                  <td className="text-muted-foreground py-4 pl-2 text-center tabular-nums">
+                    {competitor.covers.filter(Boolean).length}
+                  </td>
+                </tr>
+              ))}
+              <tr className="border-foreground border-b-2">
+                <th scope="row" className="py-5 pr-4 text-left font-medium">
+                  ArtWall Labs
+                </th>
+                {competitorDomains.map((domain) => (
+                  <td key={domain} className="px-2 py-5 text-center">
+                    <span className="sr-only">Covered</span>
+                    <span aria-hidden>●</span>
+                  </td>
+                ))}
+                <td className="font-heading text-card py-5 pl-2 text-center tabular-nums">
+                  7
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </Section>
+
+      <div className="border-border border-t">
+        <Container>
+          <div className="flex flex-col gap-6 py-16 sm:flex-row sm:items-center sm:justify-between">
+            <p className="font-heading text-subsection max-w-xl text-balance">
+              See how it works, step by step.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <Link
+                href="/journey"
+                className="bg-foreground inline-flex h-11 items-center px-5 text-sm font-medium text-white transition-colors hover:bg-[#2b3245]"
+              >
+                How It Works
+              </Link>
+              <Link
+                href="/join"
+                className="border-border hover:border-foreground inline-flex h-11 items-center px-5 text-sm font-medium transition-colors"
+              >
+                Join the Wall
+              </Link>
+            </div>
+          </div>
+        </Container>
+      </div>
     </>
   );
 }

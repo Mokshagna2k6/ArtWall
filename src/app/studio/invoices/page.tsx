@@ -1,2 +1,23 @@
-import { StudioEmptyState, StudioPageHeader, StudioButton } from "@/components/dashboard/studio-shell";
-export default function InvoicesPage() { return <div className="flex flex-col gap-8"><StudioPageHeader eyebrow="Business" title="Invoices" description="Prepare clear records for sales, commissions, and collector follow-up." action={<StudioButton>Create invoice</StudioButton>} /><div className="studio-card"><StudioEmptyState title="No invoices yet" description="Invoices will be connected to sales opportunities and contacts." /></div></div>; }
+import {
+  StudioEmptyState,
+  StudioPageHeader,
+  StudioButton,
+} from "@/components/dashboard/studio-shell";
+export default function InvoicesPage() {
+  return (
+    <div className="flex flex-col gap-8">
+      <StudioPageHeader
+        eyebrow="Business"
+        title="Invoices"
+        description="Prepare clear records for sales, commissions, and collector follow-up."
+        action={<StudioButton>Create invoice</StudioButton>}
+      />
+      <div className="studio-card">
+        <StudioEmptyState
+          title="No invoices yet"
+          description="Invoices will be connected to sales opportunities and contacts."
+        />
+      </div>
+    </div>
+  );
+}

@@ -42,7 +42,7 @@ export const questions: readonly Question[] = [
   {
     chapter: "Discover",
     moment: "Texture",
-    prompt: "At a conservator's table, your hand pauses over —",
+    prompt: "At a conservator's table, your hand pauses over,",
     choices: [
       {
         text: "A repeated hand-painted motif, still perfectly alive",
@@ -65,7 +65,7 @@ export const questions: readonly Question[] = [
   {
     chapter: "Artist",
     moment: "Space",
-    prompt: "A gallery room is empty except for one work. You place it —",
+    prompt: "A gallery room is empty except for one work. You place it,",
     choices: [
       {
         text: "Where the changing daylight can keep finding it",
@@ -111,7 +111,7 @@ export const questions: readonly Question[] = [
   {
     chapter: "Wall",
     moment: "Light",
-    prompt: "As evening light moves across a wall, you notice —",
+    prompt: "As evening light moves across a wall, you notice,",
     choices: [
       {
         text: "The composition holding steady beneath the shift",

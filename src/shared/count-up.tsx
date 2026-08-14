@@ -9,7 +9,7 @@ interface CountUpProps {
   /** The real value. Rendered as-is on the server and without JavaScript. */
   to: number;
   from?: number;
-  /** Seconds. Slower than a UI transition — a number climbing is the content. */
+  /** Seconds. Slower than a UI transition - a number climbing is the content. */
   seconds?: number;
   format?: (value: number) => string;
   className?: string;
@@ -25,7 +25,7 @@ const defaultFormat = (value: number) =>
  *
  * 1. The final value is the element's server-rendered content. Anyone without
  *    JavaScript, any crawler, and any screen reader that reaches the node
- *    before hydration sees the true number — never a zero that never moves.
+ *    before hydration sees the true number - never a zero that never moves.
  * 2. The animation writes `textContent` through a ref rather than through
  *    state. Sixty re-renders a second to redraw one string is the kind of cost
  *    that only shows up on the cheap Android a lot of our artists are using.

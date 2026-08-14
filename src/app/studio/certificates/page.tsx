@@ -1,2 +1,23 @@
-import { StudioEmptyState, StudioPageHeader, StudioButton } from "@/components/dashboard/studio-shell";
-export default function CertificatesPage() { return <div className="flex flex-col gap-8"><StudioPageHeader eyebrow="Archive" title="Certificates" description="Issue and verify certificates of authenticity for works in your catalogue." action={<StudioButton>Issue certificate</StudioButton>} /><div className="studio-card"><StudioEmptyState title="No certificates yet" description="Certificates will be generated from verified artwork records." /></div></div>; }
+import {
+  StudioEmptyState,
+  StudioPageHeader,
+  StudioButton,
+} from "@/components/dashboard/studio-shell";
+export default function CertificatesPage() {
+  return (
+    <div className="flex flex-col gap-8">
+      <StudioPageHeader
+        eyebrow="Archive"
+        title="Certificates"
+        description="Issue and verify certificates of authenticity for works in your catalogue."
+        action={<StudioButton>Issue certificate</StudioButton>}
+      />
+      <div className="studio-card">
+        <StudioEmptyState
+          title="No certificates yet"
+          description="Certificates will be generated from verified artwork records."
+        />
+      </div>
+    </div>
+  );
+}

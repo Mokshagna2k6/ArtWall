@@ -8,10 +8,19 @@ import { SkipLink } from "@/components/layout/skip-link";
 import { siteConfig } from "@/config/site";
 import "./globals.css";
 
+/**
+ * Display face. The `opsz` axis is what makes a serif hold together at 100px
+ * and still read at 20px.
+ *
+ * `weight: "variable"` ships the whole axis in one file, so the display sizes
+ * can carry real mass without a second request. next/font rejects an explicit
+ * weight list whenever `axes` is set, which is why this is not `["400","700"]`.
+ */
 const fraunces = Fraunces({
   variable: "--font-fraunces",
   subsets: ["latin"],
   axes: ["opsz"],
+  weight: "variable",
   display: "swap",
 });
 
@@ -24,8 +33,8 @@ const inter = Inter({
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
   title: {
-    default: `${siteConfig.name} — ${siteConfig.tagline}`,
-    template: `%s — ${siteConfig.name}`,
+    default: `${siteConfig.name} | ${siteConfig.tagline}`,
+    template: `%s | ${siteConfig.name}`,
   },
   description: siteConfig.description,
   applicationName: siteConfig.name,
@@ -44,14 +53,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: siteConfig.name,
-    title: `${siteConfig.name} — ${siteConfig.tagline}`,
+    title: `${siteConfig.name} | ${siteConfig.tagline}`,
     description: siteConfig.description,
     url: siteConfig.url,
     locale: "en_IN",
   },
   twitter: {
     card: "summary_large_image",
-    title: `${siteConfig.name} — ${siteConfig.tagline}`,
+    title: `${siteConfig.name} | ${siteConfig.tagline}`,
     description: siteConfig.description,
   },
   robots: {
@@ -84,7 +93,7 @@ const organisationJsonLd = {
 };
 
 export const viewport = {
-  themeColor: "#fbf6ef",
+  themeColor: "#ffffff",
   colorScheme: "light",
 };
 

@@ -19,7 +19,7 @@ const DURATION = 2.1;
  *
  * This is the single most important animation in the product, so it is worth
  * saying what it is doing: the old surface cracks, lifts into embers, and
- * drifts off — and what is underneath is a real artist's work. Nothing pops
+ * drifts off - and what is underneath is a real artist's work. Nothing pops
  * into existence. The wall was ours; now this part of it is theirs, and you
  * watched the handover.
  *
@@ -29,7 +29,7 @@ const DURATION = 2.1;
  * rAF loop, and the whole burst stays inside a single frame budget.
  *
  * Under `prefers-reduced-motion` the burst does not run at all and `onDone`
- * fires immediately, so the artwork simply is there — which is the correct
+ * fires immediately, so the artwork simply is there - which is the correct
  * fallback for an animation whose only job is ceremony.
  */
 export function DissolveBurst({
@@ -90,7 +90,7 @@ export function DissolveBurst({
     const embers: Ember[] = Array.from({ length: count }, () => {
       const x = Math.random() * width;
       const y = Math.random() * height;
-      // Drift outward from the centre, plus a consistent upward lift — embers
+      // Drift outward from the centre, plus a consistent upward lift - embers
       // rise, and that read is what separates this from confetti.
       const cx = width / 2;
       const cy = height / 2;
@@ -134,7 +134,7 @@ export function DissolveBurst({
 
       context!.globalCompositeOperation = "lighter";
       for (const ember of embers) {
-        // Particles hold, then release — the surface resists before it gives.
+        // Particles hold, then release - the surface resists before it gives.
         const local = Math.max(0, (t - (1 - ember.life)) / ember.life);
         if (local <= 0) continue;
 

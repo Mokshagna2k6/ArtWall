@@ -20,6 +20,7 @@ import {
 } from "@/lib/cloudinary";
 import { DatabaseNotConfiguredError } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getSessionUser } from "@/lib/session";
 
 /** Uploads are far heavier than a form post, so the ceiling is lower. */
 const UPLOAD_LIMIT = { limit: 8, windowMs: 10 * 60 * 1000 };
@@ -45,6 +46,10 @@ async function clientKey(): Promise<string> {
 export async function requestUploadSignature(): Promise<
   { ok: true; signature: UploadSignature } | { ok: false; message: string }
 > {
+  if (!(await getSessionUser())) {
+    return { ok: false, message: "Please sign in to upload your work." };
+  }
+
   const limit = checkRateLimit(`upload:${await clientKey()}`, UPLOAD_LIMIT);
   if (!limit.ok) {
     return {
@@ -76,7 +81,7 @@ export async function requestUploadSignature(): Promise<
  *    arbitrary image on the internet and have it published under their name.
  *  - The moderation verdict is re-fetched from Cloudinary rather than taken
  *    from the form, and a rejected image is stored hidden. The artist is told
- *    it is under review — not that they were flagged, which would be both
+ *    it is under review - not that they were flagged, which would be both
  *    accusatory and useless if the classifier was wrong.
  *  - Rate limited, honeypotted, and CSRF-protected by Server Actions' own
  *    origin checking.
@@ -85,7 +90,23 @@ export async function publishToWall(
   _previous: PublishState,
   formData: FormData
 ): Promise<PublishState> {
-  const raw = Object.fromEntries(formData) as Record<string, unknown>;
+  // Hanging a work requires an account. The form is only rendered to signed-in
+  // artists, but a Server Action is a public endpoint, so this is the check
+  // that actually holds.
+  const user = await getSessionUser();
+  if (!user) {
+    return {
+      status: "error",
+      message: "Please sign in to hang your work on the wall.",
+    };
+  }
+
+  const raw = {
+    ...(Object.fromEntries(formData) as Record<string, unknown>),
+    // Bind the roster row to the verified account, not to whatever address was
+    // typed in. One account, one place.
+    email: user.email,
+  };
   const parsed = publishSchema.safeParse(raw);
 
   if (!parsed.success) {
@@ -150,6 +171,8 @@ export async function publishToWall(
 
   try {
     const { founderNumber } = await publishArtwork({
+      userId: user.id,
+      foundingMember: formData.get("foundingMember") === "on",
       name: data.name,
       email: data.email,
       city: data.city || undefined,
@@ -179,7 +202,7 @@ export async function publishToWall(
     };
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
-      console.error("[wall] DATABASE_URL is not set — nothing was saved.");
+      console.error("[wall] DATABASE_URL is not set, nothing was saved.");
     } else {
       console.error("[wall] Failed to publish", error);
     }
@@ -194,7 +217,7 @@ export async function publishToWall(
  * Find an artist on the wall.
  *
  * A server action rather than a route handler so the query never becomes a
- * shareable URL — searching for your own name should not leave a link in
+ * shareable URL - searching for your own name should not leave a link in
  * someone's history that says who you were looking for.
  */
 export async function searchWall(

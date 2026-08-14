@@ -15,32 +15,26 @@ import { Wordmark } from "@/components/brand/wordmark";
 import { navItems, primaryCta, secondaryNavItems } from "@/config/nav";
 import { duration, ease, transition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { Magnetic } from "@/shared/magnetic";
-
-const moreNavItems = [
-  ...navItems.slice(4),
-  {
-    label: "Artists",
-    href: "/artists",
-    description: "Discover artists sharing their work on ArtWall",
-  },
-  ...secondaryNavItems,
-];
 
 /**
  * Primary navigation.
  *
- * Behaviour: transparent over the hero so nothing competes with the first
- * five seconds, then settles into a glass surface once the wall scrolls
- * underneath it (Phase 2 §14, micro-interaction #22).
+ * Behaviour: sits on plain white and gains a single hairline once the page
+ * scrolls underneath it. No glass, no shadow, no colour - the rule is the
+ * whole treatment, which is what keeps a white site feeling like a gallery
+ * rather than a dashboard.
+ *
+ * Typography: sentence case at 14px rather than tracked-out uppercase. Seven
+ * destinations only fit on one line if the labels are set the way a printed
+ * directory would set them, and it reads calmer besides.
  *
  * Accessibility: a real <nav> with a labelled landmark; the mobile menu is a
- * modal dialog that traps nothing but manages focus properly — focus moves to
- * the panel on open and returns to the trigger on close, Escape dismisses it,
- * and background scroll is locked while it is open.
+ * modal dialog that manages focus properly - focus moves to the panel on open
+ * and returns to the trigger on close, Escape dismisses it, and background
+ * scroll is locked while it is open.
  *
- * Performance: the only client state is a boolean for "scrolled" and one for
- * the mobile panel. Scroll is read through Framer's `useScroll` (rAF-batched,
+ * Performance: the only client state is a boolean for "scrolled" and one each
+ * for the two menus. Scroll is read through Framer's `useScroll` (rAF-batched,
  * passive) rather than a raw scroll listener, so it never thrashes layout.
  */
 export function SiteHeader() {
@@ -76,7 +70,7 @@ export function SiteHeader() {
   }, [menuOpen]);
 
   // The desktop overflow menu closes on Escape or when attention moves away.
-  // This keeps the full directory available without making a wide header dense.
+  // This keeps the full directory available without making the bar dense.
   useEffect(() => {
     if (!moreOpen) return;
 
@@ -124,35 +118,34 @@ export function SiteHeader() {
   return (
     <header
       className={cn(
-        "fixed inset-x-0 top-0 z-100 transition-all duration-300",
-        scrolled
-          ? "border-border bg-background/90 border-b shadow-sm backdrop-blur-xl"
-          : "border-b border-transparent bg-transparent"
+        "fixed inset-x-0 top-0 z-100 bg-white transition-[border-color] duration-300",
+        scrolled ? "border-border border-b" : "border-b border-transparent"
       )}
     >
-      <div className="max-w-wall mx-auto flex h-20 items-center gap-8 px-5 md:px-12 lg:px-16">
-        <Link href="/" className="rounded-sm" aria-label="ArtWall — home">
+      <div className="max-w-page mx-auto flex h-18 items-center gap-8 px-5 sm:px-8 lg:px-16">
+        <Link href="/" className="rounded-sm" aria-label="ArtWall, home">
           <Wordmark className="whitespace-nowrap" markClassName="size-6" />
         </Link>
 
-        <nav aria-label="Primary" className="hidden min-w-0 flex-1 md:block">
-          <ul className="flex items-center justify-center gap-5 xl:gap-6 2xl:gap-7">
+        <nav aria-label="Primary" className="hidden min-w-0 flex-1 lg:block">
+          <ul className="flex items-center justify-center gap-6 xl:gap-8">
             {navItems.map((item, index) => {
-              const active = pathname === item.href;
+              const active =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href);
               return (
                 <li
                   key={item.href}
-                  className={cn(
-                    index === 3 && "hidden lg:block",
-                    index === 4 && "hidden 2xl:block",
-                    index === 5 && "hidden"
-                  )}
+                  // The last two give way first on narrower desktops; they are
+                  // still one click away in "More" and in the footer.
+                  className={cn(index >= 5 && "hidden xl:block")}
                 >
                   <Link
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={cn(
-                      "group text-label relative whitespace-nowrap tracking-[0.14em] uppercase transition-colors",
+                      "group relative block py-1 text-sm whitespace-nowrap transition-colors",
                       active
                         ? "text-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -162,7 +155,7 @@ export function SiteHeader() {
                     <span
                       aria-hidden
                       className={cn(
-                        "bg-ember absolute -bottom-2 left-0 h-px transition-[width] duration-200 ease-out",
+                        "bg-foreground absolute -bottom-0.5 left-0 h-px transition-[width] duration-200 ease-out",
                         active ? "w-full" : "w-0 group-hover:w-full"
                       )}
                     />
@@ -177,8 +170,8 @@ export function SiteHeader() {
                 aria-expanded={moreOpen}
                 aria-controls="header-more-menu"
                 className={cn(
-                  "text-label hover:text-foreground inline-flex shrink-0 items-center gap-1 whitespace-nowrap tracking-[0.14em] uppercase transition-colors",
-                  moreNavItems.some((item) => pathname === item.href)
+                  "hover:text-foreground inline-flex shrink-0 items-center gap-1 py-1 text-sm whitespace-nowrap transition-colors",
+                  secondaryNavItems.some((item) => pathname === item.href)
                     ? "text-foreground"
                     : "text-muted-foreground"
                 )}
@@ -196,33 +189,40 @@ export function SiteHeader() {
                 {moreOpen && (
                   <motion.div
                     id="header-more-menu"
-                    initial={{ opacity: 0, y: 6 }}
+                    initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 4 }}
+                    exit={{ opacity: 0, y: 2 }}
                     transition={transition.base}
-                    className="border-border bg-background/98 shadow-medium absolute top-[calc(100%+1.1rem)] left-1/2 w-56 -translate-x-1/2 border p-2"
+                    className="border-border shadow-medium absolute top-[calc(100%+1.25rem)] right-0 w-64 border bg-white p-2"
                   >
-                    <p className="text-muted-foreground px-3 pt-2 pb-1 text-[0.65rem] tracking-[0.16em] uppercase">
+                    <p className="text-muted-foreground text-eyebrow px-3 pt-2 pb-1">
                       Explore ArtWall
                     </p>
                     <ul>
-                      {moreNavItems.map((item) => (
-                        <li key={item.href}>
-                          <Link
-                            href={item.href}
-                            aria-current={
-                              pathname === item.href ? "page" : undefined
-                            }
-                            onClick={() => setMoreOpen(false)}
-                            className="hover:bg-ember/8 hover:text-foreground block px-3 py-2.5 text-sm transition-colors"
-                          >
-                            {item.label}
-                            <span className="text-muted-foreground mt-0.5 block text-xs">
-                              {item.description}
-                            </span>
-                          </Link>
-                        </li>
-                      ))}
+                      {/* On narrower desktops the last two primary items are
+                          hidden above, so they are repeated here. */}
+                      {[...navItems.slice(5), ...secondaryNavItems].map(
+                        (item, index) => (
+                          <li key={item.href}>
+                            <Link
+                              href={item.href}
+                              aria-current={
+                                pathname === item.href ? "page" : undefined
+                              }
+                              onClick={() => setMoreOpen(false)}
+                              className={cn(
+                                "hover:bg-secondary hover:text-foreground block px-3 py-2.5 text-sm transition-colors",
+                                index < navItems.length - 5 && "xl:hidden"
+                              )}
+                            >
+                              {item.label}
+                              <span className="text-muted-foreground mt-0.5 block text-xs">
+                                {item.description}
+                              </span>
+                            </Link>
+                          </li>
+                        )
+                      )}
                     </ul>
                   </motion.div>
                 )}
@@ -231,21 +231,19 @@ export function SiteHeader() {
           </ul>
         </nav>
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="ml-auto flex shrink-0 items-center gap-4 lg:ml-0">
           <Link
             href="/sign-in"
-            className="text-small text-muted-foreground hover:text-foreground hidden transition-colors md:inline-flex"
+            className="text-muted-foreground hover:text-foreground hidden text-sm transition-colors lg:inline-flex"
           >
             Sign in
           </Link>
-          <Magnetic className="hidden md:inline-flex">
-            <Link
-              href={primaryCta.href}
-              className="bg-ember text-small text-wall-paper inline-flex h-11 items-center rounded-full px-5 font-semibold transition duration-200 ease-out hover:bg-[color:var(--color-ember)]/90"
-            >
-              {primaryCta.label}
-            </Link>
-          </Magnetic>
+          <Link
+            href={primaryCta.href}
+            className="bg-foreground hidden h-10 items-center px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-[#2b3245] lg:inline-flex"
+          >
+            {primaryCta.label}
+          </Link>
 
           <button
             ref={triggerRef}
@@ -254,7 +252,7 @@ export function SiteHeader() {
             aria-expanded={menuOpen}
             aria-controls="mobile-menu"
             aria-label="Open menu"
-            className="text-foreground -mr-2 inline-flex size-11 items-center justify-center rounded-md md:hidden"
+            className="text-foreground -mr-2 inline-flex size-11 items-center justify-center lg:hidden"
           >
             <Menu className="size-5" aria-hidden />
           </button>
@@ -274,37 +272,38 @@ export function SiteHeader() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: "100%" }}
             transition={{ duration: duration.moderate, ease: ease.standard }}
-            className="bg-background fixed inset-0 z-400 flex flex-col px-5 pt-5 md:hidden"
+            className="fixed inset-0 z-400 flex flex-col overflow-y-auto bg-white px-5 pt-5 pb-10 lg:hidden"
           >
-            <div className="flex h-16 items-center justify-between">
-              <span className="font-heading text-h4">Menu</span>
+            <div className="flex h-13 items-center justify-between">
+              <span className="text-muted-foreground text-eyebrow">Menu</span>
               <button
                 type="button"
                 onClick={() => setMenuOpen(false)}
                 aria-label="Close menu"
-                className="text-foreground -mr-2 inline-flex size-11 items-center justify-center rounded-md"
+                className="text-foreground -mr-2 inline-flex size-11 items-center justify-center"
               >
                 <X className="size-5" aria-hidden />
               </button>
             </div>
-            <nav aria-label="Mobile" className="mt-8">
-              <ul className="flex flex-col gap-2">
+            <nav aria-label="Mobile" className="mt-6">
+              <ul className="border-border flex flex-col border-t">
                 {[...navItems, ...secondaryNavItems].map((item, index) => (
                   <motion.li
                     key={item.href}
-                    initial={{ opacity: 0, y: 8 }}
+                    initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{
                       ...transition.base,
-                      delay: 0.04 * index + 0.05,
+                      delay: 0.03 * index + 0.04,
                     }}
+                    className="border-border border-b"
                   >
                     <Link
                       href={item.href}
-                      className="font-heading text-h3 block py-3 tracking-tight"
+                      className="font-heading text-card block py-4"
                     >
                       {item.label}
-                      <span className="text-muted-foreground text-small mt-1 block font-sans tracking-normal">
+                      <span className="text-muted-foreground mt-1 block font-sans text-sm tracking-normal">
                         {item.description}
                       </span>
                     </Link>
@@ -312,26 +311,20 @@ export function SiteHeader() {
                 ))}
               </ul>
             </nav>
-            <div className="mt-8 flex flex-col gap-3 border-t pt-6">
-              <Link
-                href="/artists"
-                className="border-border text-body hover:border-ink/30 inline-flex h-12 items-center justify-center rounded-md border transition-colors"
-              >
-                Explore artists
-              </Link>
-              <Link
-                href="/sign-in"
-                className="border-border text-body hover:border-ink/30 inline-flex h-12 items-center justify-center rounded-md border transition-colors"
-              >
-                Sign in
-              </Link>
+            <div className="mt-8 flex flex-col gap-3">
               <Link
                 href={primaryCta.href}
-                className="bg-ember text-wall-paper text-body inline-flex h-12 items-center justify-center rounded-md font-medium transition-colors hover:bg-[color:var(--color-ember)]/90"
+                className="bg-foreground inline-flex h-12 items-center justify-center px-5 text-sm font-medium text-white"
               >
                 {primaryCta.label}
               </Link>
-            </div>{" "}
+              <Link
+                href="/sign-in"
+                className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors"
+              >
+                Sign in
+              </Link>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

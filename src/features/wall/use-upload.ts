@@ -24,7 +24,7 @@ export class UploadError extends Error {}
  * connection uploading a 12MB phone photo needs to see the bar move or they
  * will assume it hung and press the button again.
  *
- * The file never touches our server — the browser gets a short-lived signature
+ * The file never touches our server - the browser gets a short-lived signature
  * and posts straight to Cloudinary. That keeps a multi-megabyte body out of a
  * serverless function and off the request-size limit entirely.
  */
@@ -60,7 +60,7 @@ export function useUpload() {
       body.append("timestamp", String(timestamp));
       body.append("folder", folder);
       body.append("signature", signature);
-      // Every signed param must be sent, and only signed params may be sent —
+      // Every signed param must be sent, and only signed params may be sent -
       // Cloudinary rejects the upload if the two sets disagree.
       if (moderation) body.append("moderation", moderation);
 

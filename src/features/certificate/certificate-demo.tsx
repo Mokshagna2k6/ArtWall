@@ -15,19 +15,19 @@ const steps = [
   },
   {
     title: "We take its fingerprint",
-    body: "A photograph can be copied; its fingerprint cannot be forged. We compute one from the image itself — change a single pixel and it no longer matches.",
+    body: "A photograph can be copied; its fingerprint cannot be forged. We compute one from the image itself, change a single pixel and it no longer matches.",
     aside: "Technically a cryptographic hash. You never have to know that.",
   },
   {
     title: "The seal is pressed",
-    body: "The fingerprint is written somewhere it cannot be edited, deleted, or quietly revised later — not by a buyer, not by a gallery, not by us.",
+    body: "The fingerprint is written somewhere it cannot be edited, deleted, or quietly revised later, not by a buyer, not by a gallery, not by us.",
     aside:
       "This is the only part that touches a blockchain. No wallet, no crypto, no fees for you.",
   },
   {
     title: "The work carries proof",
     body: "It gets a readable certificate number and a printable seal you can attach to the physical frame. Anyone can check it in seconds.",
-    aside: "WALL-2026-DIWALI-0417 — an edition number, not a wallet address.",
+    aside: "WALL-2026-DIWALI-0417, an edition number, not a wallet address.",
   },
 ] as const;
 
@@ -36,7 +36,7 @@ const steps = [
  *
  * The problem this solves: "blockchain certification" is the single most
  * trust-destroying phrase we could put in front of an artist who has never
- * touched crypto — it reads as either jargon or a scam. So the word appears
+ * touched crypto - it reads as either jargon or a scam. So the word appears
  * exactly once, late, and only to say what it does *not* require of them.
  *
  * The sequence is manual, not auto-playing: someone deciding whether to trust
@@ -76,7 +76,7 @@ export function CertificateDemo() {
                 <span
                   className={cn(
                     "text-caption flex size-4 items-center justify-center rounded-full tabular-nums",
-                    done ? "bg-ember text-wall-black" : "border-border border"
+                    done ? "bg-ember text-white" : "border-border border"
                   )}
                 >
                   {done ? (
@@ -108,9 +108,7 @@ export function CertificateDemo() {
             <p className="text-ember text-label tracking-[0.18em] uppercase">
               Step {step + 1} of {steps.length}
             </p>
-            <h3 className="font-heading text-h3 tracking-tight">
-              {current.title}
-            </h3>
+            <h2 className="font-heading text-subsection">{current.title}</h2>
             <p className="text-muted-foreground text-body-lg max-w-2xl">
               {current.body}
             </p>
@@ -127,7 +125,7 @@ export function CertificateDemo() {
               >
                 <span
                   aria-hidden
-                  className="bg-ember text-wall-black flex size-10 shrink-0 items-center justify-center rounded-full"
+                  className="bg-ember flex size-10 shrink-0 items-center justify-center rounded-full text-white"
                   style={{ boxShadow: "0 0 24px var(--color-ember)" }}
                 >
                   <Check className="size-5" />
@@ -149,7 +147,7 @@ export function CertificateDemo() {
           <button
             type="button"
             onClick={() => setStep((s) => Math.min(s + 1, steps.length - 1))}
-            className="bg-ember text-wall-black hover:bg-ember-glow text-body inline-flex h-11 items-center rounded-md px-5 font-medium transition-colors"
+            className="bg-ember hover:bg-ember-glow text-body inline-flex h-11 items-center rounded-md px-5 font-medium text-white transition-colors"
           >
             Next step
           </button>

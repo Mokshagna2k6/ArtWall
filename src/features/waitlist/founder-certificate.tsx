@@ -21,18 +21,18 @@ interface FounderCertificateProps {
  * is explicit that pride is one of only two reliable sharing triggers, and
  * pride needs an object.
  *
- * The seal animates in as a stamp — the one place in the system where a
+ * The seal animates in as a stamp - the one place in the system where a
  * ceremony is warranted, because it is the moment the artist actually becomes a
  * founding member.
  *
  * Share behaviour degrades in three tiers: the native share sheet on mobile,
- * clipboard on desktop, and — if both are unavailable or blocked — the link
+ * clipboard on desktop, and - if both are unavailable or blocked - the link
  * stays visible on the certificate itself so it can always be copied by hand.
  */
 export function FounderCertificate({ name, number }: FounderCertificateProps) {
   const [copied, setCopied] = useState(false);
 
-  const shareText = `I'm Founding Artist #${number} on ArtWall — India's home for artists. Art lives on the wall.`;
+  const shareText = `I'm Founding Artist #${number} on ArtWall, India's home for artists. Art lives on the wall.`;
 
   async function share() {
     const data = { title: "ArtWall", text: shareText, url: siteConfig.url };
@@ -47,7 +47,7 @@ export function FounderCertificate({ name, number }: FounderCertificateProps) {
       setTimeout(() => setCopied(false), 2500);
     } catch {
       // User dismissed the sheet, or the page lacks clipboard permission.
-      // Nothing to recover from — the URL is printed on the certificate.
+      // Nothing to recover from - the URL is printed on the certificate.
     }
   }
 
@@ -77,7 +77,7 @@ export function FounderCertificate({ name, number }: FounderCertificateProps) {
             initial={{ scale: 1.6, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: duration.slow, ease: [0.22, 1, 0.36, 1] }}
-            className="bg-ember text-wall-black flex size-14 items-center justify-center rounded-full"
+            className="bg-ember flex size-14 items-center justify-center rounded-full text-white"
             style={{ boxShadow: "0 0 36px rgb(232 163 61 / 0.55)" }}
           >
             <ArtWallLogo className="size-7" />
@@ -100,7 +100,7 @@ export function FounderCertificate({ name, number }: FounderCertificateProps) {
 
           <p className="text-muted-foreground text-body max-w-md text-balance">
             That number is yours permanently. We&rsquo;ll write to you before
-            anyone else gets in — and your frame is already on the wall.
+            anyone else gets in, and your frame is already on the wall.
           </p>
 
           <p className="text-muted-foreground border-border text-caption mt-2 w-full border-t pt-5">

@@ -6,7 +6,7 @@ import type { WallTile } from "@/features/wall/types";
  * A uniform grid reads as a spreadsheet of thumbnails. A real gallery wall is
  * *justified*: rows of mixed portrait, square, and landscape work, each row
  * scaled so its edges line up while no two pieces are the same size. That is
- * what this computes — the arithmetic is separated from the rendering because
+ * what this computes - the arithmetic is separated from the rendering because
  * getting a justified row wrong by a pixel leaves visible gutters, and that is
  * far easier to reason about here than inside a component.
  *
@@ -96,7 +96,7 @@ function scatter(total: number, count: number): number[] {
 /**
  * Build the wall.
  *
- * `capacity` is how many regions to compose in total — the wall is always
+ * `capacity` is how many regions to compose in total - the wall is always
  * larger than the community that has filled it, because a wall with no room
  * left says the invitation is closed.
  */
@@ -144,7 +144,7 @@ export function composeWall(
         depth: Math.round(random() * 14),
         // Gallery lighting is never even. Varying brightness and saturation
         // per frame is what stops a wall of flat vector shapes from reading as
-        // a sticker sheet — it is the single cheapest cue that these are
+        // a sticker sheet - it is the single cheapest cue that these are
         // objects hanging in a lit room rather than images in a grid.
         tone: 0.52 + random() * 0.5,
         saturation: 0.66 + random() * 0.42,

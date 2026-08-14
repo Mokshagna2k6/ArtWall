@@ -10,7 +10,7 @@ interface WordmarkProps {
 /**
  * Mark plus name, locked together.
  *
- * The name is set in wide-tracked uppercase sans to match the brand asset —
+ * The name is set in wide-tracked uppercase sans to match the brand asset -
  * deliberately *not* in the editorial serif used for headlines, so the identity
  * stays constant while page typography changes around it.
  */

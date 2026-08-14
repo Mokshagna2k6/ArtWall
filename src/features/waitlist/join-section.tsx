@@ -3,12 +3,13 @@ import {
   getNextFounderNumber,
 } from "@/features/waitlist/roster";
 import { WaitlistForm } from "@/features/waitlist/waitlist-form";
-import { SectionHeading } from "@/shared/section-heading";
+import type { SessionUser } from "@/lib/session";
+import { Container, Eyebrow } from "@/shared/editorial";
 
 const promises = [
   "A permanent, numbered place on the wall",
   "First access when we open, before the public",
-  "A say in what we build — founding artists are asked, not surveyed",
+  "A say in what we build. Founding artists are asked, not surveyed",
   "Free certification for your first works",
 ] as const;
 
@@ -16,52 +17,76 @@ const promises = [
  * Joining, framed as taking a numbered place rather than submitting a form.
  *
  * Async Server Component: the next available number is read from the database
- * (through a tag-invalidated cache) so it is genuinely live, and the form
- * itself is the only client island on the page.
+ * through a tag-invalidated cache, so it is genuinely live. The form itself is
+ * the only client island on the page.
+ *
+ * The caller has already established the session, so `user` is not optional
+ * here - the form prefills from the account rather than asking an artist to
+ * retype what they just signed in with.
  */
-export async function JoinSection() {
+export async function JoinSection({ user }: { user: SessionUser }) {
   const next = await getNextFounderNumber();
   const remaining = Math.max(0, FOUNDING_COHORT_SIZE - next + 1);
 
   return (
-    <section className="section-y max-w-wall mx-auto px-5 md:px-12 lg:px-16">
-      <SectionHeading
-        eyebrow="Founding Artists"
-        title="Be one of the first five hundred."
-        description="Not a mailing list. A founding cohort with numbered places, kept in the order people arrived."
-      />
+    <>
+      <section className="pt-32 pb-16 sm:pt-40 sm:pb-20 lg:pt-48 lg:pb-24">
+        <div className="max-w-page mx-auto px-5 sm:px-8 lg:px-16">
+          <Eyebrow>Join the Wall</Eyebrow>
+          <h1 className="font-heading text-display mt-8 max-w-[18ch] text-balance">
+            Take your place on the wall.
+          </h1>
+          <p className="text-muted-foreground text-lead mt-6 max-w-2xl">
+            Not a mailing list. A numbered place, kept in the order people
+            arrived. Founding Membership is a separate, optional yes, tick the
+            box below only if you want it.
+          </p>
+        </div>
+      </section>
 
-      <div className="mt-12 grid gap-12 lg:grid-cols-2 lg:gap-16">
-        <div className="flex flex-col gap-8">
-          <div className="border-border bg-wall-charcoal/50 rounded-xl border p-6">
-            <p className="text-muted-foreground text-label tracking-wider uppercase">
-              Next place
-            </p>
-            <p className="font-heading text-display-s text-ember mt-2 tracking-tight tabular-nums">
-              #{next}
-            </p>
-            <p className="text-muted-foreground text-small mt-2">
-              {remaining} of {FOUNDING_COHORT_SIZE} founding places remain.
-            </p>
+      <div className="border-border border-t py-20 sm:py-24 lg:py-32">
+        <Container>
+          <div className="grid gap-14 lg:grid-cols-[0.8fr_1.2fr] lg:gap-24">
+            <div>
+              <div className="border-border border-t pt-6">
+                <p className="text-muted-foreground text-eyebrow">Next place</p>
+                <p className="font-heading text-display mt-3 tabular-nums">
+                  #{next}
+                </p>
+                <p className="text-muted-foreground mt-3 text-sm">
+                  {remaining} of {FOUNDING_COHORT_SIZE} founding places remain.
+                </p>
+              </div>
+
+              <div className="border-border mt-10 border-t pt-6">
+                <p className="text-muted-foreground text-eyebrow">
+                  What Founding Membership carries
+                </p>
+                <ul className="mt-4">
+                  {promises.map((promise) => (
+                    <li
+                      key={promise}
+                      className="border-border text-muted-foreground border-b py-4 leading-7 last:border-b-0"
+                    >
+                      {promise}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <p className="text-muted-foreground mt-8 text-sm leading-7">
+                Signed in as{" "}
+                <span className="text-foreground">{user.email}</span>. Your
+                place is held against this account.
+              </p>
+            </div>
+
+            <div className="border-border border-t pt-8 lg:border-t-0 lg:pt-0">
+              <WaitlistForm defaultName={user.name} accountEmail={user.email} />
+            </div>
           </div>
-
-          <ul className="flex flex-col gap-4">
-            {promises.map((promise) => (
-              <li key={promise} className="text-body flex gap-3">
-                <span
-                  aria-hidden
-                  className="bg-ember mt-2.5 size-1.5 shrink-0 rounded-full"
-                />
-                <span className="text-muted-foreground">{promise}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="border-border bg-wall-charcoal/50 rounded-xl border p-6 sm:p-8">
-          <WaitlistForm />
-        </div>
+        </Container>
       </div>
-    </section>
+    </>
   );
 }

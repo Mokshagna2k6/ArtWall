@@ -4,15 +4,23 @@ import { Eye, EyeOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { POST_AUTH_DESTINATION } from "@/config/site";
 import { authClient } from "@/lib/auth-client";
 
 type AuthMode = "sign-in" | "sign-up";
 type PendingMethod = "email" | "google" | null;
 
+/**
+ * Where to land after authenticating.
+ *
+ * Only same-site paths are honoured: a callback beginning "//" is a
+ * protocol-relative URL to another host, which is the classic open-redirect
+ * shape, so it is rejected in favour of the default.
+ */
 function destinationFor(callbackUrl?: string) {
   return callbackUrl?.startsWith("/") && !callbackUrl.startsWith("//")
     ? callbackUrl
-    : "/studio";
+    : POST_AUTH_DESTINATION;
 }
 
 function GoogleMark() {
@@ -51,8 +59,9 @@ export function AuthForm({
   const [error, setError] = useState("");
   const [pendingMethod, setPendingMethod] = useState<PendingMethod>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const destination =
-    mode === "sign-up" ? "/studio/onboarding" : destinationFor(callbackUrl);
+  // Sign-up and sign-in both honour the callback, so an artist who was sent
+  // here from "Join the Wall" lands back on the wall either way.
+  const destination = destinationFor(callbackUrl);
   const isPending = pendingMethod !== null;
 
   async function submit(formData: FormData) {
@@ -78,7 +87,7 @@ export function AuthForm({
       router.replace(destination);
       router.refresh();
     } catch {
-      setError("We could not reach ArtWall Studio. Please try again.");
+      setError("We could not sign you in. Please try again.");
     } finally {
       setPendingMethod(null);
     }
@@ -111,14 +120,14 @@ export function AuthForm({
   return (
     <form
       action={submit}
-      className="border-studio-border bg-studio-surface shadow-soft flex w-full flex-col gap-4 border p-5 sm:p-6"
+      className="border-border flex w-full flex-col gap-4 border bg-white p-5 sm:p-6"
     >
       <button
         type="button"
         onClick={signInWithGoogle}
         disabled={!googleEnabled || isPending}
         aria-describedby={!googleEnabled ? "google-unavailable" : undefined}
-        className="border-studio-border text-studio-ink hover:border-studio-accent inline-flex h-12 items-center justify-center gap-3 border px-4 text-sm font-medium transition-[border-color,background-color] hover:bg-[#fbf3ea] disabled:cursor-not-allowed disabled:opacity-55"
+        className="border-border text-foreground hover:border-foreground hover:bg-secondary inline-flex h-12 items-center justify-center gap-3 border px-4 text-sm font-medium transition-[border-color,background-color] disabled:cursor-not-allowed disabled:opacity-55"
       >
         <GoogleMark />
         {pendingMethod === "google"
@@ -128,25 +137,25 @@ export function AuthForm({
       {!googleEnabled && (
         <p
           id="google-unavailable"
-          className="text-studio-muted -mt-2 text-center text-xs"
+          className="text-muted-foreground -mt-2 text-center text-xs"
         >
           Google sign-in is being connected for this environment.
         </p>
       )}
 
       <div className="flex items-center gap-3" aria-hidden>
-        <span className="border-studio-border h-px flex-1 border-t" />
-        <span className="text-studio-muted text-[0.68rem] tracking-[0.14em] uppercase">
+        <span className="border-border h-px flex-1 border-t" />
+        <span className="text-muted-foreground text-[0.68rem] tracking-[0.14em] uppercase">
           or continue with email
         </span>
-        <span className="border-studio-border h-px flex-1 border-t" />
+        <span className="border-border h-px flex-1 border-t" />
       </div>
 
       {mode === "sign-up" && (
-        <label className="text-studio-ink flex flex-col gap-2 text-sm">
+        <label className="text-foreground flex flex-col gap-2 text-sm">
           Your name
           <input
-            className="studio-input"
+            className="border-input focus:border-foreground h-11 border bg-white px-3 text-base transition-colors outline-none"
             name="name"
             autoComplete="name"
             placeholder="How should we know you?"
@@ -155,10 +164,10 @@ export function AuthForm({
           />
         </label>
       )}
-      <label className="text-studio-ink flex flex-col gap-2 text-sm">
+      <label className="text-foreground flex flex-col gap-2 text-sm">
         Email address
         <input
-          className="studio-input"
+          className="border-input focus:border-foreground h-11 border bg-white px-3 text-base transition-colors outline-none"
           type="email"
           name="email"
           autoComplete="email"
@@ -168,11 +177,11 @@ export function AuthForm({
           required
         />
       </label>
-      <label className="text-studio-ink flex flex-col gap-2 text-sm">
+      <label className="text-foreground flex flex-col gap-2 text-sm">
         Password
         <span className="relative">
           <input
-            className="studio-input w-full pr-12"
+            className="border-input focus:border-foreground h-11 w-full border bg-white px-3 pr-12 text-base transition-colors outline-none"
             type={showPassword ? "text" : "password"}
             name="password"
             autoComplete={
@@ -187,7 +196,7 @@ export function AuthForm({
             type="button"
             onClick={() => setShowPassword((visible) => !visible)}
             aria-label={showPassword ? "Hide password" : "Show password"}
-            className="text-studio-muted hover:text-studio-ink absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center"
+            className="text-muted-foreground hover:text-foreground absolute inset-y-0 right-0 inline-flex w-11 items-center justify-center"
           >
             {showPassword ? (
               <EyeOff className="size-4" aria-hidden />
@@ -203,14 +212,17 @@ export function AuthForm({
           {error}
         </p>
       )}
-      <button className="studio-button mt-1 h-12" disabled={isPending}>
+      <button
+        className="bg-foreground mt-1 inline-flex h-12 items-center justify-center px-5 text-sm font-medium text-white transition-colors hover:bg-[#2b3245] disabled:opacity-60"
+        disabled={isPending}
+      >
         {pendingMethod === "email"
-          ? "Preparing your studio…"
+          ? "One moment…"
           : mode === "sign-up"
-            ? "Create your studio"
-            : "Enter ArtWall Studio"}
+            ? "Create your account"
+            : "Sign in"}
       </button>
-      <p className="text-studio-muted mt-1 text-center text-xs leading-5">
+      <p className="text-muted-foreground mt-1 text-center text-xs leading-5">
         Your work and account stay yours. ArtWall does not publish anything
         without your permission.
       </p>

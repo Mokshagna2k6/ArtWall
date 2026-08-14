@@ -7,7 +7,7 @@ import { useReducedMotion } from "framer-motion";
  * The air in the room.
  *
  * Dust drifting through a gallery's light is the cheapest, most convincing
- * signal that a space is real rather than rendered — it is the thing your eye
+ * signal that a space is real rather than rendered - it is the thing your eye
  * uses to tell a photograph of a room from a flat image of a wall. It is also
  * the easiest thing to overdo: this is deliberately sparse, slow, and dim
  * enough that most visitors will never consciously notice it.
@@ -17,7 +17,7 @@ import { useReducedMotion } from "framer-motion";
  * layer and would visibly cost frames on the mid-range Android a lot of our
  * artists are browsing on; a canvas costs one layer regardless of mote count.
  *
- * Pauses entirely when off-screen or when the tab is hidden — an invisible
+ * Pauses entirely when off-screen or when the tab is hidden - an invisible
  * animation that keeps burning battery is a bug, not an ambience.
  */
 export function WallAtmosphere({ className }: { className?: string }) {
@@ -149,7 +149,7 @@ export function WallAtmosphere({ className }: { className?: string }) {
       ref={canvasRef}
       aria-hidden
       className={className}
-      // The canvas is decoration over a scrollable, draggable wall — it must
+      // The canvas is decoration over a scrollable, draggable wall - it must
       // never intercept a pointer.
       style={{ pointerEvents: "none" }}
     />

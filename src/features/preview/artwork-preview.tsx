@@ -75,7 +75,7 @@ export function ArtworkPreview() {
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start">
-      <div className="overflow-hidden rounded-[2rem] border border-[#e5e4e1] bg-white shadow-[0_20px_60px_rgb(16_17_20/0.10)]">
+      <div className="overflow-hidden rounded-[2rem] border border-[#f0f0f0] bg-white shadow-[0_20px_60px_rgb(16_17_20/0.10)]">
         <div
           className="relative aspect-[16/10] overflow-hidden"
           style={{ background: room.wall }}
@@ -118,7 +118,7 @@ export function ArtworkPreview() {
             {room.eyebrow}
           </div>
           {room.id === "hotel" && (
-            <div className="absolute top-5 right-5 rounded-full border border-[#efc38f]/45 bg-[#241c17]/60 px-3 py-1.5 text-[10px] font-semibold tracking-[0.14em] text-[#f6d5ac] uppercase backdrop-blur-md">
+            <div className="absolute top-5 right-5 rounded-full border border-[#8a8a8a]/45 bg-[#0f0f0f]/60 px-3 py-1.5 text-[10px] font-semibold tracking-[0.14em] text-[#8a8a8a] uppercase backdrop-blur-md">
               3D exhibition preview
             </div>
           )}
@@ -152,8 +152,8 @@ export function ArtworkPreview() {
                   }
                   className={cn(
                     "relative max-h-[61%] max-w-[50%]",
-                    room.frame === "thin-dark" && "bg-[#15171c] p-[1.4%]",
-                    room.frame === "wide-light" && "bg-[#f5f0e8] p-[3%]"
+                    room.frame === "thin-dark" && "bg-[#0f0f0f] p-[1.4%]",
+                    room.frame === "wide-light" && "bg-[#f7f7f7] p-[3%]"
                   )}
                   style={{
                     boxShadow:
@@ -191,23 +191,21 @@ export function ArtworkPreview() {
 
         <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
           <div>
-            <p className="text-[11px] font-semibold tracking-[0.16em] text-[#4385f4] uppercase">
+            <p className="text-[11px] font-semibold tracking-[0.16em] text-[#0f0f0f] uppercase">
               {room.label}
             </p>
-            <p className="font-heading mt-1 text-xl tracking-tight">
-              {room.caption}
-            </p>
-            <p className="mt-1 text-sm text-[#747981]">{room.detail}</p>
+            <p className="font-heading text-card mt-1">{room.caption}</p>
+            <p className="mt-1 text-sm text-[#5a5a5a]">{room.detail}</p>
           </div>
-          <p className="inline-flex shrink-0 items-center gap-2 text-xs text-[#717781]">
-            <LockKeyhole className="size-3.5 text-[#4385f4]" aria-hidden />{" "}
+          <p className="inline-flex shrink-0 items-center gap-2 text-xs text-[#5a5a5a]">
+            <LockKeyhole className="size-3.5 text-[#0f0f0f]" aria-hidden />{" "}
             Never uploaded
           </p>
         </div>
       </div>
 
-      <aside className="rounded-[1.5rem] border border-[#e5e4e1] bg-[#fcfbf8] p-4 lg:sticky lg:top-28">
-        <p className="px-2 text-[11px] font-semibold tracking-[0.16em] text-[#626974] uppercase">
+      <aside className="rounded-[1.5rem] border border-[#f0f0f0] bg-[#ffffff] p-4 lg:sticky lg:top-28">
+        <p className="px-2 text-[11px] font-semibold tracking-[0.16em] text-[#5a5a5a] uppercase">
           Choose a setting
         </p>
         <div
@@ -227,15 +225,15 @@ export function ArtworkPreview() {
                 className={cn(
                   "flex min-w-34 items-center justify-between gap-3 rounded-xl border px-3 py-3 text-left transition lg:w-full",
                   selected
-                    ? "border-[#aac8fb] bg-[#edf3ff] shadow-[0_4px_12px_rgb(67_133_244/0.08)]"
-                    : "border-transparent hover:border-[#e2e2e1] hover:bg-white"
+                    ? "border-[#d4d4d4] bg-[#f7f7f7] shadow-[0_4px_12px_rgb(67_133_244/0.08)]"
+                    : "border-transparent hover:border-[#f0f0f0] hover:bg-white"
                 )}
               >
                 <span>
-                  <span className="block text-sm font-semibold text-[#1b1c20]">
+                  <span className="block text-sm font-semibold text-[#0f0f0f]">
                     {candidate.label}
                   </span>
-                  <span className="mt-0.5 block text-[11px] text-[#7d828b]">
+                  <span className="mt-0.5 block text-[11px] text-[#8a8a8a]">
                     {candidate.detail.split(" · ")[0]}
                   </span>
                 </span>
@@ -267,17 +265,17 @@ export function ArtworkPreview() {
           className={cn(
             "flex flex-col gap-4 rounded-2xl border border-dashed p-5 transition sm:flex-row sm:items-center sm:justify-between",
             dragging
-              ? "border-[#4385f4] bg-[#f5f8ff]"
-              : "border-[#dfe1e5] bg-white hover:border-[#a7c5fa]"
+              ? "border-[#0f0f0f] bg-[#f7f7f7]"
+              : "border-[#e6e6e6] bg-white hover:border-[#d4d4d4]"
           )}
         >
           <div className="flex items-start gap-3">
-            <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#edf3ff] text-[#4385f4]">
+            <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#f7f7f7] text-[#0f0f0f]">
               <ImageUp className="size-5" aria-hidden />
             </span>
             <div>
               <p className="font-semibold">Try your own artwork</p>
-              <p className="mt-1 text-sm text-[#747981]">
+              <p className="mt-1 text-sm text-[#5a5a5a]">
                 JPG, PNG, WebP or AVIF · up to 12 MB · stays on your device
               </p>
             </div>
@@ -287,7 +285,7 @@ export function ArtworkPreview() {
               <button
                 type="button"
                 onClick={reset}
-                className="inline-flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm text-[#626974] transition hover:bg-[#f2f1ee] hover:text-[#17181a]"
+                className="inline-flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm text-[#5a5a5a] transition hover:bg-[#f7f7f7] hover:text-[#0f0f0f]"
               >
                 <X className="size-4" aria-hidden /> Remove
               </button>
@@ -295,7 +293,7 @@ export function ArtworkPreview() {
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#17181a] px-4 text-sm font-semibold text-white transition hover:bg-[#33353a]"
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0f0f0f] px-4 text-sm font-semibold text-white transition hover:bg-[#2b3245]"
             >
               <ImageUp className="size-4" aria-hidden />{" "}
               {status.state === "ready" ? "Change artwork" : "Choose artwork"}
@@ -314,9 +312,9 @@ export function ArtworkPreview() {
             <span className="text-destructive">{status.message}</span>
           )}
           {status.state === "ready" && (
-            <span className="inline-flex items-center gap-2 text-[#5f6773]">
-              <Check className="size-4 text-[#4385f4]" aria-hidden /> Showing{" "}
-              <strong className="font-medium text-[#17181a]">
+            <span className="inline-flex items-center gap-2 text-[#5a5a5a]">
+              <Check className="size-4 text-[#0f0f0f]" aria-hidden /> Showing{" "}
+              <strong className="font-medium text-[#0f0f0f]">
                 {status.name}
               </strong>
               <MoveRight className="size-3.5" aria-hidden /> Try another room.
@@ -348,7 +346,7 @@ function VirtualExhibitionArchitecture({ floor }: { floor: string }) {
           clipPath: "polygon(8% 0, 92% 0, 100% 100%, 0 100%)",
         }}
       />
-      <div className="pointer-events-none absolute inset-x-[8%] bottom-[27.6%] h-px bg-[#77716a]/35" />
+      <div className="pointer-events-none absolute inset-x-[8%] bottom-[27.6%] h-px bg-[#5a5a5a]/35" />
     </>
   );
 }

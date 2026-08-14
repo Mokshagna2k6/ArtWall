@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 
 import { Wordmark } from "@/components/brand/wordmark";
-import { navItems, primaryCta, secondaryNavItems } from "@/config/nav";
+import { navItems, secondaryNavItems } from "@/config/nav";
 import { siteConfig } from "@/config/site";
 
 const socials = [
@@ -13,53 +12,41 @@ const socials = [
   { label: "WhatsApp", href: siteConfig.social.whatsapp },
 ] as const;
 
+const columns = [
+  { heading: "Explore", links: navItems.slice(1) },
+  { heading: "More", links: secondaryNavItems },
+] as const;
+
 /**
  * The closing wall.
  *
  * A footer is usually where a premium site gives up and becomes a sitemap.
- * This one stays part of the exhibition: the tagline is set at display scale as
- * the last thing you read, with the practical details quiet beneath it.
+ * This one stays part of the exhibition: set on deep slate so the white page
+ * ends against something solid, with the tagline at display scale as the last
+ * thing you read and the practical details quiet beneath it.
  *
- * Server Component — every interaction here is CSS-only, so it ships no JS.
+ * Every route that is not in the header lives here, so nothing on the site is
+ * more than two clicks from anywhere.
+ *
+ * Server Component - every interaction is CSS-only, so it ships no JS.
  */
 export function SiteFooter() {
   return (
-    <footer className="border-border border-t">
-      <div className="max-w-wall mx-auto px-5 py-16 md:px-12 lg:px-16 lg:py-24">
-        <p className="font-heading text-h2 lg:text-display-s max-w-4xl tracking-tight text-balance">
-          {siteConfig.tagline}
-        </p>
-
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/preview"
-            className="bg-ember text-wall-paper text-body hover:bg-ember-glow inline-flex h-12 items-center gap-2 rounded-md px-5 font-medium transition-[background-color,transform] duration-200 hover:-translate-y-px active:translate-y-0"
-          >
-            See your work hung
-            <ArrowUpRight className="size-4" aria-hidden />
-          </Link>
-          <Link
-            href="/wall"
-            className="border-border text-body hover:border-ink/30 inline-flex h-12 items-center gap-2 rounded-md border px-5 transition-[border-color,transform] duration-200 hover:-translate-y-px active:translate-y-0"
-          >
-            Explore The Wall
-            <ArrowUpRight className="size-4" aria-hidden />
-          </Link>
-        </div>
-
-        <div className="mt-16 grid gap-10 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="lg:col-span-2">
+    <footer className="bg-footer text-white">
+      <div className="max-w-page mx-auto w-full px-5 py-16 sm:px-8 lg:px-16 lg:py-20">
+        <div className="grid gap-12 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
             <Wordmark markClassName="size-6" />
-            <p className="text-muted-foreground text-small mt-4 max-w-xs">
+            <p className="mt-5 max-w-xs text-sm leading-7 text-white/60">
               {siteConfig.positioning}
             </p>
-            <dl className="text-small mt-6 flex flex-col gap-1.5">
+            <dl className="mt-6 flex flex-col gap-1.5 text-sm">
               <div>
                 <dt className="sr-only">Email</dt>
                 <dd>
                   <a
                     href={`mailto:${siteConfig.contact.email}`}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-white/60 transition-colors hover:text-white"
                   >
                     {siteConfig.contact.email}
                   </a>
@@ -70,7 +57,7 @@ export function SiteFooter() {
                 <dd>
                   <a
                     href={`tel:+${siteConfig.contact.phoneDigits}`}
-                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-white/60 transition-colors hover:text-white"
                   >
                     {siteConfig.contact.phone}
                   </a>
@@ -79,81 +66,47 @@ export function SiteFooter() {
             </dl>
           </div>
 
-          <nav aria-label="Explore">
-            <h2 className="text-label text-muted-foreground font-sans tracking-wider uppercase">
-              Explore
-            </h2>
-            <ul className="mt-4 flex flex-col gap-3">
-              {navItems.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className="text-muted-foreground hover:text-foreground text-small transition-colors"
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-              <li>
-                <Link
-                  href={primaryCta.href}
-                  className="text-ember hover:text-ember-glow text-small transition-colors"
-                >
-                  {primaryCta.label}
-                </Link>
-              </li>
-            </ul>
-          </nav>
+          {columns.map((column) => (
+            <nav key={column.heading} aria-label={column.heading}>
+              <p className="text-signal-bright text-eyebrow">
+                {column.heading}
+              </p>
+              <ul className="mt-5 flex flex-col gap-3">
+                {column.links.map((item) => (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className="text-sm text-white/60 transition-colors hover:text-white"
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
 
-          <nav aria-label="Practice">
-            <h2 className="text-label text-muted-foreground font-sans tracking-wider uppercase">
-              Practice
-            </h2>
-            <ul className="mt-4 flex flex-col gap-3">
-              {secondaryNavItems.map((item) => (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className="text-muted-foreground hover:text-foreground text-small transition-colors"
-                  >
-                    {item.label}
-                  </Link>
-                </li>
-              ))}
-              <li>
-                <Link
-                  href="/sign-in"
-                  className="text-muted-foreground hover:text-foreground text-small transition-colors"
-                >
-                  ArtWall Studio
-                </Link>
-              </li>
-            </ul>
-          </nav>
-
-          <div>
-            <h2 className="text-label text-muted-foreground font-sans tracking-wider uppercase">
-              Follow
-            </h2>
-            <ul className="mt-4 flex flex-col gap-3">
+          <nav aria-label="Follow">
+            <p className="text-signal-bright text-eyebrow">Follow</p>
+            <ul className="mt-5 flex flex-col gap-3">
               {socials.map((social) => (
                 <li key={social.label}>
                   <a
                     href={social.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-muted-foreground hover:text-foreground text-small transition-colors"
+                    className="text-sm text-white/60 transition-colors hover:text-white"
                   >
                     {social.label}
                   </a>
                 </li>
               ))}
             </ul>
-          </div>
+          </nav>
         </div>
 
-        <div className="border-border mt-16 flex flex-col gap-4 border-t pt-8 sm:flex-row sm:items-end sm:justify-between">
-          <div className="text-muted-foreground text-caption flex flex-wrap gap-x-6 gap-y-2">
+        <div className="mt-16 flex flex-col gap-4 border-t border-white/15 pt-8 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-white/45">
             <span>{siteConfig.credentials.recognition}</span>
             <span>{siteConfig.credentials.origin}</span>
             <span>
@@ -162,13 +115,13 @@ export function SiteFooter() {
                 href={siteConfig.techPartner.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-foreground underline underline-offset-2 transition-colors"
+                className="underline underline-offset-2 transition-colors hover:text-white"
               >
                 {siteConfig.techPartner.name}
               </a>
             </span>
           </div>
-          <p className="text-muted-foreground text-caption shrink-0">
+          <p className="shrink-0 text-xs text-white/45">
             &copy; {new Date().getFullYear()} {siteConfig.legalName}. All rights
             reserved.
           </p>

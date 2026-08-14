@@ -16,13 +16,13 @@ export const products: readonly Product[] = [
   {
     name: "Artwall Platform",
     audience: "Flagship",
-    line: "Exhibition, certification, and marketplace — the core that connects artists, collectors, and venues.",
+    line: "Exhibition, certification, and marketplace, the core that connects artists, collectors, and venues.",
     atLaunch: true,
   },
   {
     name: "Backstage",
     audience: "B2B",
-    line: "Exhibition management for galleries and venues — plan, coordinate, and run shows end to end.",
+    line: "Exhibition management for galleries and venues, plan, coordinate, and run shows end to end.",
     atLaunch: true,
   },
   {
@@ -64,7 +64,7 @@ export const products: readonly Product[] = [
   {
     name: "Ticketing & Events App",
     audience: "B2B · B2C",
-    line: "Exhibition tickets, art walks, workshops — plan, sell, and manage seamlessly.",
+    line: "Exhibition tickets, art walks, workshops, plan, sell, and manage seamlessly.",
     atLaunch: false,
   },
 ];
@@ -76,7 +76,7 @@ export const products: readonly Product[] = [
 export const lifecycle = [
   {
     step: "Genesis",
-    line: "The artwork is born — an idea becomes material form.",
+    line: "The artwork is born, an idea becomes material form.",
   },
   {
     step: "Exhibition",
@@ -84,15 +84,15 @@ export const lifecycle = [
   },
   {
     step: "Verification",
-    line: "Tamper-proof certification — immutable proof of origin and authenticity.",
+    line: "Tamper-proof certification, immutable proof of origin and authenticity.",
   },
   {
     step: "Exchange",
-    line: "Fair trade between creator and collector — the artist earns on every resale.",
+    line: "Fair trade between creator and collector, the artist earns on every resale.",
   },
   {
     step: "Endurance",
-    line: "The work outlasts its maker — provenance and legacy preserved permanently.",
+    line: "The work outlasts its maker, provenance and legacy preserved permanently.",
   },
 ] as const;
 
@@ -100,18 +100,18 @@ export const lifecycle = [
 export const markElements = [
   {
     name: "The Wall",
-    line: "Open L-frame — broken, because an exhibition is an invitation.",
+    line: "Open L-frame, broken, because an exhibition is an invitation.",
   },
   {
     name: "The Lab",
-    line: "Sealed square — immutability, mathematical proof.",
+    line: "Sealed square, immutability, mathematical proof.",
   },
   {
     name: "The Seed",
-    line: "Amber dot at the origin — where the artist begins.",
+    line: "Amber dot at the origin, where the artist begins.",
   },
   {
     name: "The Void",
-    line: "The overlap — not emptiness, but where creator meets collector.",
+    line: "The overlap, not emptiness, but where creator meets collector.",
   },
 ] as const;

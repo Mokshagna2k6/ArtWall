@@ -1,5 +1,48 @@
 import { ArrowRight } from "lucide-react";
 import { getSales } from "@/app/actions/workspaces";
-import { StudioButton, StudioEmptyState, StudioPageHeader } from "@/components/dashboard/studio-shell";
+import {
+  StudioButton,
+  StudioEmptyState,
+  StudioPageHeader,
+} from "@/components/dashboard/studio-shell";
 import { WorkspaceCreateForm } from "@/components/dashboard/workspace-create-form";
-export default async function SalesPage() { const opportunities = await getSales(); return <div className="flex flex-col gap-8"><StudioPageHeader eyebrow="Business" title="Sales pipeline" description="See interest become conversation, and conversation become the right next home for a work." action={<WorkspaceCreateForm kind="sale" />} />{opportunities.length === 0 ? <div className="studio-card"><StudioEmptyState title="Your pipeline is clear" description="When a collector asks about a work, add the opportunity here to keep the next step visible." action={<StudioButton><ArrowRight data-icon="inline-start" />Add first opportunity</StudioButton>} /></div> : <div className="grid gap-4 md:grid-cols-3">{opportunities.map((item) => <article key={item.id} className="studio-card p-5"><p className="studio-eyebrow">{item.status}</p><p className="mt-4 text-xl text-studio-ink">{item.amount ? `₹${item.amount.toLocaleString()}` : "Amount pending"}</p></article>)}</div>}</div>; }
+export default async function SalesPage() {
+  const opportunities = await getSales();
+  return (
+    <div className="flex flex-col gap-8">
+      <StudioPageHeader
+        eyebrow="Business"
+        title="Sales pipeline"
+        description="See interest become conversation, and conversation become the right next home for a work."
+        action={<WorkspaceCreateForm kind="sale" />}
+      />
+      {opportunities.length === 0 ? (
+        <div className="studio-card">
+          <StudioEmptyState
+            title="Your pipeline is clear"
+            description="When a collector asks about a work, add the opportunity here to keep the next step visible."
+            action={
+              <StudioButton>
+                <ArrowRight data-icon="inline-start" />
+                Add first opportunity
+              </StudioButton>
+            }
+          />
+        </div>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-3">
+          {opportunities.map((item) => (
+            <article key={item.id} className="studio-card p-5">
+              <p className="studio-eyebrow">{item.status}</p>
+              <p className="text-studio-ink text-card mt-4">
+                {item.amount
+                  ? `₹${item.amount.toLocaleString()}`
+                  : "Amount pending"}
+              </p>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

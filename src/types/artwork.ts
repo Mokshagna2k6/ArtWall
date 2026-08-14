@@ -2,7 +2,7 @@ export interface ArtworkImage {
   url: string;
   width: number;
   height: number;
-  /** Required — artist-authored at upload, per the accessibility rule in Phase 2 §7. */
+  /** Required - artist-authored at upload, per the accessibility rule in Phase 2 §7. */
   alt: string;
 }
 

@@ -14,7 +14,7 @@ interface MagneticProps {
   children: ReactNode;
   /**
    * How far the element travels toward the cursor, in px.
-   * Kept deliberately small — magnetism should be felt, not watched.
+   * Kept deliberately small - magnetism should be felt, not watched.
    */
   strength?: number;
   className?: string;
@@ -26,13 +26,13 @@ interface MagneticProps {
  *
  * Why it exists: it makes the interface feel like it is responding to *your*
  * presence, which is the "presence over performance" principle. It is applied
- * sparingly — primary CTAs only, never every button.
+ * sparingly - primary CTAs only, never every button.
  *
  * Accessibility: the effect is purely decorative transform. It never moves an
  * element far enough to escape its own hit area, is skipped entirely under
  * `prefers-reduced-motion`, and does nothing on touch devices (no hover, so
  * `pointermove` from a finger never fires the approach). Keyboard focus is
- * unaffected — the child keeps its own focus ring.
+ * unaffected - the child keeps its own focus ring.
  *
  * Performance: animates `transform` only (GPU-composited, no layout work), and
  * reads geometry once per pointer event rather than on every frame.

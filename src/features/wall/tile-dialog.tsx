@@ -19,7 +19,7 @@ interface TileDialogProps {
  *
  * This is the payoff for the selfie: the work on the left, the person who made
  * it on the right. A wall of images is a catalogue; a wall of images with the
- * maker beside each one is the argument the whole company is making — that
+ * maker beside each one is the argument the whole company is making - that
  * there is a real person at the end of every transaction, and you can see them.
  *
  * Built on Base UI's Dialog rather than a hand-rolled modal so focus trapping,

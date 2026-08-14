@@ -43,7 +43,7 @@ async function clientKey(): Promise<string> {
  *
  * Hiding rather than deleting: the artist keeps their founding number and their
  * place in the roster, and the action is reversible if it was a mistake. The
- * image stays in Cloudinary — a genuine takedown request should also delete the
+ * image stays in Cloudinary - a genuine takedown request should also delete the
  * asset, which is deliberately a separate, more considered step.
  *
  * Rate limited hard, because this endpoint accepts a password and would

@@ -5,7 +5,7 @@ import { practices } from "@/features/waitlist/schema";
 /**
  * What an artist submits to hang a work.
  *
- * The image itself never passes through this schema — the browser has already
+ * The image itself never passes through this schema - the browser has already
  * uploaded it to Cloudinary by the time this runs, so what arrives here is a
  * URL and a public_id that the *client* chose. Both are therefore treated as
  * hostile input and re-checked against our own account in the action.
@@ -78,10 +78,10 @@ export const publishSchema = z.object({
   selfiePublicId: publicId.optional().or(z.literal("")),
 
   /** Cloudinary's moderation verdict, echoed back by the browser. Advisory
-   *  only — the server re-checks with Cloudinary rather than trusting it. */
+   *  only - the server re-checks with Cloudinary rather than trusting it. */
   artworkModeration: z.string().trim().max(40).optional().or(z.literal("")),
 
-  /** Honeypot — see the waitlist schema for why it is named this way. */
+  /** Honeypot - see the waitlist schema for why it is named this way. */
   website: z.string().max(0).optional().or(z.literal("")),
 });
 

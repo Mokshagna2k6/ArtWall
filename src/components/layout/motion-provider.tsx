@@ -13,7 +13,7 @@ import { duration, ease } from "@/lib/motion";
  * OS asks for reduced motion, without each component having to remember to
  * check. Components still branch on the preference individually where they owe
  * the user a meaningful static fallback (a stamped seal instead of a stamping
- * animation, say) — this is the safety net beneath that.
+ * animation, say) - this is the safety net beneath that.
  *
  * Setting the default transition here also means a component that specifies no
  * transition still eases organically rather than falling back to Framer's

@@ -23,7 +23,7 @@ export class CloudinaryNotConfiguredError extends Error {
  * Cloudinary; our server only ever handles a small JSON signature.
  *
  * No SDK dependency: the signature is a SHA-1 of sorted params plus the secret.
- * That is the entire algorithm, and `node:crypto` already ships it — pulling in
+ * That is the entire algorithm, and `node:crypto` already ships it - pulling in
  * the SDK for this would be an unjustified dependency.
  */
 export interface UploadSignature {
@@ -47,7 +47,7 @@ interface CloudinaryCredentials {
  *
  * Their console gives you a single `CLOUDINARY_URL` of the form
  * `cloudinary://<api_key>:<api_secret>@<cloud_name>`, and that is what most
- * people paste into their environment — including this project. Reading it
+ * people paste into their environment - including this project. Reading it
  * here means the app works with the variable you already have, and the split
  * `CLOUDINARY_API_KEY` / `_SECRET` form still wins if it is set, so a
  * deployment can override one credential without restating the whole URL.
@@ -65,7 +65,7 @@ function readCredentials(): CloudinaryCredentials {
       apiKey ||= decodeURIComponent(parsed.username);
       apiSecret ||= decodeURIComponent(parsed.password);
     } catch {
-      // A malformed CLOUDINARY_URL is not worth crashing on — fall through to
+      // A malformed CLOUDINARY_URL is not worth crashing on - fall through to
       // the missing-credentials error below, which says something actionable.
     }
   }
@@ -95,7 +95,7 @@ export function getCloudName(): string | null {
  *
  * Deliberately opt-in through the environment. Sending `moderation=aws_rek`
  * when the add-on is not enabled on the account makes Cloudinary reject the
- * upload outright — so defaulting it on would break every upload for anyone
+ * upload outright - so defaulting it on would break every upload for anyone
  * who has not subscribed. Unset means uploads simply are not machine-checked,
  * and the admin takedown route remains the backstop.
  */
@@ -170,7 +170,7 @@ export type ModerationVerdict = "approved" | "rejected" | "pending" | "none";
  *
  * Deliberately re-asked server-side. The browser also receives the verdict in
  * the upload response and posts it back to us, but that value is trivially
- * editable in devtools — trusting it would mean the moderation layer could be
+ * editable in devtools - trusting it would mean the moderation layer could be
  * switched off by anyone motivated enough to open the network tab. This costs
  * one Admin API call per upload and makes the check real.
  *
@@ -221,7 +221,7 @@ export async function fetchModerationVerdict(
 
 /**
  * Remove an asset. Used when a tile is taken down, so hidden images do not sit
- * in the account indefinitely — and so a takedown request can be honoured
+ * in the account indefinitely - and so a takedown request can be honoured
  * properly rather than merely hidden from the UI.
  */
 export async function destroyAsset(publicId: string): Promise<void> {

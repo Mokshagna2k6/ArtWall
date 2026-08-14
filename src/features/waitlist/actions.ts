@@ -13,6 +13,7 @@ import {
 import { saveWaitlistEntry } from "@/features/waitlist/store";
 import { DatabaseNotConfiguredError } from "@/lib/db";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { getSessionUser } from "@/lib/session";
 
 const RATE_LIMIT = { limit: 5, windowMs: 10 * 60 * 1000 };
 
@@ -50,9 +51,24 @@ export async function joinWaitlist(
   _previous: WaitlistState,
   formData: FormData
 ): Promise<WaitlistState> {
+  // A place on the wall belongs to a person, so it requires an account. The
+  // page already redirects signed-out visitors to sign in; this is the check
+  // that actually enforces it, because a Server Action is a public endpoint
+  // and the page-level redirect is only a courtesy.
+  const user = await getSessionUser();
+  if (!user) {
+    return {
+      status: "error",
+      message: "Please sign in to take your place on the wall.",
+    };
+  }
+
   const raw = {
     name: formData.get("name"),
-    email: formData.get("email"),
+    // The address on the roster is the one the account was verified with, not
+    // whatever was typed into the form - otherwise one account could claim
+    // places under any number of addresses.
+    email: user.email,
     role: formData.get("role"),
     practice: formData.get("practice") || undefined,
     city: formData.get("city") ?? "",
@@ -65,6 +81,8 @@ export async function joinWaitlist(
     selfiePublicId: formData.get("selfiePublicId") ?? "",
     artworkTitle: formData.get("artworkTitle") ?? "",
     quote: formData.get("quote") ?? "",
+    // An unticked checkbox posts nothing, so absence is a clear "no".
+    foundingMember: formData.get("foundingMember") === "on",
   };
 
   const parsed = waitlistSchema.safeParse(raw);
@@ -83,7 +101,7 @@ export async function joinWaitlist(
     };
   }
 
-  // Honeypot tripped — respond like success so bots learn nothing from the
+  // Honeypot tripped - respond like success so bots learn nothing from the
   // difference, but persist nothing. The number is not real and never reaches
   // the database.
   if (parsed.data.website) {
@@ -103,6 +121,7 @@ export async function joinWaitlist(
   try {
     const { founderNumber } = await saveWaitlistEntry({
       ...parsed.data,
+      userId: user.id,
       userAgent: headerList.get("user-agent"),
     });
 
@@ -115,7 +134,7 @@ export async function joinWaitlist(
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
       console.error(
-        "[waitlist] DATABASE_URL is not set — submission was NOT saved."
+        "[waitlist] DATABASE_URL is not set, submission was NOT saved."
       );
     } else {
       console.error("[waitlist] Failed to save entry", error);

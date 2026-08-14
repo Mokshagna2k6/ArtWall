@@ -5,10 +5,13 @@ export function PreviewSection() {
   return (
     <section
       id="preview"
-      className="bg-[#faf9f5] px-5 pt-32 pb-24 sm:px-8 sm:pt-40 lg:px-16"
+      className="px-5 pt-32 pb-16 sm:px-8 sm:pt-40 sm:pb-20 lg:px-16 lg:pt-48 lg:pb-24"
     >
-      <div className="mx-auto max-w-[1180px]">
+      <div className="max-w-page mx-auto">
+        {/* `as="h1"`, this is the top of the page. It previously rendered
+            an h2, leaving the route with no h1 at all. */}
         <SectionHeading
+          as="h1"
           eyebrow="See it hung"
           title="See your work where it could live next."
           description="Place your art in a gallery, hotel, café, museum or home. It is fast, private, and designed to make the next step feel real."

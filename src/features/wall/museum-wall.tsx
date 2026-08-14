@@ -51,14 +51,14 @@ const CULL_MARGIN = 500;
  *
  * Three things make this a museum rather than a gallery of thumbnails:
  *
- *   The composition is justified and irregular — mixed portrait, square and
+ *   The composition is justified and irregular - mixed portrait, square and
  *   landscape work, rows that line up at the edges but never repeat a size.
- *   The camera is yours — drag to walk along the wall, scroll to lean in.
+ *   The camera is yours - drag to walk along the wall, scroll to lean in.
  *   The surface is lit and dusty and slightly crooked, because real walls are.
  *
  * Performance is the reason for most of the structure here. The camera writes
  * its transform straight to the DOM in a pointer handler rather than through
- * React state — a wall of two hundred regions re-rendering on every
+ * React state - a wall of two hundred regions re-rendering on every
  * pointermove would drop frames on any device. React is only told about the
  * camera when it settles, and only so it can cull: regions outside the
  * viewport plus a margin are never mounted at all, which keeps the DOM at a
@@ -86,7 +86,7 @@ export function MuseumWall({ tiles, pending = null, onOpen }: MuseumWallProps) {
   const [dragging, setDragging] = useState(false);
   const [hasMoved, setHasMoved] = useState(false);
 
-  /** Smallest scale that still covers the viewport — the wall never letterboxes. */
+  /** Smallest scale that still covers the viewport - the wall never letterboxes. */
   const minScale = useMemo(() => {
     if (!viewport.width || !viewport.height) return 1;
     return Math.max(
@@ -261,7 +261,7 @@ export function MuseumWall({ tiles, pending = null, onOpen }: MuseumWallProps) {
 
   // ── The handover: pan to the new work, then dissolve our surface off it ──
 
-  /* Which region is mid-handover is a *function* of what was just published —
+  /* Which region is mid-handover is a *function* of what was just published -
      derived, not stored. Storing it would mean an effect that writes state the
      moment `pending` changes, which is a cascading render and leaves a frame
      where the wall disagrees with itself about what is dissolving. */
@@ -271,7 +271,7 @@ export function MuseumWall({ tiles, pending = null, onOpen }: MuseumWallProps) {
   );
 
   /* Only the completion is state, and it is written from the burst's own
-     callback — an event, not a render side effect. A stale id from a previous
+     callback, an event, not a render side effect. A stale id from a previous
      handover simply never matches the current region, so nothing needs
      resetting. */
   const [revealed, setRevealed] = useState<string | null>(null);
@@ -337,15 +337,15 @@ export function MuseumWall({ tiles, pending = null, onOpen }: MuseumWallProps) {
         dragging ? "cursor-grabbing" : "cursor-grab"
       )}
     >
-      {/* Layer 1 — the gallery wall itself: plaster, tint, and grain. */}
-      <div aria-hidden className="absolute inset-0 bg-[#14151A]" />
+      {/* Layer 1, the gallery wall itself: plaster, tint, and grain. */}
+      <div aria-hidden className="absolute inset-0 bg-[#0f0f0f]" />
       <div
         aria-hidden
         className="absolute inset-0 opacity-[0.5]"
         style={{ backgroundImage: PLASTER, backgroundSize: "180px 180px" }}
       />
 
-      {/* Layers 2 & 3 — the mural, and the artworks replacing it. */}
+      {/* Layers 2 & 3, the mural, and the artworks replacing it. */}
       <div ref={breatheRef} className="absolute inset-0 will-change-transform">
         <div
           ref={cameraRef}
@@ -369,7 +369,7 @@ export function MuseumWall({ tiles, pending = null, onOpen }: MuseumWallProps) {
         </div>
       </div>
 
-      {/* Layer 5 — atmosphere. */}
+      {/* Layer 5, atmosphere. */}
       <WallAtmosphere className="absolute inset-0 z-20 size-full" />
 
       {/* The room's single light source, high and central. */}
@@ -391,7 +391,7 @@ export function MuseumWall({ tiles, pending = null, onOpen }: MuseumWallProps) {
         }}
       />
 
-      {/* Layer 4 — the one instruction anybody needs, until they use it. */}
+      {/* Layer 4, the one instruction anybody needs, until they use it. */}
       {!hasMoved && (
         <p className="border-border bg-wall-charcoal/80 text-caption text-muted-foreground pointer-events-none absolute bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-full border px-4 py-2 backdrop-blur-md">
           Drag to walk the wall &middot; scroll to lean in
@@ -507,7 +507,7 @@ function Region({
 /**
  * Plaster: fractal noise baked into a data URI.
  *
- * An SVG filter rather than a texture file — it is under a kilobyte, scales to
+ * An SVG filter rather than a texture file - it is under a kilobyte, scales to
  * any density without going soft, and costs no network request on a wall that
  * is already asking a lot of a 4G connection.
  */

@@ -4,11 +4,11 @@
  * Deliberately rendered as a constellation of cities rather than as a national
  * outline. Two reasons, one of them serious:
  *
- *  1. Legal — depicting India's boundaries inaccurately is a genuine
+ *  1. Legal - depicting India's boundaries inaccurately is a genuine
  *     compliance risk for an Indian company (Survey of India guidelines govern
  *     how the national map may be shown). A hand-approximated SVG outline would
  *     almost certainly get it wrong at the borders. Cities carry no such risk.
- *  2. Honest — this map is about where artists are, not about territory. Points
+ *  2. Honest - this map is about where artists are, not about territory. Points
  *     of light on darkness say that better than a filled landmass, and it costs
  *     a fraction of the bytes.
  */
@@ -17,7 +17,7 @@ export interface City {
   state: string;
   lat: number;
   lon: number;
-  /** What this place is known for — shown on hover. */
+  /** What this place is known for - shown on hover. */
   known: string;
 }
 

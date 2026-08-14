@@ -143,7 +143,7 @@ export interface WallEvent {
  *
  * Real joins only. A live-looking feed of invented names would be the easy way
  * to make a young wall feel busy, and it would be a fabrication printed on the
- * founding artists' own wall — the one surface where our credibility is the
+ * founding artists' own wall - the one surface where our credibility is the
  * entire product. When nobody has joined yet the feed is empty, and the UI
  * says so plainly.
  *
@@ -205,11 +205,11 @@ export interface PublishInput {
  *
  * Upsert by email, matching `saveWaitlistEntry`: an artist who joined the
  * waitlist last week and uploads today keeps the founder number they were
- * given. Re-uploading replaces the image but never moves their place — a
+ * given. Re-uploading replaces the image but never moves their place - a
  * position on this wall is the one thing we promised would not shift.
  */
 export async function publishArtwork(
-  input: PublishInput
+  input: PublishInput & { userId: string; foundingMember: boolean }
 ): Promise<{ founderNumber: number }> {
   const sql = getSql();
 
@@ -217,7 +217,8 @@ export async function publishArtwork(
     insert into waitlist_entries (
       name, email, role, practice, city, user_agent,
       artwork_url, artwork_public_id, artwork_width, artwork_height,
-      selfie_url, selfie_public_id, artwork_title, quote, status
+      selfie_url, selfie_public_id, artwork_title, quote, status,
+      user_id, founding_member
     )
     values (
       ${input.name}, ${input.email}, 'artist',
@@ -225,10 +226,13 @@ export async function publishArtwork(
       ${input.artworkUrl}, ${input.artworkPublicId},
       ${input.artworkWidth}, ${input.artworkHeight},
       ${input.selfieUrl}, ${input.selfiePublicId},
-      ${input.artworkTitle}, ${input.quote}, ${input.status}
+      ${input.artworkTitle}, ${input.quote}, ${input.status},
+      ${input.userId}, ${input.foundingMember}
     )
     on conflict (email) do update
       set name              = excluded.name,
+          user_id           = coalesce(excluded.user_id, waitlist_entries.user_id),
+          founding_member   = waitlist_entries.founding_member or excluded.founding_member,
           practice          = coalesce(excluded.practice, waitlist_entries.practice),
           city              = coalesce(excluded.city, waitlist_entries.city),
           artwork_url       = excluded.artwork_url,

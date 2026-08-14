@@ -23,14 +23,14 @@ function fieldError(state: WaitlistState, field: keyof WaitlistInput) {
 }
 
 function SubmitButton() {
-  // Reads the parent form's pending state — no extra state to keep in sync.
+  // Reads the parent form's pending state - no extra state to keep in sync.
   const { pending } = useFormStatus();
 
   return (
     <button
       type="submit"
       disabled={pending}
-      className="bg-ember text-wall-black hover:bg-ember-glow text-body inline-flex h-12 items-center justify-center gap-2 rounded-md px-6 font-medium transition-colors disabled:opacity-70"
+      className="bg-foreground inline-flex h-12 items-center justify-center gap-2 px-6 text-sm font-medium text-white transition-colors hover:bg-[#2b3245] disabled:opacity-60"
     >
       {pending ? (
         <>
@@ -50,20 +50,27 @@ function SubmitButton() {
 /**
  * Joining, as a ceremony rather than a form submission.
  *
- * The success state does not say "thanks, we'll be in touch" — it hands over a
+ * The success state does not say "thanks, we'll be in touch" - it hands over a
  * number. Becoming Founding Artist #1 is a thing you *are*, where a confirmed
  * email address is a thing you gave away. That difference is the entire reason
  * this section exists.
  *
  * Architecture: `useActionState` posts to a Server Action, so the form works
- * before hydration — a real progressive-enhancement win on the mid-range
+ * before hydration - a real progressive-enhancement win on the mid-range
  * Android phones that make up most of this audience.
  *
  * Accessibility: every input has a real label; errors are tied to their field
  * with `aria-describedby` and `aria-invalid`; the result region is a polite
  * live region so success and failure are announced, not just recoloured.
  */
-export function WaitlistForm() {
+interface WaitlistFormProps {
+  /** Prefilled from the signed-in account, so nobody retypes what they just gave us. */
+  defaultName?: string;
+  /** The verified address the place is held against. Shown, never edited. */
+  accountEmail?: string;
+}
+
+export function WaitlistForm({ defaultName, accountEmail }: WaitlistFormProps) {
   const [state, formAction] = useActionState(joinWaitlist, initialState);
   const [artwork, setArtwork] = useState<UploadedAsset | null>(null);
   const [selfie, setSelfie] = useState<UploadedAsset | null>(null);
@@ -89,7 +96,7 @@ export function WaitlistForm() {
       </div>
 
       <fieldset className="flex flex-col gap-3">
-        <legend className="text-label text-muted-foreground mb-1 tracking-wider uppercase">
+        <legend className="text-muted-foreground mb-1 text-xs tracking-[0.14em] uppercase">
           I am here as
         </legend>
         <div className="flex gap-3">
@@ -101,7 +108,7 @@ export function WaitlistForm() {
           ).map((option, index) => (
             <label
               key={option.value}
-              className="border-border has-checked:border-ember has-checked:bg-ember/10 text-small flex h-11 flex-1 cursor-pointer items-center justify-center rounded-md border transition-colors"
+              className="border-border has-checked:border-foreground has-checked:bg-foreground flex h-11 flex-1 cursor-pointer items-center justify-center border text-sm transition-colors has-checked:text-white"
             >
               <input
                 type="radio"
@@ -122,24 +129,24 @@ export function WaitlistForm() {
         label="Your name"
         autoComplete="name"
         required
+        defaultValue={defaultName}
         error={fieldError(state, "name")}
       />
 
-      <Field
-        id="email"
-        name="email"
-        label="Email"
-        type="email"
-        autoComplete="email"
-        required
-        error={fieldError(state, "email")}
-      />
+      {/* The address is taken from the session on the server, so it is shown
+          rather than asked for, one account, one place. */}
+      <div className="flex flex-col gap-2">
+        <span className="text-muted-foreground text-eyebrow">Email</span>
+        <p className="border-border flex h-11 items-center border px-3 text-sm">
+          {accountEmail}
+        </p>
+      </div>
 
       <div className="grid gap-5 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <label
             htmlFor="practice"
-            className="text-label text-muted-foreground tracking-wider uppercase"
+            className="text-muted-foreground text-eyebrow"
           >
             What you make
           </label>
@@ -147,7 +154,7 @@ export function WaitlistForm() {
             id="practice"
             name="practice"
             defaultValue=""
-            className="border-border bg-background text-body h-11 rounded-md border px-3"
+            className="border-input focus:border-foreground h-11 border bg-white px-3 transition-colors outline-none"
           >
             <option value="">Prefer not to say</option>
             {practices.map((practice) => (
@@ -167,10 +174,10 @@ export function WaitlistForm() {
         />
       </div>
 
-      {/* Uploads. Optional — an artist can hold a place without one, and add
+      {/* Uploads. Optional, an artist can hold a place without one, and add
           their work later. The artwork is what becomes their tile. */}
-      <fieldset className="border-border flex flex-col gap-5 rounded-lg border p-4">
-        <legend className="text-label text-muted-foreground px-1 tracking-wider uppercase">
+      <fieldset className="border-border flex flex-col gap-5 border p-4">
+        <legend className="text-muted-foreground px-1 text-xs tracking-[0.14em] uppercase">
           Your place on the wall
         </legend>
 
@@ -196,10 +203,7 @@ export function WaitlistForm() {
         />
 
         <div className="flex flex-col gap-2">
-          <label
-            htmlFor="quote"
-            className="text-label text-muted-foreground tracking-wider uppercase"
-          >
+          <label htmlFor="quote" className="text-muted-foreground text-eyebrow">
             One line about it
           </label>
           <textarea
@@ -208,7 +212,7 @@ export function WaitlistForm() {
             rows={2}
             maxLength={280}
             placeholder="Why you made it, or what it's of."
-            className="border-border bg-background placeholder:text-muted-foreground text-body rounded-md border p-3"
+            className="border-input focus:border-foreground placeholder:text-muted-foreground border bg-white p-3 leading-7 transition-colors outline-none"
           />
         </div>
 
@@ -234,6 +238,26 @@ export function WaitlistForm() {
         />
       </fieldset>
 
+      {/* Founding Membership is opt-in. Everyone who joins gets a numbered
+          place; claiming founding status is a separate, deliberate yes, so it
+          is unticked by default and never pre-selected for anyone. */}
+      <label className="border-border hover:border-foreground flex cursor-pointer items-start gap-4 border p-4 transition-colors">
+        <input
+          type="checkbox"
+          name="foundingMember"
+          className="accent-foreground mt-1 size-4 shrink-0"
+        />
+        <span>
+          <span className="block text-sm font-medium">
+            Be a Founding Member (optional)
+          </span>
+          <span className="text-muted-foreground mt-1 block text-sm leading-6">
+            A say in what we build, first access at launch, and a permanent
+            badge on your profile. You keep your numbered place either way.
+          </span>
+        </span>
+      </label>
+
       <SubmitButton />
 
       <div aria-live="polite" role="status" className="min-h-5">
@@ -243,7 +267,7 @@ export function WaitlistForm() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="text-destructive text-small"
+              className="text-destructive text-sm"
             >
               {state.message}
             </motion.p>
@@ -251,7 +275,7 @@ export function WaitlistForm() {
         </AnimatePresence>
       </div>
 
-      <p className="text-muted-foreground text-caption">
+      <p className="text-muted-foreground text-xs leading-6">
         We use your details to hold your place and tell you when we open.
         Nothing else, and never sold.
       </p>
@@ -267,6 +291,7 @@ interface FieldProps {
   autoComplete?: string;
   required?: boolean;
   error?: string;
+  defaultValue?: string;
 }
 
 function Field({
@@ -277,17 +302,15 @@ function Field({
   autoComplete,
   required,
   error,
+  defaultValue,
 }: FieldProps) {
   const errorId = `${id}-error`;
 
   return (
     <div className="flex flex-col gap-2">
-      <label
-        htmlFor={id}
-        className="text-label text-muted-foreground tracking-wider uppercase"
-      >
+      <label htmlFor={id} className="text-muted-foreground text-eyebrow">
         {label}
-        {required && <span className="text-ember ml-1">*</span>}
+        {required && <span className="text-muted-foreground ml-1">*</span>}
       </label>
       <input
         id={id}
@@ -295,15 +318,16 @@ function Field({
         type={type}
         autoComplete={autoComplete}
         required={required}
+        defaultValue={defaultValue}
         aria-invalid={error ? true : undefined}
         aria-describedby={error ? errorId : undefined}
         className={cn(
-          "border-border bg-background text-body h-11 rounded-md border px-3",
+          "border-input focus:border-foreground h-11 border bg-white px-3 transition-colors outline-none",
           error && "border-destructive"
         )}
       />
       {error && (
-        <p id={errorId} className="text-destructive text-small">
+        <p id={errorId} className="text-destructive text-sm">
           {error}
         </p>
       )}

@@ -14,7 +14,7 @@ const VIEWBOX_HEIGHT = 200;
 /** Catmull-Rom-ish smoothing: turns sampled points into a flowing path. */
 function toPath(stroke: Stroke): string {
   if (stroke.length < 2) {
-    // A single tap still deserves a mark — render it as a dot.
+    // A single tap still deserves a mark - render it as a dot.
     const p = stroke[0];
     return p ? `M ${p.x} ${p.y} l 0.1 0` : "";
   }
@@ -43,7 +43,7 @@ interface SignatureCanvasProps {
 }
 
 /**
- * The Signature Canvas — an artist signs the wall by hand (Phase 1 #21).
+ * The Signature Canvas - an artist signs the wall by hand (Phase 1 #21).
  *
  * Why this and not a name field: a typed name is data, a drawn signature is
  * *yours*. It is the one artefact on the site that is unrepeatable, and it is
@@ -51,12 +51,12 @@ interface SignatureCanvasProps {
  * it the strongest single idea in the whole blueprint.
  *
  * Implementation: strokes are captured in normalised viewBox coordinates and
- * stored as SVG path data, not as pixels — so the same signature stays crisp
+ * stored as SVG path data, not as pixels - so the same signature stays crisp
  * on a 40px avatar, a share card, or a printed certificate, at a fraction of
  * the bytes of a raster capture.
  *
  * Accessibility: freehand drawing cannot be done with a keyboard, so this is
- * never the only path forward — the parent always offers a typed alternative,
+ * never the only path forward - the parent always offers a typed alternative,
  * and this control is explicitly optional. Pointer Events cover mouse, touch,
  * and stylus with one code path, and `touch-none` stops the browser from
  * scrolling the page out from under a finger mid-stroke.
@@ -101,7 +101,7 @@ export function SignatureCanvas({
     if (!point) return;
 
     current.current.push(point);
-    // Write directly to the DOM — no React render per pointer sample.
+    // Write directly to the DOM - no React render per pointer sample.
     liveRef.current?.setAttribute("d", toPath(current.current));
   }
 
@@ -184,7 +184,7 @@ export function SignatureCanvas({
       <p id="signature-hint" className="text-muted-foreground text-caption">
         {hasSignature
           ? "This mark is yours. It stays with your work."
-          : "Draw with your mouse, finger, or stylus — optional."}
+          : "Draw with your mouse, finger, or stylus. Optional."}
       </p>
     </div>
   );

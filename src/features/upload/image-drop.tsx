@@ -37,12 +37,12 @@ interface ImageDropProps {
  * upload is not going to eat their data.
  *
  * Validation is client-side for speed and server-side by signature scope for
- * safety — the browser cannot upload anywhere except the folder the server
+ * safety - the browser cannot upload anywhere except the folder the server
  * signed for.
  *
  * Accessibility: the control is a real labelled button (not a bare styled
  * input), progress and errors are announced through a live region, and the
- * whole drop-zone works by click alone — drag-and-drop is an enhancement, never
+ * whole drop-zone works by click alone - drag-and-drop is an enhancement, never
  * the only route.
  */
 export function ImageDrop({
@@ -158,7 +158,7 @@ export function ImageDrop({
       >
         {state.phase === "done" ? (
           <>
-            {/* Local blob preview — no network round-trip to show it back. */}
+            {/* Local blob preview, no network round-trip to show it back. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={state.preview}

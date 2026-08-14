@@ -41,7 +41,7 @@ const emptySlot: Slot = { asset: null, preview: null, error: null };
  *
  * The selfie is optional but strongly encouraged, and the label says plainly
  * that it becomes public. Consent for a photograph of someone's face has to be
- * given knowingly or it is not consent — burying it in terms nobody reads
+ * given knowingly or it is not consent - burying it in terms nobody reads
  * would be the cheap way to do this.
  */
 export function UploadForm({ onPublished }: UploadFormProps) {
@@ -127,7 +127,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
   }
 
   const fieldClass =
-    "h-10 rounded-lg border border-[#e7e7e7] bg-[#fcfbf8] px-3 text-sm text-[#17181a] placeholder:text-[#9a9da3] transition-colors focus-visible:border-[#4385f4] focus-visible:bg-white";
+    "h-10 rounded-lg border border-[#f0f0f0] bg-[#ffffff] px-3 text-sm text-[#0f0f0f] placeholder:text-[#8a8a8a] transition-colors focus-visible:border-[#0f0f0f] focus-visible:bg-white";
 
   if (state.status === "success") {
     return (
@@ -137,7 +137,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
         transition={transition.moderate}
         className="border-ember/30 bg-ember/5 flex flex-col items-start gap-3 rounded-xl border p-8"
       >
-        <span className="bg-ember text-wall-black inline-flex size-10 items-center justify-center rounded-full">
+        <span className="bg-ember inline-flex size-10 items-center justify-center rounded-full text-white">
           <Check className="size-5" aria-hidden />
         </span>
         <h3 className="font-heading text-h3 tracking-tight">
@@ -150,7 +150,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
           </span>
           .{" "}
           {state.hidden
-            ? "Your work is queued for a quick human check before it appears publicly — we'll email you when it's live."
+            ? "Your work is queued for a quick human check before it appears publicly, we'll email you when it's live."
             : "Scroll up: your work is hanging there now."}
         </p>
       </motion.div>
@@ -161,7 +161,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
     <form
       ref={formRef}
       action={formAction}
-      className="flex flex-col gap-5 rounded-2xl border border-[#e8e8e7] bg-white p-5 shadow-[0_16px_48px_rgb(16_17_20/0.06)] sm:p-6"
+      className="flex flex-col gap-5 rounded-2xl border border-[#f0f0f0] bg-white p-5 shadow-[0_16px_48px_rgb(16_17_20/0.06)] sm:p-6"
     >
       {/* Hidden fields carrying what the browser already uploaded. */}
       <input type="hidden" name="artworkUrl" value={artwork.asset?.url ?? ""} />
@@ -191,7 +191,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
         name="artworkModeration"
         value={artwork.asset?.moderation ?? ""}
       />
-      {/* Honeypot — off-screen, not display:none, so bots still fill it. */}
+      {/* Honeypot, off-screen, not display:none, so bots still fill it. */}
       <input
         type="text"
         name="website"
@@ -214,7 +214,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
         />
         <DropSlot
           label="You, with your work"
-          hint="Optional — and public. This is what turns a picture into a person."
+          hint="Optional, and public. This is what turns a picture into a person."
           icon={<Camera className="size-6" aria-hidden />}
           slot={selfie}
           progress={selfieUpload.progress}
@@ -314,7 +314,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
         <button
           type="submit"
           disabled={pending || !artwork.asset}
-          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#17181a] text-sm font-semibold text-white transition hover:bg-[#33353a] disabled:cursor-not-allowed disabled:bg-[#ebe8e3] disabled:text-[#a5a19a]"
+          className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0f0f0f] text-sm font-semibold text-white transition hover:bg-[#2b3245] disabled:cursor-not-allowed disabled:bg-[#e6e6e6] disabled:text-[#8a8a8a]"
         >
           {pending ? (
             <>
@@ -327,7 +327,7 @@ export function UploadForm({ onPublished }: UploadFormProps) {
         </button>
         <p className="text-caption text-ink-muted">
           Your work and, if you add one, your photo appear publicly on the wall
-          straight away. You keep every right to the work — we only display it.
+          straight away. You keep every right to the work. We only display it.
           Write to us any time and we will take it down.
         </p>
       </div>
@@ -391,8 +391,8 @@ function DropSlot({
       <label
         htmlFor={inputId}
         className={cn(
-          "group relative flex h-28 cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-dashed border-[#dfe1e5] bg-[#fcfbf8] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#4385f4] hover:bg-[#f6f8ff] hover:shadow-[0_12px_24px_rgb(67_133_244/0.10)] sm:h-32",
-          slot.asset && "border-solid border-[#4385f4]"
+          "group relative flex h-28 cursor-pointer flex-col items-center justify-center gap-1.5 overflow-hidden rounded-xl border border-dashed border-[#e6e6e6] bg-[#ffffff] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#0f0f0f] hover:bg-[#f7f7f7] hover:shadow-[0_12px_24px_rgb(67_133_244/0.10)] sm:h-32",
+          slot.asset && "border-solid border-[#0f0f0f]"
         )}
       >
         {slot.preview ? (
@@ -414,19 +414,19 @@ function DropSlot({
               </div>
             )}
             {slot.asset && !busy && (
-              <span className="absolute top-3 right-3 inline-flex size-6 items-center justify-center rounded-full bg-[#4385f4] text-white shadow-sm">
+              <span className="absolute top-3 right-3 inline-flex size-6 items-center justify-center rounded-full bg-[#0f0f0f] text-white shadow-sm">
                 <Check className="size-3.5" aria-hidden />
               </span>
             )}
           </>
         ) : (
           <>
-            <span className="text-[#7d828b] transition-colors group-hover:text-[#4385f4]">
+            <span className="text-[#8a8a8a] transition-colors group-hover:text-[#0f0f0f]">
               {icon}
             </span>
-            <span className="text-small font-semibold text-[#17181a]">
+            <span className="text-small font-semibold text-[#0f0f0f]">
               {label}
-              {required && <span className="text-[#db861b]"> *</span>}
+              {required && <span className="text-[#0f0f0f]"> *</span>}
             </span>
           </>
         )}

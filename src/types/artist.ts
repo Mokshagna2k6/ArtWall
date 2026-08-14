@@ -15,7 +15,7 @@ export interface WallMark {
 
 export interface Artist {
   id: string;
-  /** Without the leading "@" — the route param strips it. */
+  /** Without the leading "@" - the route param strips it. */
   handle: string;
   name: string;
   medium: string;

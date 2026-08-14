@@ -34,7 +34,7 @@ export const problem = {
 } as const;
 
 /**
- * FOUNDERS — CONFIRM BEFORE LAUNCH.
+ * FOUNDERS - CONFIRM BEFORE LAUNCH.
  *
  * These two rates drive the value-split visual and the earnings calculator.
  * They are the only invented numbers on the page, and they are the ones a
@@ -74,7 +74,7 @@ export const layers: readonly Layer[] = [
     index: "01",
     name: "The Exhibition Engine",
     claim: "Art reaches the wall where its buyer already stands.",
-    body: "Discovery does not happen in a search box. It happens when someone looks up from a coffee, a hotel check-in, a desk. The engine reads a physical space — its light, its dimensions, its footfall, its audience — and matches real artworks to real walls in hotels, galleries, and coworking floors.",
+    body: "Discovery does not happen in a search box. It happens when someone looks up from a coffee, a hotel check-in, a desk. The engine reads a physical space, its light, its dimensions, its footfall, its audience, and matches real artworks to real walls in hotels, galleries, and coworking floors.",
     mechanics: [
       "Venues list wall space; artists list available work",
       "Matching scores light, scale, palette, and audience fit",
@@ -86,7 +86,7 @@ export const layers: readonly Layer[] = [
     index: "02",
     name: "Escrow and the Fraud Layer",
     claim: "The money waits until the work is proven.",
-    body: "Every sale settles through bank-grade escrow. Before funds release, an AI authentication layer — trained specifically on Indian traditional forms rather than on Western canvas — scores the work against the tradition it claims to belong to. Counterfeits are stopped at the platform, not discovered in a collector's living room.",
+    body: "Every sale settles through bank-grade escrow. Before funds release, an AI authentication layer, trained specifically on Indian traditional forms rather than on Western canvas, scores the work against the tradition it claims to belong to. Counterfeits are stopped at the platform, not discovered in a collector's living room.",
     mechanics: [
       "Funds held in regulated escrow until delivery is confirmed",
       "Authentication trained on Madhubani, Phad, Warli, Pattachitra and more",
@@ -98,7 +98,7 @@ export const layers: readonly Layer[] = [
     index: "03",
     name: "Provenance That Outlives Everyone",
     claim: "One certificate, carried for the life of the work.",
-    body: "Each artwork is issued a tamper-proof provenance record at the moment of its first sale. Every exhibition, transfer, restoration, and resale is written to it. When the piece changes hands in twenty years, the record still names the person who made it — and pays them.",
+    body: "Each artwork is issued a tamper-proof provenance record at the moment of its first sale. Every exhibition, transfer, restoration, and resale is written to it. When the piece changes hands in twenty years, the record still names the person who made it, and pays them.",
     mechanics: [
       "Issued at first sale, extended at every event afterwards",
       "Resale royalties trigger automatically on transfer",
@@ -112,7 +112,7 @@ export const layers: readonly Layer[] = [
 /** Mission and the 2030 commitments, in the company's own words. */
 export const mission = {
   statement:
-    "To democratise opportunity for India's creative economy — a compliant, scalable, creator-first platform that preserves cultural heritage while enabling real, sustainable livelihoods.",
+    "To democratise opportunity for India's creative economy, a compliant, scalable, creator-first platform that preserves cultural heritage while enabling real, sustainable livelihoods.",
   visionYear: "2030",
   visionStatement: "India's most trusted platform for creative commerce.",
   pillars: [

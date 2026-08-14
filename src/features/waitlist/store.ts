@@ -5,6 +5,8 @@ import { getSql } from "@/lib/db";
 
 export interface WaitlistEntry extends WaitlistInput {
   userAgent: string | null;
+  /** The signed-in account that claimed this place. Joining requires one. */
+  userId: string;
 }
 
 /**
@@ -12,7 +14,7 @@ export interface WaitlistEntry extends WaitlistInput {
  *
  * Idempotent by email: submitting twice returns the *same* founder number
  * rather than creating a duplicate or erroring. An artist who resubmits because
- * they were unsure it worked should be reassured, not punished — and their
+ * they were unsure it worked should be reassured, not punished - and their
  * place must not silently move.
  *
  * `ON CONFLICT ... DO UPDATE` (rather than `DO NOTHING`) is deliberate: it
@@ -20,7 +22,7 @@ export interface WaitlistEntry extends WaitlistInput {
  * to find out what number an existing artist holds.
  *
  * All values are passed as tagged-template parameters, so they are sent to
- * Postgres as bound parameters and cannot be interpolated into SQL text —
+ * Postgres as bound parameters and cannot be interpolated into SQL text -
  * this is not string concatenation, and it is not vulnerable to injection.
  */
 export async function saveWaitlistEntry(
@@ -32,7 +34,8 @@ export async function saveWaitlistEntry(
     insert into waitlist_entries (
       name, email, role, practice, city, user_agent,
       artwork_url, artwork_public_id, artwork_width, artwork_height,
-      selfie_url, selfie_public_id, artwork_title, quote
+      selfie_url, selfie_public_id, artwork_title, quote,
+      user_id, founding_member
     )
     values (
       ${entry.name},
@@ -48,13 +51,19 @@ export async function saveWaitlistEntry(
       ${entry.selfieUrl || null},
       ${entry.selfiePublicId || null},
       ${entry.artworkTitle || null},
-      ${entry.quote || null}
+      ${entry.quote || null},
+      ${entry.userId},
+      ${entry.foundingMember}
     )
     on conflict (email) do update
       set name     = excluded.name,
           role     = excluded.role,
           practice = excluded.practice,
           city     = excluded.city,
+          user_id  = coalesce(excluded.user_id, waitlist_entries.user_id),
+          -- Founding status is a latch: once claimed it is never revoked by a
+          -- later resubmission that happened to leave the box unticked.
+          founding_member = waitlist_entries.founding_member or excluded.founding_member,
           -- coalesce so a resubmission without a new upload does not wipe the
           -- artwork this artist already placed on the wall.
           artwork_url       = coalesce(excluded.artwork_url, waitlist_entries.artwork_url),
@@ -72,7 +81,7 @@ export async function saveWaitlistEntry(
   return { founderNumber: Number(rows[0].founder_number) };
 }
 
-/** A tile on the public wall. Only ever public-safe fields — never email. */
+/** A tile on the public wall. Only ever public-safe fields - never email. */
 export interface WallTile {
   founderNumber: number;
   name: string;
@@ -89,7 +98,7 @@ export interface WallTile {
 /**
  * Artworks currently on the wall.
  *
- * Selects columns explicitly rather than `select *` — email and user_agent live
+ * Selects columns explicitly rather than `select *` - email and user_agent live
  * in this table, and a wildcard would eventually leak them into a client
  * component the moment someone adds a field.
  */
@@ -127,7 +136,7 @@ export async function listWallTiles(limit = 500): Promise<WallTile[]> {
 /**
  * Cities that already have at least one founding artist.
  *
- * Returns city names only — no names, no emails, nothing that identifies an
+ * Returns city names only - no names, no emails, nothing that identifies an
  * individual. A map that leaked "who joined from where" would be a privacy
  * problem dressed up as a feature.
  */

@@ -7,7 +7,7 @@ export interface Exhibition {
   city: string;
   startDate: string;
   endDate: string;
-  /** Curator's Note (Phase 1 #78) — a human voice before logistics. */
+  /** Curator's Note (Phase 1 #78) - a human voice before logistics. */
   curatorNote?: string;
   coverImageUrl?: string;
   artistIds: string[];

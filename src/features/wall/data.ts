@@ -40,7 +40,7 @@ export const getWallCount = unstable_cache(
 /**
  * How many real works must hang before the genesis art steps aside entirely.
  *
- * The narrative the wall tells — "ours on loan, until yours arrives" — only
+ * The narrative the wall tells - "ours on loan, until yours arrives" - only
  * pays off if there is a moment where the loan ends. Below this the two are
  * mixed; at or above it, the wall is nothing but artists.
  */

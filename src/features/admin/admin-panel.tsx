@@ -26,7 +26,7 @@ function Submit({ label, value }: { label: string; value: string }) {
  * Minimal moderation surface: a password, a founder number, hide or restore.
  *
  * Deliberately not a full admin app. It does the one thing that must be
- * possible within seconds of a bad upload appearing, and nothing else — a
+ * possible within seconds of a bad upload appearing, and nothing else - a
  * bigger console can come when there is enough traffic to need one.
  *
  * The password is posted per action rather than held in a session. That keeps

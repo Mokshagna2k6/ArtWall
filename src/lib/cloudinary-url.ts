@@ -1,5 +1,5 @@
 /**
- * Delivery URLs — where the compression actually happens.
+ * Delivery URLs - where the compression actually happens.
  *
  * An artist photographs a canvas on a phone and hands us 6MB. We do not
  * re-encode that at upload: Cloudinary transforms on delivery and caches the
@@ -12,7 +12,7 @@
  * retina without shipping 2× pixels to everyone. On the wall grid that is
  * typically 6MB down to roughly 30–60KB.
  *
- * No secrets here on purpose — this is pure string building, so it is safe in
+ * No secrets here on purpose - this is pure string building, so it is safe in
  * client components. Signing lives in `cloudinary.ts`, which is server-only.
  */
 
@@ -22,7 +22,7 @@ const UPLOAD_MARKER = "/image/upload/";
  * Insert a transformation into a stored Cloudinary URL.
  *
  * Works off the URL Cloudinary returned rather than rebuilding one from the
- * public_id, so the version segment and file extension come along untouched —
+ * public_id, so the version segment and file extension come along untouched -
  * rebuilding by hand is how you end up serving 404s for assets that exist.
  */
 function transform(url: string, transformation: string): string {

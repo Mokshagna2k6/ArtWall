@@ -52,7 +52,11 @@ const navigation: NavSection[] = [
     title: "Artwork",
     items: [
       { label: "All Artwork", href: "/dashboard/artwork", icon: Image },
-      { label: "Collections", href: "/dashboard/collections", icon: FolderOpen },
+      {
+        label: "Collections",
+        href: "/dashboard/collections",
+        icon: FolderOpen,
+      },
       { label: "Exhibitions", href: "/dashboard/exhibitions", icon: Sparkles },
       { label: "Locations", href: "/dashboard/locations", icon: MapPin },
     ],
@@ -67,7 +71,11 @@ const navigation: NavSection[] = [
   {
     title: "Sales & Docs",
     items: [
-      { label: "Pipeline", href: "/dashboard/sales/pipeline", icon: CreditCard },
+      {
+        label: "Pipeline",
+        href: "/dashboard/sales/pipeline",
+        icon: CreditCard,
+      },
       { label: "Invoices", href: "/dashboard/sales/invoices", icon: FileText },
       { label: "Documents", href: "/dashboard/documents", icon: FileText },
       { label: "Reports", href: "/dashboard/reports", icon: BarChart3 },
@@ -82,7 +90,9 @@ const bottomNav: NavItem[] = [
 
 export function DashboardSidebar() {
   const pathname = usePathname();
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >({
     Overview: true,
     Artwork: true,
     Network: true,
@@ -106,9 +116,7 @@ export function DashboardSidebar() {
       {/* Logo */}
       <div className="border-border flex h-16 items-center border-b px-6">
         <Link href="/dashboard" className="flex items-center gap-2">
-          <span className="font-heading text-xl font-semibold tracking-tight">
-            ArtWall
-          </span>
+          <span className="font-heading text-card font-semibold">ArtWall</span>
           <span className="text-muted-foreground text-xs">Studio</span>
         </Link>
       </div>
@@ -119,7 +127,7 @@ export function DashboardSidebar() {
           <div key={section.title} className="mb-4">
             <button
               onClick={() => toggleSection(section.title)}
-              className="flex w-full items-center justify-between px-3 py-2 text-xs font-medium uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              className="text-muted-foreground hover:text-foreground flex w-full items-center justify-between px-3 py-2 text-xs font-medium tracking-wider uppercase"
             >
               {section.title}
               {expandedSections[section.title] ? (
@@ -163,7 +171,7 @@ export function DashboardSidebar() {
                             />
                             <span className="flex-1">{item.label}</span>
                             {item.badge && (
-                              <span className="bg-primary text-primary-foreground text-xs rounded-full px-2 py-0.5">
+                              <span className="bg-primary text-primary-foreground rounded-full px-2 py-0.5 text-xs">
                                 {item.badge}
                               </span>
                             )}
@@ -217,14 +225,14 @@ export function DashboardSidebar() {
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="fixed left-4 top-4 z-50 inline-flex size-10 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-md md:hidden"
+        className="bg-primary text-primary-foreground fixed top-4 left-4 z-50 inline-flex size-10 items-center justify-center rounded-md shadow-md md:hidden"
         aria-label="Open menu"
       >
         <Menu className="size-5" />
       </button>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden dark md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 md:border-r md:border-border md:bg-card">
+      <aside className="dark md:border-border md:bg-card hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col md:border-r">
         {sidebarContent}
       </aside>
 
@@ -245,14 +253,14 @@ export function DashboardSidebar() {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ duration: duration.moderate, ease: ease.standard }}
-              className="fixed inset-y-0 left-0 z-50 w-72 bg-card shadow-xl md:hidden"
+              className="bg-card fixed inset-y-0 left-0 z-50 w-72 shadow-xl md:hidden"
             >
-              <div className="flex h-16 items-center justify-between border-b border-border px-6">
+              <div className="border-border flex h-16 items-center justify-between border-b px-6">
                 <span className="font-heading text-lg font-semibold">Menu</span>
                 <button
                   type="button"
                   onClick={() => setMobileOpen(false)}
-                  className="inline-flex size-9 items-center justify-center rounded-md hover:bg-accent"
+                  className="hover:bg-accent inline-flex size-9 items-center justify-center rounded-md"
                   aria-label="Close menu"
                 >
                   <X className="size-5" />

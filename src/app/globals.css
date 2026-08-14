@@ -8,58 +8,167 @@
    ArtWall design tokens
    Source of truth: docs/ArtWall_Experience_Design_System.md (§8–§11, §17)
 
-   The pre-launch site is dark-first by design — the near-black canvas is the
-   brand's core visual argument (a wall waiting to be lit). So :root carries
-   the wall theme directly rather than living behind a .dark class.
+   The site is a white gallery wall: pure white canvas, near-black type, and
+   hairline rules. Colour is not part of the argument — the work is. Anything
+   that used to be amber is now ink, so emphasis comes from weight, scale and
+   space rather than hue.
+
+   Token *names* are unchanged so every component keeps working; only their
+   values moved. `ember` is the single emphasis colour and is now near-black.
 --------------------------------------------------------------------------- */
 
 @theme {
-  /* — Brand palette (§10) ------------------------------------------------ */
-  --color-wall-black: #2e2822;
-  --color-wall-charcoal: #b8aa9d;
-  --color-wall-elevated: #f7f2eb;
-  --color-wall-paper: #fff7ef;
-  --color-ember: #a87b4f;
-  --color-ember-glow: #d3ac7d;
-  --color-lab-blue: #7f705c;
-  --color-terracotta: #b67952;
-  --color-ink: #2a241f;
-  --color-ink-muted: #7b6d63;
+  /* — Brand palette (§10) ------------------------------------------------
+     Neutrals are slate-tinted rather than pure grey, carried over from the
+     ArtWall Labs reference palette. The difference is a few degrees of hue and
+     almost invisible on its own, but across a whole white page it is what
+     separates "considered" from "unstyled default". ---------------------- */
+  --color-wall-black: #0c0f1d;
+  --color-wall-charcoal: #f1f5f9;
+  --color-wall-elevated: #f8fafc;
+  --color-wall-paper: #ffffff;
+  /* `ember` is the historical name for the emphasis colour. It is now ink. */
+  --color-ember: #0c0f1d;
+  --color-ember-glow: #2b3245;
+  --color-lab-blue: #64748b;
+  --color-terracotta: #94a3b8;
+  --color-ink: #0c0f1d;
+  --color-ink-muted: #64748b;
+  /* Hairlines and quiet bands. Named so components stop inventing greys. */
+  --color-hairline: #e2e8f0;
+  --color-hairline-strong: #cbd5e1;
+  --color-band: #f7f9fb;
 
-  /* — Type scale (§9). Paired line-height + tracking per step. ----------- */
+  /* The one hue on the site.
+     Reserved for the short tracked headings that label each chapter
+     ("02 SERVICES"). Never body copy, never a button, and never twice in the
+     same block: the moment a second thing is teal, neither one is emphasis.
+     #0e7490 on white is ~4.9:1, which clears WCAG AA at the 11px the eyebrow
+     is actually set in; the brighter tone is the on-dark counterpart. */
+  --color-signal: #0e7490;
+  --color-signal-bright: #38bdf8;
+
+  /* The footer ground. A deep slate rather than the page's near-black ink:
+     against a white page, true black closes the document like a lid, where
+     this reads as the room's far wall. Body copy on it sits at 70% white
+     (~7:1) and the quietest metadata at 45% (~4.6:1), both clearing AA. */
+  --color-footer: #1c2e38;
+
+  /* — Type scale (§9) ----------------------------------------------------
+     ONE scale, addressed by role rather than by heading level, so a card
+     title and a page title can never accidentally be sized by whoever wrote
+     the markup that day.
+
+     This replaces two systems that were running at once: a token scale
+     (--text-h1/h2/…) used only by SectionHeading, and hand-written clamps
+     used by every page. They disagreed by up to 95%, which is why a section
+     heading could come out larger than the page heading above it.
+
+     Sized against the Artclear reference, which is what a professional art
+     business actually looks like: h1 40px, h2 36px, h3 24px, all at weight
+     600 with generous leading. Restraint is the point — that site carries 57
+     images and lets the work be the loud thing. Oversized display type is
+     what makes a page read as a startup landing page rather than a gallery.
+
+     Resolved px at 375 / 768 / 1024 / 1440 — strictly descending at every
+     width, which is the property that actually prevents the bug:
+
+       display     36 · 48 · 55 · 56
+       section     26 · 32 · 35 · 36
+       subsection  20 · 22 · 23 · 24
+       card        18 (fixed)
+       lead        17 · 18 · 19 · 19
+       body        16 (fixed)
+
+     Tracking tightens as size grows: at display sizes the default spacing
+     reads loose and amateur, at body sizes tightening hurts legibility. --- */
+  --text-display: clamp(2.25rem, 1.55rem + 3vw, 3.5rem);
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.03em;
+  --text-display--font-weight: 500;
+
+  --text-section: clamp(1.625rem, 1.3rem + 1.4vw, 2.25rem);
+  --text-section--line-height: 1.25;
+  --text-section--letter-spacing: -0.025em;
+
+  --text-subsection: clamp(1.25rem, 1.1rem + 0.65vw, 1.5rem);
+  --text-subsection--line-height: 1.35;
+  --text-subsection--letter-spacing: -0.02em;
+
+  --text-card: 1.125rem;
+  --text-card--line-height: 1.45;
+  --text-card--letter-spacing: -0.015em;
+
+  --text-lead: clamp(1.0625rem, 1rem + 0.27vw, 1.1875rem);
+  --text-lead--line-height: 1.65;
+
+  --text-body: 1rem;
+  --text-body--line-height: 1.75;
+
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.6;
+
+  /* The gallery placard. One size, one tracking, one weight — this role had
+     eight different sizes and seven trackings across the site. */
+  --text-eyebrow: 0.75rem;
+  --text-eyebrow--line-height: 1;
+  --text-eyebrow--letter-spacing: 0.16em;
+  --text-eyebrow--font-weight: 500;
+
+  /* The oversized chapter numeral in the section gutter. Decorative, always
+     `aria-hidden`, and paired with a real eyebrow that carries the text. */
+  --text-numeral: clamp(4rem, 2rem + 8vw, 9rem);
+  --text-numeral--line-height: 0.8;
+  --text-numeral--letter-spacing: -0.04em;
+
+  /* Tailwind's heading-sized steps are switched off. Leaving them on is what
+     let a second, uncoordinated display scale grow alongside this one: any
+     `text-3xl` typed into a component silently opted out of the system, and
+     that is how an h3 ended up larger than the h2 above it. Removing them
+     turns that mistake into a build-visible one.
+
+     text-xs / -sm / -base / -lg survive deliberately. They are UI-chrome
+     sizes — form labels, table cells, studio and dashboard furniture — with
+     ~190 call sites in areas this scale does not govern. They never compete
+     with a heading, so killing them would be churn without a benefit. */
+  /* DEPRECATED compatibility aliases.
+     ~74 call sites across the wall, archetype, certificate and upload
+     components still name the old steps. They are aliased *onto* the roles
+     above rather than kept as independent values, so there is still exactly
+     one scale — the defect was never the extra names, it was that they
+     resolved to different sizes than the pages around them. Convert call
+     sites opportunistically; do not add new uses. */
   --text-caption: 0.75rem;
   --text-caption--line-height: 1rem;
-  --text-caption--letter-spacing: 0.04em;
   --text-label: 0.8125rem;
   --text-label--line-height: 1.125rem;
-  --text-label--letter-spacing: 0.06em;
-  --text-small: 0.875rem;
-  --text-small--line-height: 1.25rem;
-  --text-body: 1rem;
-  --text-body--line-height: 1.625rem;
-  --text-body-lg: 1.125rem;
-  --text-body-lg--line-height: 1.75rem;
-  --text-lead: 1.25rem;
-  --text-lead--line-height: 2rem;
-  --text-lead--letter-spacing: -0.005em;
-  --text-h4: 1.5rem;
-  --text-h4--line-height: 2rem;
-  --text-h4--letter-spacing: -0.01em;
-  --text-h3: 2rem;
-  --text-h3--line-height: 2.5rem;
-  --text-h3--letter-spacing: -0.01em;
-  --text-h2: 2.5rem;
-  --text-h2--line-height: 3.25rem;
-  --text-h2--letter-spacing: -0.015em;
-  --text-h1: 3.5rem;
-  --text-h1--line-height: 4rem;
-  --text-h1--letter-spacing: -0.02em;
-  --text-display-s: 4.5rem;
-  --text-display-s--line-height: 5rem;
-  --text-display-s--letter-spacing: -0.02em;
-  --text-display-l: 6rem;
-  --text-display-l--line-height: 6.5rem;
-  --text-display-l--letter-spacing: -0.02em;
+  --text-body-lg: var(--text-lead);
+  --text-body-lg--line-height: var(--text-lead--line-height);
+  --text-h4: var(--text-subsection);
+  --text-h4--line-height: var(--text-subsection--line-height);
+  --text-h4--letter-spacing: var(--text-subsection--letter-spacing);
+  --text-h3: var(--text-subsection);
+  --text-h3--line-height: var(--text-subsection--line-height);
+  --text-h3--letter-spacing: var(--text-subsection--letter-spacing);
+  --text-h2: var(--text-section);
+  --text-h2--line-height: var(--text-section--line-height);
+  --text-h2--letter-spacing: var(--text-section--letter-spacing);
+  --text-h1: var(--text-display);
+  --text-h1--line-height: var(--text-display--line-height);
+  --text-h1--letter-spacing: var(--text-display--letter-spacing);
+  --text-display-s: var(--text-display);
+  --text-display-s--line-height: var(--text-display--line-height);
+  --text-display-s--letter-spacing: var(--text-display--letter-spacing);
+
+  --text-xl: initial;
+  --text-2xl: initial;
+  --text-3xl: initial;
+  --text-4xl: initial;
+  --text-5xl: initial;
+  --text-6xl: initial;
+  --text-7xl: initial;
+  --text-8xl: initial;
+  --text-9xl: initial;
 
   /* — Spacing (§11). 8px base with a 4px half-step; widens fast at the top
        because generous negative space is the difference between a gallery
@@ -74,19 +183,26 @@
   --spacing-16: 4rem;
   --spacing-24: 6rem;
 
-  /* — Shadows (§8.3) ----------------------------------------------------- */
-  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.06), 0 1px 3px rgb(0 0 0 / 0.08);
-  --shadow-medium: 0 4px 12px rgb(0 0 0 / 0.12);
-  --shadow-large: 0 12px 32px rgb(0 0 0 / 0.18);
-  --shadow-floating: 0 24px 64px rgb(0 0 0 / 0.28);
+  /* — Shadows (§8.3). Deliberately faint: on a white gallery wall a heavy
+       drop shadow reads as a web app, not an exhibition. Depth comes from
+       hairlines first, shadow only where something genuinely floats. ------ */
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.03);
+  --shadow-medium: 0 2px 10px rgb(0 0 0 / 0.05);
+  --shadow-large: 0 8px 28px rgb(0 0 0 / 0.07);
+  --shadow-floating: 0 18px 48px rgb(0 0 0 / 0.1);
 
   /* — Motion (§17). Every animation draws its timing from here so the same
        ceremony always feels identical across the site. ------------------- */
   --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 
-  /* — Containers (§8.1) -------------------------------------------------- */
-  --container-wall: 1440px;
+  /* — Containers (§8.1) --------------------------------------------------
+     One page measure. The header used to sit on a 1440px shell while every
+     page body sat on 1180px, so above 1440px the logo and the CTA floated
+     130px outboard of the content they belong to. Both now read this. */
+  --container-page: 1180px;
+  --container-text: 900px;
+  --container-narrow: 640px;
 }
 
 /* Motion + z-index scales are consumed by JS/inline styles rather than
@@ -150,30 +266,31 @@
 
   --background: var(--color-wall-paper);
   --foreground: var(--color-ink);
-  --card: var(--color-wall-elevated);
+  --card: var(--color-wall-paper);
   --card-foreground: var(--color-ink);
-  --popover: var(--color-wall-elevated);
+  --popover: var(--color-wall-paper);
   --popover-foreground: var(--color-ink);
 
-  /* Amber is earned, not decorative — it is the primary action colour and
-     appears almost nowhere else. */
+  /* Ink is earned, not decorative — a solid black block is the loudest thing
+     on the page, so it is reserved for the one action that matters. */
   --primary: var(--color-ember);
-  --primary-foreground: var(--color-wall-paper);
+  --primary-foreground: #ffffff;
 
-  --secondary: var(--color-wall-elevated);
+  --secondary: var(--color-band);
   --secondary-foreground: var(--color-ink);
-  --muted: #7f7366;
+  --muted: var(--color-band);
   --muted-foreground: var(--color-ink-muted);
   --accent: var(--color-ember);
-  --accent-foreground: var(--color-wall-paper);
-  --destructive: #b5523f;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
 
-  --border: rgb(111 92 64 / 0.18);
-  --input: rgb(111 92 64 / 0.16);
-  /* Focus rings use amber: brand-consistent and high-contrast on warm canvas. */
-  --ring: var(--color-ember);
+  --border: var(--color-hairline);
+  --input: var(--color-hairline-strong);
+  --ring: var(--color-ink);
 
-  --radius: 0.95rem;
+  /* Editorial geometry: near-square. Rounded corners read consumer-app; a
+     gallery frames things with straight edges. */
+  --radius: 0.25rem;
 }
 
 @layer base {
@@ -202,14 +319,14 @@
   /* A single, consistent, high-contrast focus ring across every interactive
      element — never suppressed (§16). */
   :focus-visible {
-    outline: 2px solid var(--color-ember);
+    outline: 2px solid var(--color-ink);
     outline-offset: 2px;
     border-radius: 2px;
   }
 
   ::selection {
-    background: var(--color-ember);
-    color: var(--color-wall-black);
+    background: var(--color-ink);
+    color: #ffffff;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -232,60 +349,68 @@
 }
 
 @layer utilities {
-  /* Vertical rhythm for full-bleed narrative sections. */
-  .section-y {
-    padding-block: var(--spacing-16);
-  }
-
-  @media (width >= 1024px) {
-    .section-y {
-      padding-block: var(--spacing-24);
-    }
-  }
-
   .hero-surface {
-    background: linear-gradient(
-      180deg,
-      rgba(255, 247, 239, 0.9),
-      rgba(255, 247, 239, 0.95)
-    );
-    border: 1px solid rgba(119, 99, 78, 0.14);
-    box-shadow: 0 30px 80px rgb(67 48 28 / 0.08);
+    background: #ffffff;
+    border: 1px solid var(--color-hairline);
+    box-shadow: none;
   }
 
   .hero-figure {
-    border-radius: 2rem;
+    border-radius: 0;
     overflow: hidden;
     position: relative;
     min-height: 28rem;
-  }
-
-  .hero-figure::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(
-        circle at top left,
-        rgba(168, 123, 79, 0.18),
-        transparent 32%
-      ),
-      radial-gradient(
-        circle at bottom right,
-        rgba(59, 44, 31, 0.08),
-        transparent 34%
-      );
-    pointer-events: none;
+    background: var(--color-band);
+    border: 1px solid var(--color-hairline);
   }
 
   .desktop-pill {
-    background: rgba(168, 123, 79, 0.08);
-    color: var(--color-ink);
+    background: transparent;
+    border: 1px solid var(--color-hairline-strong);
+    color: var(--color-ink-muted);
     border-radius: 9999px;
-    font-size: 0.8125rem;
+    font-size: 0.75rem;
     letter-spacing: 0.16em;
-    padding: 0.55rem 1rem;
+    padding: 0.5rem 0.9rem;
     text-transform: uppercase;
+  }
+
+  /* The editorial hairline: a full-bleed rule that separates chapters without
+     drawing a box around anything. */
+  .rule-y {
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  /* The wall, drifting.
+     Translating exactly -50% of a track that holds the tile set twice makes
+     the loop seamless: at the moment the animation resets, the second copy is
+     sitting precisely where the first began. Animating `transform` keeps the
+     whole thing on the compositor, so it never triggers layout or paint. */
+  @keyframes wall-drift {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+
+  .wall-drift {
+    animation: wall-drift 90s linear infinite;
+    will-change: transform;
+  }
+
+  /* Pausing on hover is not decoration: the tiles are artwork, and a visitor
+     who stops to look at one should not have it slide away from them. */
+  .wall-drift-track:hover .wall-drift,
+  .wall-drift-track:focus-within .wall-drift {
+    animation-play-state: paused;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wall-drift {
+      animation: none;
+    }
   }
 
   .shadow-soft {
@@ -306,15 +431,15 @@
 }
 /* ArtWall 2.0 Dashboard Theme */
 .dashboard-theme {
-  --dashboard-bg: #f6f1e7;
-  --dashboard-surface: #fff8f1;
-  --dashboard-border: #d9c8b7;
-  --dashboard-navy: #3a2f25;
-  --dashboard-teal: #a28259;
-  --dashboard-text: #3d3228;
-  --dashboard-text-muted: #7a6b5f;
-  --dashboard-shadow: 0 8px 24px rgb(0 0 0 / 0.07);
-  --dashboard-radius: 0.75rem;
+  --dashboard-bg: #ffffff;
+  --dashboard-surface: #ffffff;
+  --dashboard-border: #e6e6e6;
+  --dashboard-navy: #0f0f0f;
+  --dashboard-teal: #3d3d3d;
+  --dashboard-text: #0f0f0f;
+  --dashboard-text-muted: #5a5a5a;
+  --dashboard-shadow: none;
+  --dashboard-radius: 0.25rem;
 
   background-color: var(--dashboard-bg);
   color: var(--dashboard-text);
@@ -356,12 +481,12 @@ body:has(.studio-shell) footer {
   display: none;
 }
 .studio-shell {
-  --studio-bg: #f8f2eb;
-  --studio-surface: #fff7ef;
-  --studio-border: #dfc8b8;
-  --studio-ink: #2b231c;
-  --studio-muted: #73675e;
-  --studio-accent: #a77b53;
+  --studio-bg: #ffffff;
+  --studio-surface: #ffffff;
+  --studio-border: #e6e6e6;
+  --studio-ink: #0f0f0f;
+  --studio-muted: #5a5a5a;
+  --studio-accent: #0f0f0f;
   background: var(--studio-bg);
   color: var(--studio-ink);
   font-family: var(--font-inter), sans-serif;
@@ -422,7 +547,7 @@ body:has(.studio-shell) footer {
 }
 .studio-nav-link {
   align-items: center;
-  border-radius: 0.45rem;
+  border-radius: 0.25rem;
   color: var(--studio-ink);
   display: flex;
   font-size: 0.92rem;
@@ -438,7 +563,7 @@ body:has(.studio-shell) footer {
 }
 .studio-nav-link:hover,
 .studio-nav-link-active {
-  background: #f2e7dc;
+  background: #f4f4f4;
   color: var(--studio-ink);
 }
 .studio-nav-link-active {
@@ -447,8 +572,8 @@ body:has(.studio-shell) footer {
 .studio-card {
   background: var(--studio-surface);
   border: 1px solid var(--studio-border);
-  border-radius: 1.25rem;
-  box-shadow: 0 12px 36px rgb(0 0 0 / 0.05);
+  border-radius: 0.25rem;
+  box-shadow: none;
 }
 .studio-empty {
   align-items: center;
@@ -481,7 +606,7 @@ body:has(.studio-shell) footer {
   gap: 0.5rem;
   justify-content: center;
   padding: 0.85rem 1.1rem;
-  border-radius: 0.85rem;
+  border-radius: 0.25rem;
   transition:
     background-color 150ms ease,
     transform 150ms ease;
@@ -501,7 +626,7 @@ body:has(.studio-shell) footer {
   font: inherit;
   outline: none;
   padding: 0.85rem 1rem;
-  border-radius: 0.85rem;
+  border-radius: 0.25rem;
 }
 .studio-input:focus {
   border-color: var(--studio-accent);
@@ -540,11 +665,11 @@ body:has(.studio-shell) footer {
   font-size: 0.68rem;
   margin-left: auto;
   padding: 0.27rem 0.4rem;
-  border-radius: 0.45rem;
+  border-radius: 0.25rem;
 }
 .studio-avatar {
   align-items: center;
-  background: #d8c3aa;
+  background: #f0f0f0;
   color: var(--studio-ink);
   display: flex;
   font-size: 0.7rem;
