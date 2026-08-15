@@ -1,7 +1,12 @@
 import type { MetadataRoute } from "next";
 
-import { navItems, primaryCta, secondaryNavItems } from "@/config/nav";
-import { siteConfig } from "@/config/site";
+import {
+  navItems,
+  primaryCta,
+  secondaryNavItems,
+  visibleChildren,
+} from "@/config/nav";
+import { features, siteConfig } from "@/config/site";
 
 /**
  * Generated from the nav config rather than hand-listed, so a new route can
@@ -14,6 +19,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
         "/",
         "/artists",
         ...navItems.map((item) => item.href),
+        // Sub-destinations too, but only the ones actually switched on - a
+        // sitemap that advertises a route returning a not-found is worse than
+        // one that omits it.
+        ...navItems.flatMap((item) =>
+          visibleChildren(item, {
+            physicalWallEnabled: features.physicalWall,
+          }).map((child) => child.href)
+        ),
         ...secondaryNavItems.map((item) => item.href),
         primaryCta.href,
       ]

@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import { services } from "@/config/content";
-import { GenesisTile } from "@/features/wall/genesis-tile";
 import { cn } from "@/lib/utils";
 
 /**
@@ -26,9 +26,6 @@ import { cn } from "@/lib/utils";
  * to learn. The card's height changes on open, so the grid uses `items-start`
  * to stop a row of neighbours stretching to match.
  */
-/** One tradition per card, fixed so the set never reshuffles between renders. */
-const TILE_SEEDS = [1204, 3391, 2087, 1750, 4103, 1566] as const;
-
 export function ServiceCards() {
   const [open, setOpen] = useState<number | null>(null);
 
@@ -48,15 +45,22 @@ export function ServiceCards() {
           >
             {/* Image-topped, the way a gallery or an art-services company
                 builds a card: the work first, at full card width, then the
-                text beneath it. A small coloured number chip in its place was
-                the single biggest thing making these read as generic SaaS. */}
-            <span
-              aria-hidden
-              className="border-border relative -mx-6 -mt-6 mb-6 block aspect-[16/9] overflow-hidden border-b sm:-mx-7 sm:-mt-7"
-            >
-              <GenesisTile
-                seed={TILE_SEEDS[index]}
-                className="size-full transition-transform duration-500 group-hover/card:scale-[1.03]"
+                text beneath it.
+
+                `object-contain` on a tinted ground, not `cover`: these are
+                diagrams with labels in them, and the six arrive at ratios from
+                1.27 to 1.5. Cropping them to a common box would slice the
+                edges off half the set, so they are matted instead — which is
+                how a gallery hangs work of differing sizes anyway. */}
+            <span className="border-border bg-band relative -mx-6 -mt-6 mb-6 block aspect-[4/3] overflow-hidden border-b sm:-mx-7 sm:-mt-7">
+              <Image
+                src={service.image}
+                alt={service.imageAlt}
+                fill
+                sizes="(min-width: 1024px) 22rem, (min-width: 640px) 45vw, 90vw"
+                className="object-contain p-3 transition-transform duration-500 group-hover/card:scale-[1.03]"
+                // The first row is above the fold on a laptop; the rest are not.
+                loading={index < 3 ? "eager" : "lazy"}
               />
               <span className="text-eyebrow absolute top-0 left-0 bg-white px-2.5 py-1.5 tabular-nums">
                 {service.number}

@@ -136,20 +136,128 @@ export async function listWallTiles(limit = 500): Promise<WallTile[]> {
 /**
  * Cities that already have at least one founding artist.
  *
- * Returns city names only - no names, no emails, nothing that identifies an
- * individual. A map that leaked "who joined from where" would be a privacy
- * problem dressed up as a feature.
+ * Lower-cased, because the column is free text and people type "JAIPUR",
+ * "jaipur" and "Jaipur" — which is not a hypothetical, it is what is in the
+ * table. Matching those against the canonical city list by exact string meant
+ * a city with four artists lit nothing at all. Callers compare case-insensitively
+ * against `features/india/cities.ts`, which owns the display spelling.
  */
 export async function listLitCities(): Promise<string[]> {
   try {
     const sql = getSql();
     const rows = (await sql`
-      select distinct city from waitlist_entries
-      where city is not null and city <> ''
+      select distinct lower(trim(city)) as city from waitlist_entries
+      where city is not null and trim(city) <> ''
     `) as { city: string }[];
     return rows.map((row) => row.city);
   } catch (error) {
     console.error("[waitlist] Could not read lit cities", error);
+    return [];
+  }
+}
+
+/** A featured artist on the city panel. Public fields only, same as the wall. */
+export interface CityArtist {
+  founderNumber: number;
+  name: string;
+  practice: string | null;
+  artworkUrl: string;
+  artworkTitle: string | null;
+}
+
+export interface CityStat {
+  /** Lower-cased grouping key. The display name comes from the city list. */
+  key: string;
+  artists: number;
+  founding: number;
+  onWall: number;
+  practices: { practice: string; count: number }[];
+  featured: CityArtist[];
+}
+
+/**
+ * Per-city figures for the living map.
+ *
+ * Grouped on `lower(trim(city))` for the reason above. Three queries rather
+ * than one with nested aggregates: the shapes are genuinely different (counts,
+ * a practice histogram, a few artists) and forcing them into one query would
+ * mean array_agg over a join that fans out and then de-duplicating in JS.
+ *
+ * What is exposed is exactly what the public wall already shows — a name, a
+ * practice, an artwork. Contact details are never selected, so they cannot
+ * leak into a client component by someone later adding a field.
+ */
+export async function listCityStats(): Promise<CityStat[]> {
+  try {
+    const sql = getSql();
+
+    const totals = (await sql`
+      select lower(trim(city)) as key,
+             count(*)::int as artists,
+             count(*) filter (where founding_member)::int as founding,
+             count(*) filter (
+               where artwork_url is not null and status = 'visible'
+             )::int as on_wall
+      from waitlist_entries
+      where city is not null and trim(city) <> ''
+      group by lower(trim(city))
+    `) as Record<string, unknown>[];
+
+    const practices = (await sql`
+      select lower(trim(city)) as key, practice, count(*)::int as count
+      from waitlist_entries
+      where city is not null and trim(city) <> ''
+        and practice is not null and trim(practice) <> ''
+      group by lower(trim(city)), practice
+      order by count desc, practice asc
+    `) as Record<string, unknown>[];
+
+    // Only artists who are already visible on the wall, and only their public
+    // fields — the same rule `listWallTiles` applies.
+    const featured = (await sql`
+      select lower(trim(city)) as key, founder_number, name, practice,
+             artwork_url, artwork_title
+      from waitlist_entries
+      where city is not null and trim(city) <> ''
+        and status = 'visible' and artwork_url is not null
+      order by founder_number asc
+    `) as Record<string, unknown>[];
+
+    const byKey = new Map<string, CityStat>();
+    for (const row of totals) {
+      byKey.set(String(row.key), {
+        key: String(row.key),
+        artists: Number(row.artists),
+        founding: Number(row.founding),
+        onWall: Number(row.on_wall),
+        practices: [],
+        featured: [],
+      });
+    }
+
+    for (const row of practices) {
+      byKey.get(String(row.key))?.practices.push({
+        practice: String(row.practice),
+        count: Number(row.count),
+      });
+    }
+
+    for (const row of featured) {
+      const stat = byKey.get(String(row.key));
+      // Four is what the panel shows; reading more would be bytes nobody sees.
+      if (!stat || stat.featured.length >= 4) continue;
+      stat.featured.push({
+        founderNumber: Number(row.founder_number),
+        name: String(row.name),
+        practice: (row.practice as string) ?? null,
+        artworkUrl: String(row.artwork_url),
+        artworkTitle: (row.artwork_title as string) ?? null,
+      });
+    }
+
+    return [...byKey.values()].sort((a, b) => b.artists - a.artists);
+  } catch (error) {
+    console.error("[waitlist] Could not read city stats", error);
     return [];
   }
 }

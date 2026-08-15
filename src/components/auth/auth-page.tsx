@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { AuthForm } from "@/components/auth/auth-form";
+import { SIGNUP_NOTICE } from "@/features/physical-wall/consent";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -66,9 +67,49 @@ export function AuthPage({
             <p className="font-heading text-subsection mt-3 max-w-md text-balance">
               The work stays connected to its story, wherever it goes next.
             </p>
+
+            {/* What actually happens next, in order. A sign-up that ends at
+                "account created" leaves people wondering what they bought;
+                this says what the account is for before they make one. */}
+            {mode === "sign-up" && (
+              <ol className="mt-6 flex max-w-md flex-col gap-4">
+                {[
+                  {
+                    title: "Make an account",
+                    body: "Name, email, password. Under a minute.",
+                  },
+                  {
+                    title: "Choose what's public",
+                    body: "Your profile and what you hear from us are separate questions, and both are yours to change later.",
+                  },
+                  {
+                    title: "Take a place on the wall",
+                    body: "Pick your position, your dates, and what you're hanging.",
+                  },
+                ].map((step, index) => (
+                  <li key={step.title} className="flex gap-4">
+                    <span
+                      aria-hidden
+                      className="border-border text-muted-foreground mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full border text-xs"
+                    >
+                      {index + 1}
+                    </span>
+                    <span>
+                      <span className="text-foreground block text-sm font-medium">
+                        {step.title}
+                      </span>
+                      <span className="text-muted-foreground mt-0.5 block text-sm leading-6">
+                        {step.body}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+
             <Link
               href="/journey"
-              className="text-foreground hover:text-muted-foreground mt-5 inline-flex text-sm underline underline-offset-4 transition-colors"
+              className="text-foreground hover:text-muted-foreground mt-6 inline-flex text-sm underline underline-offset-4 transition-colors"
             >
               See how it works
             </Link>
@@ -83,6 +124,7 @@ export function AuthPage({
             mode={mode}
             callbackUrl={returnTo}
             googleEnabled={googleEnabled}
+            noticeSummary={SIGNUP_NOTICE}
           />
           <p className="text-muted-foreground mt-5 text-center text-sm">
             {content.alternate}{" "}

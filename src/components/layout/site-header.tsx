@@ -3,16 +3,16 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  AnimatePresence,
-  motion,
-  useMotionValueEvent,
-  useScroll,
-} from "framer-motion";
+import { motion, useMotionValueEvent, useScroll } from "framer-motion";
 import { ChevronDown, Menu, X } from "lucide-react";
 
 import { Wordmark } from "@/components/brand/wordmark";
-import { navItems, primaryCta, secondaryNavItems } from "@/config/nav";
+import {
+  navItems,
+  primaryCta,
+  secondaryNavItems,
+  visibleChildren,
+} from "@/config/nav";
 import { duration, ease, transition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -33,17 +33,34 @@ import { cn } from "@/lib/utils";
  * and returns to the trigger on close, Escape dismisses it, and background
  * scroll is locked while it is open.
  *
- * Performance: the only client state is a boolean for "scrolled" and one each
- * for the two menus. Scroll is read through Framer's `useScroll` (rAF-batched,
- * passive) rather than a raw scroll listener, so it never thrashes layout.
+ * Performance: the only client state is a boolean for "scrolled", one for the
+ * mobile panel, and one naming whichever desktop dropdown is open. Scroll is
+ * read through Framer's `useScroll` (rAF-batched, passive) rather than a raw
+ * scroll listener, so it never thrashes layout.
+ *
+ * `physicalWallEnabled` is passed in from the server layout rather than read
+ * from the feature flag here. The flag is a plain (non-`NEXT_PUBLIC_`) env var,
+ * so in a client component it would inline as `undefined` and the wall menu
+ * would never appear however the deployment was configured.
  */
-export function SiteHeader() {
+export function SiteHeader({
+  physicalWallEnabled = false,
+}: {
+  physicalWallEnabled?: boolean;
+}) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(false);
+  /**
+   * Which desktop dropdown is open, by key, or null.
+   *
+   * One value rather than a boolean per menu: opening the wall menu has to
+   * close "More" and vice versa, and a single slot makes that automatic instead
+   * of something each trigger has to remember to do.
+   */
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const moreRef = useRef<HTMLLIElement>(null);
+  const navRef = useRef<HTMLUListElement>(null);
   const pathname = usePathname();
 
   const { scrollY } = useScroll();
@@ -69,21 +86,23 @@ export function SiteHeader() {
     };
   }, [menuOpen]);
 
-  // The desktop overflow menu closes on Escape or when attention moves away.
-  // This keeps the full directory available without making the bar dense.
+  // A desktop dropdown closes on Escape or when attention moves away. Watching
+  // the whole nav rather than one menu means a click on another trigger is
+  // "inside", so that trigger's own handler decides what opens next instead of
+  // fighting a dismiss that already fired.
   useEffect(() => {
-    if (!moreOpen) return;
+    if (!openMenu) return;
 
     function dismiss(event: KeyboardEvent | MouseEvent) {
       if (event instanceof KeyboardEvent && event.key === "Escape") {
-        setMoreOpen(false);
+        setOpenMenu(null);
       }
       if (
         event instanceof MouseEvent &&
-        moreRef.current &&
-        !moreRef.current.contains(event.target as Node)
+        navRef.current &&
+        !navRef.current.contains(event.target as Node)
       ) {
-        setMoreOpen(false);
+        setOpenMenu(null);
       }
     }
 
@@ -93,7 +112,7 @@ export function SiteHeader() {
       document.removeEventListener("keydown", dismiss);
       document.removeEventListener("mousedown", dismiss);
     };
-  }, [moreOpen]);
+  }, [openMenu]);
 
   // Move focus into the panel on open, and back to the trigger on close.
   useEffect(() => {
@@ -112,8 +131,12 @@ export function SiteHeader() {
   if (pathname !== lastPathname) {
     setLastPathname(pathname);
     setMenuOpen(false);
-    setMoreOpen(false);
+    setOpenMenu(null);
   }
+
+  /** Is this href the page we are on, or an ancestor of it? */
+  const isCurrent = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   return (
     <header
@@ -128,46 +151,126 @@ export function SiteHeader() {
         </Link>
 
         <nav aria-label="Primary" className="hidden min-w-0 flex-1 lg:block">
-          <ul className="flex items-center justify-center gap-6 xl:gap-8">
+          <ul
+            ref={navRef}
+            className="flex items-center justify-center gap-6 xl:gap-8"
+          >
             {navItems.map((item, index) => {
+              const children = visibleChildren(item, { physicalWallEnabled });
               const active =
-                item.href === "/"
-                  ? pathname === "/"
-                  : pathname.startsWith(item.href);
+                isCurrent(item.href) ||
+                children.some((child) => isCurrent(child.href));
+
               return (
                 <li
                   key={item.href}
                   // The last two give way first on narrower desktops; they are
                   // still one click away in "More" and in the footer.
-                  className={cn(index >= 5 && "hidden xl:block")}
+                  className={cn("relative", index >= 5 && "hidden xl:block")}
                 >
-                  <Link
-                    href={item.href}
-                    aria-current={active ? "page" : undefined}
-                    className={cn(
-                      "group relative block py-1 text-sm whitespace-nowrap transition-colors",
-                      active
-                        ? "text-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {item.label}
-                    <span
-                      aria-hidden
-                      className={cn(
-                        "bg-foreground absolute -bottom-0.5 left-0 h-px transition-[width] duration-200 ease-out",
-                        active ? "w-full" : "w-0 group-hover:w-full"
+                  {children.length > 0 ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setOpenMenu((open) =>
+                            open === item.href ? null : item.href
+                          )
+                        }
+                        aria-expanded={openMenu === item.href}
+                        aria-controls={`header-menu-${index}`}
+                        className={cn(
+                          "group relative inline-flex items-center gap-1 py-1 text-sm whitespace-nowrap transition-colors",
+                          active
+                            ? "text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {item.label}
+                        <ChevronDown
+                          className={cn(
+                            "size-3 transition-transform duration-200",
+                            openMenu === item.href && "rotate-180"
+                          )}
+                          aria-hidden
+                        />
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "bg-foreground absolute -bottom-0.5 left-0 h-px transition-[width] duration-200 ease-out",
+                            active ? "w-full" : "w-0 group-hover:w-full"
+                          )}
+                        />
+                      </button>
+                      {/* Plain conditional rather than AnimatePresence.
+                          AnimatePresence does not unmount its children in this
+                          React/Framer combination: the exit animation runs, the
+                          panel reaches opacity 0, and the node stays in the
+                          document - an invisible 256px panel that still
+                          swallows clicks and still holds focusable links. The
+                          entrance still animates; only the exit fade is given
+                          up, which on a 220ms dropdown nobody will miss. */}
+                      {openMenu === item.href && (
+                        <motion.div
+                          id={`header-menu-${index}`}
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={transition.base}
+                          className="border-border shadow-medium absolute top-[calc(100%+1.25rem)] left-1/2 w-64 -translate-x-1/2 border bg-white p-2"
+                        >
+                          <ul>
+                            {children.map((child) => (
+                              <li key={child.href}>
+                                <Link
+                                  href={child.href}
+                                  aria-current={
+                                    isCurrent(child.href) ? "page" : undefined
+                                  }
+                                  onClick={() => setOpenMenu(null)}
+                                  className="hover:bg-secondary hover:text-foreground block px-3 py-2.5 text-sm transition-colors"
+                                >
+                                  {child.label}
+                                  <span className="text-muted-foreground mt-0.5 block text-xs">
+                                    {child.description}
+                                  </span>
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </motion.div>
                       )}
-                    />
-                  </Link>
+                    </>
+                  ) : (
+                    <Link
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "group relative block py-1 text-sm whitespace-nowrap transition-colors",
+                        active
+                          ? "text-foreground"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {item.label}
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "bg-foreground absolute -bottom-0.5 left-0 h-px transition-[width] duration-200 ease-out",
+                          active ? "w-full" : "w-0 group-hover:w-full"
+                        )}
+                      />
+                    </Link>
+                  )}
                 </li>
               );
             })}
-            <li ref={moreRef} className="relative">
+            <li className="relative">
               <button
                 type="button"
-                onClick={() => setMoreOpen((open) => !open)}
-                aria-expanded={moreOpen}
+                onClick={() =>
+                  setOpenMenu((open) => (open === "more" ? null : "more"))
+                }
+                aria-expanded={openMenu === "more"}
                 aria-controls="header-more-menu"
                 className={cn(
                   "hover:text-foreground inline-flex shrink-0 items-center gap-1 py-1 text-sm whitespace-nowrap transition-colors",
@@ -180,53 +283,54 @@ export function SiteHeader() {
                 <ChevronDown
                   className={cn(
                     "size-3 transition-transform duration-200",
-                    moreOpen && "rotate-180"
+                    openMenu === "more" && "rotate-180"
                   )}
                   aria-hidden
                 />
               </button>
-              <AnimatePresence>
-                {moreOpen && (
-                  <motion.div
-                    id="header-more-menu"
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 2 }}
-                    transition={transition.base}
-                    className="border-border shadow-medium absolute top-[calc(100%+1.25rem)] right-0 w-64 border bg-white p-2"
-                  >
-                    <p className="text-muted-foreground text-eyebrow px-3 pt-2 pb-1">
-                      Explore ArtWall
-                    </p>
-                    <ul>
-                      {/* On narrower desktops the last two primary items are
+              {/* Conditional, not AnimatePresence — see the note above. This
+                  menu had the bug before the wall menu existed: opening and
+                  closing "More" left an invisible panel over the page that
+                  quietly ate the next click. */}
+              {openMenu === "more" && (
+                <motion.div
+                  id="header-more-menu"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={transition.base}
+                  className="border-border shadow-medium absolute top-[calc(100%+1.25rem)] right-0 w-64 border bg-white p-2"
+                >
+                  <p className="text-muted-foreground text-eyebrow px-3 pt-2 pb-1">
+                    Explore ArtWall
+                  </p>
+                  <ul>
+                    {/* On narrower desktops the last two primary items are
                           hidden above, so they are repeated here. */}
-                      {[...navItems.slice(5), ...secondaryNavItems].map(
-                        (item, index) => (
-                          <li key={item.href}>
-                            <Link
-                              href={item.href}
-                              aria-current={
-                                pathname === item.href ? "page" : undefined
-                              }
-                              onClick={() => setMoreOpen(false)}
-                              className={cn(
-                                "hover:bg-secondary hover:text-foreground block px-3 py-2.5 text-sm transition-colors",
-                                index < navItems.length - 5 && "xl:hidden"
-                              )}
-                            >
-                              {item.label}
-                              <span className="text-muted-foreground mt-0.5 block text-xs">
-                                {item.description}
-                              </span>
-                            </Link>
-                          </li>
-                        )
-                      )}
-                    </ul>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                    {[...navItems.slice(5), ...secondaryNavItems].map(
+                      (item, index) => (
+                        <li key={item.href}>
+                          <Link
+                            href={item.href}
+                            aria-current={
+                              pathname === item.href ? "page" : undefined
+                            }
+                            onClick={() => setOpenMenu(null)}
+                            className={cn(
+                              "hover:bg-secondary hover:text-foreground block px-3 py-2.5 text-sm transition-colors",
+                              index < navItems.length - 5 && "xl:hidden"
+                            )}
+                          >
+                            {item.label}
+                            <span className="text-muted-foreground mt-0.5 block text-xs">
+                              {item.description}
+                            </span>
+                          </Link>
+                        </li>
+                      )
+                    )}
+                  </ul>
+                </motion.div>
+              )}
             </li>
           </ul>
         </nav>
@@ -259,35 +363,42 @@ export function SiteHeader() {
         </div>
       </div>
 
-      <AnimatePresence>
-        {menuOpen && (
-          <motion.div
-            id="mobile-menu"
-            ref={panelRef}
-            tabIndex={-1}
-            role="dialog"
-            aria-modal="true"
-            aria-label="Menu"
-            initial={{ opacity: 0, x: "100%" }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: "100%" }}
-            transition={{ duration: duration.moderate, ease: ease.standard }}
-            className="fixed inset-0 z-400 flex flex-col overflow-y-auto bg-white px-5 pt-5 pb-10 lg:hidden"
-          >
-            <div className="flex h-13 items-center justify-between">
-              <span className="text-muted-foreground text-eyebrow">Menu</span>
-              <button
-                type="button"
-                onClick={() => setMenuOpen(false)}
-                aria-label="Close menu"
-                className="text-foreground -mr-2 inline-flex size-11 items-center justify-center"
-              >
-                <X className="size-5" aria-hidden />
-              </button>
-            </div>
-            <nav aria-label="Mobile" className="mt-6">
-              <ul className="border-border flex flex-col border-t">
-                {[...navItems, ...secondaryNavItems].map((item, index) => (
+      {/* Conditional, not AnimatePresence — see the note on the wall menu.
+          Left wrapped, this panel stayed in the document after closing: slid
+          off-screen and invisible, but still full of links a keyboard user
+          could tab into. Losing the slide-out on close is the cost. */}
+      {menuOpen && (
+        <motion.div
+          id="mobile-menu"
+          ref={panelRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Menu"
+          initial={{ opacity: 0, x: "100%" }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: duration.moderate, ease: ease.standard }}
+          className="fixed inset-0 z-400 flex flex-col overflow-y-auto bg-white px-5 pt-5 pb-10 lg:hidden"
+        >
+          <div className="flex h-13 items-center justify-between">
+            <span className="text-muted-foreground text-eyebrow">Menu</span>
+            <button
+              type="button"
+              onClick={() => setMenuOpen(false)}
+              aria-label="Close menu"
+              className="text-foreground -mr-2 inline-flex size-11 items-center justify-center"
+            >
+              <X className="size-5" aria-hidden />
+            </button>
+          </div>
+          <nav aria-label="Mobile" className="mt-6">
+            <ul className="border-border flex flex-col border-t">
+              {[...navItems, ...secondaryNavItems].map((item, index) => {
+                const children = visibleChildren(item, {
+                  physicalWallEnabled,
+                });
+
+                return (
                   <motion.li
                     key={item.href}
                     initial={{ opacity: 0, y: 6 }}
@@ -298,36 +409,64 @@ export function SiteHeader() {
                     }}
                     className="border-border border-b"
                   >
-                    <Link
-                      href={item.href}
-                      className="font-heading text-card block py-4"
-                    >
-                      {item.label}
-                      <span className="text-muted-foreground mt-1 block font-sans text-sm tracking-normal">
-                        {item.description}
-                      </span>
-                    </Link>
+                    {/* On a phone the children are simply listed under the
+                          parent. A tap-to-expand disclosure would hide two
+                          links behind an extra tap to save four lines of a
+                          panel that already scrolls. */}
+                    {children.length > 0 ? (
+                      <div className="py-4">
+                        <p className="font-heading text-card">{item.label}</p>
+                        <ul className="mt-2 flex flex-col">
+                          {children.map((child) => (
+                            <li key={child.href}>
+                              <Link
+                                href={child.href}
+                                aria-current={
+                                  isCurrent(child.href) ? "page" : undefined
+                                }
+                                className="border-border/60 block border-l py-2.5 pl-4 text-sm"
+                              >
+                                {child.label}
+                                <span className="text-muted-foreground mt-0.5 block text-xs">
+                                  {child.description}
+                                </span>
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <Link
+                        href={item.href}
+                        className="font-heading text-card block py-4"
+                      >
+                        {item.label}
+                        <span className="text-muted-foreground mt-1 block font-sans text-sm tracking-normal">
+                          {item.description}
+                        </span>
+                      </Link>
+                    )}
                   </motion.li>
-                ))}
-              </ul>
-            </nav>
-            <div className="mt-8 flex flex-col gap-3">
-              <Link
-                href={primaryCta.href}
-                className="bg-foreground inline-flex h-12 items-center justify-center px-5 text-sm font-medium text-white"
-              >
-                {primaryCta.label}
-              </Link>
-              <Link
-                href="/sign-in"
-                className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors"
-              >
-                Sign in
-              </Link>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                );
+              })}
+            </ul>
+          </nav>
+          <div className="mt-8 flex flex-col gap-3">
+            <Link
+              href={primaryCta.href}
+              className="bg-foreground inline-flex h-12 items-center justify-center px-5 text-sm font-medium text-white"
+            >
+              {primaryCta.label}
+            </Link>
+            <Link
+              href="/sign-in"
+              className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors"
+            >
+              Sign in
+            </Link>
+          </div>
+        </motion.div>
+      )}
     </header>
   );
 }

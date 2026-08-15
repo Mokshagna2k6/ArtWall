@@ -21,8 +21,18 @@ alter table waitlist_entries
   add column if not exists user_id text,
   add column if not exists founding_member boolean not null default false;
 
--- Runs exactly once (the runner records applied files), so an unconditional
--- ADD CONSTRAINT is safe and avoids a procedural block.
+-- Paired DROP IF EXISTS + ADD, rather than a bare ADD.
+--
+-- The runner records applied files, so in theory this runs exactly once. In
+-- practice a run that failed *after* this statement leaves the constraint in
+-- place but the file unrecorded, and the retry then dies on "constraint already
+-- exists" — which is exactly what happened to this project's database. Postgres
+-- has no ADD CONSTRAINT IF NOT EXISTS, and the runner forbids DO blocks, so
+-- dropping first is the way to make the statement re-runnable. The drop is
+-- harmless: the constraint is immediately re-added with the same definition.
+alter table waitlist_entries
+  drop constraint if exists waitlist_entries_user_id_fkey;
+
 alter table waitlist_entries
   add constraint waitlist_entries_user_id_fkey
   foreign key (user_id) references "user"(id) on delete set null;

@@ -10,6 +10,8 @@
  * Source of truth for wording: the ArtWall Labs site content brief.
  */
 
+import type { StaticImageData } from "next/image";
+
 /* ── The bar under the hero ────────────────────────────────────────────── */
 
 export const stats = [
@@ -22,11 +24,41 @@ export const stats = [
 
 /* ── Services: the six integrated systems ──────────────────────────────── */
 
+/**
+ * Static imports rather than string paths.
+ *
+ * Next reads the real width and height at build time, so every image reserves
+ * its exact space before it loads and the six systems never shift under the
+ * reader's cursor. It also fingerprints the file, which a `/public` string
+ * path does not — and it means a typo in a filename is a build error rather
+ * than a broken image somebody notices in production.
+ *
+ * The filenames carry spaces because that is how they arrived. The import
+ * handles the encoding, and containing it to this one file is why the rest of
+ * the codebase never has to think about it.
+ */
+import artistRegistryImage from "../../public/Artist Registry and Profile.png";
+import exhibitionEngineImage from "../../public/Exhibition Engine.png";
+import provenanceImage from "../../public/Provenance and COA.png";
+import marketplaceImage from "../../public/Art Marketplace.png";
+// The "2" variant, deliberately: the other file is the only portrait image in
+// the set, and one tall card in a grid of six wide ones reads as a mistake.
+import antiFraudImage from "../../public/Nine-Layer Anti-Fraud Engine2.png";
+import demandTriggeredImage from "../../public/Demand-Triggered Sale.png";
+
 export interface Service {
   number: string;
   title: string;
   summary: string;
   detail: string;
+  /** The system diagram. Illustrative, so it is never the only way to read a claim. */
+  image: StaticImageData;
+  /**
+   * Described rather than named: "diagram of the artist registry" tells a
+   * screen-reader user nothing the adjacent heading has not already said, so
+   * each one says what the diagram actually shows.
+   */
+  imageAlt: string;
 }
 
 export const services: readonly Service[] = [
@@ -37,6 +69,9 @@ export const services: readonly Service[] = [
       "Four-tier verification, and a profile that doubles as your business hub.",
     detail:
       "DigiLocker KYC, AI document scan, curator review and peer endorsement. Your profile carries portfolio, exhibitions, sales, provenance, earnings and GST invoicing. Vernacular CMS, 300+ artforms, multi-language interface.",
+    image: artistRegistryImage,
+    imageAlt:
+      "The four verification tiers an artist passes through, from DigiLocker identity check to peer endorsement, feeding a single verified profile.",
   },
   {
     number: "02",
@@ -45,6 +80,9 @@ export const services: readonly Service[] = [
       "AI matching that puts work on real walls: galleries, hotels, coworking spaces.",
     detail:
       "CLIP embeddings weighed against foot traffic, demographics and demand signals to place a work where the right people will actually stand in front of it. Zero cost for artists.",
+    image: exhibitionEngineImage,
+    imageAlt:
+      "Artworks matched to physical venues by light, scale and audience, placing each piece on the wall where its buyer already stands.",
   },
   {
     number: "03",
@@ -52,6 +90,9 @@ export const services: readonly Service[] = [
     summary: "A certificate that travels with the work, for life.",
     detail:
       "NTAG424 NFC DNA tags (AES-128), QR verification, certificates on Polygon, and CNN image binding tying the physical object to its record. ₹500–2,500 per certificate, against ₹5,000–50,000 elsewhere.",
+    image: provenanceImage,
+    imageAlt:
+      "A physical artwork bound to its on-chain certificate by an NFC tag and image fingerprint, so the object and its record cannot be separated.",
   },
   {
     number: "04",
@@ -59,6 +100,9 @@ export const services: readonly Service[] = [
     summary: "10% commission, against an industry standard of 40–60%.",
     detail:
       "Escrow through Razorpay and smart contracts. A 72-hour inspection window. EMI, Art-on-Rent from ₹500 a month, and a 15% student discount. Secondary market at a 5% fee.",
+    image: marketplaceImage,
+    imageAlt:
+      "A sale moving through escrow to a 72-hour inspection window before the artist is paid, at a tenth of the usual commission.",
   },
   {
     number: "05",
@@ -66,6 +110,9 @@ export const services: readonly Service[] = [
     summary: "Nine independent checks between a forgery and a collector.",
     detail:
       "Identity, CNN image comparison, NFC binding, blockchain record, escrow, behavioural ML, payment screening, community reporting and human review. Designed for a 99%+ block rate and under 2% disputes.",
+    image: antiFraudImage,
+    imageAlt:
+      "Nine independent checks stacked between a forgery and a collector, from identity and image comparison through to human review.",
   },
   {
     number: "06",
@@ -73,6 +120,9 @@ export const services: readonly Service[] = [
     summary: "Patented. No prior art anywhere in the world.",
     detail:
       "Five weighted demand signals accumulate until they cross the threshold the artist set, and only then does the work unlock. Plus a 4% perpetual royalty on every resale, enforced by ERC-2981 on Polygon.",
+    image: demandTriggeredImage,
+    imageAlt:
+      "Five weighted demand signals accumulating toward the threshold an artist set, at which point the work unlocks for sale.",
   },
 ] as const;
 

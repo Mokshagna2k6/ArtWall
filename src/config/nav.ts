@@ -15,6 +15,21 @@ export interface NavItem {
   href: string;
   /** Used in the mobile menu and as the link's accessible description. */
   description: string;
+  /**
+   * Sub-destinations, shown as a dropdown in the header.
+   *
+   * A parent with children keeps its own `href` so the footer and the sitemap
+   * still have one canonical URL for it - only the header treats it as a
+   * category rather than a destination.
+   */
+  children?: readonly NavItem[];
+  /**
+   * Hidden until the physical wall is switched on.
+   *
+   * There is exactly one wall while the venue is not open, and advertising a
+   * second one that returns a not-found is worse than not mentioning it.
+   */
+  requiresPhysicalWall?: boolean;
 }
 
 export const navItems: readonly NavItem[] = [
@@ -24,9 +39,25 @@ export const navItems: readonly NavItem[] = [
     description: "Art lives on the wall",
   },
   {
+    // Two walls now: the living collection online, and the real one hanging in
+    // the Ric Platter venue. They are different products that share a name, so
+    // the header names both rather than making people guess which "The Wall" is.
     label: "The Wall",
     href: "/wall",
     description: "Take your place among the founding artists",
+    children: [
+      {
+        label: "Virtual Wall",
+        href: "/wall",
+        description: "The living collection of India's artists, online",
+      },
+      {
+        label: "Physical Wall",
+        href: "/physical-wall",
+        description: "Real work, hanging at Ric Platter",
+        requiresPhysicalWall: true,
+      },
+    ],
   },
   {
     label: "Services",
@@ -57,6 +88,23 @@ export const primaryCta = {
   label: "Join the Wall",
   href: "/join",
 } as const;
+
+/**
+ * A nav item's visible children, given what is switched on.
+ *
+ * Returns an empty array when there is nothing to show *or* only one child is
+ * available - a dropdown holding a single link is a worse affordance than the
+ * plain link it replaced, so the header falls back to the plain link.
+ */
+export function visibleChildren(
+  item: NavItem,
+  { physicalWallEnabled }: { physicalWallEnabled: boolean }
+): readonly NavItem[] {
+  const children = (item.children ?? []).filter(
+    (child) => !child.requiresPhysicalWall || physicalWallEnabled
+  );
+  return children.length > 1 ? children : [];
+}
 
 /**
  * Secondary destinations. Kept out of the primary bar so it stays legible at

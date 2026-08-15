@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 
 import {
@@ -51,15 +52,21 @@ export default function ServicesPage() {
 
       {/* ── The six ──────────────────────────────────────────────────── */}
       <Section id="systems">
+        {/* Text and diagram side by side, one system per row. The full detail
+            moves up beside the summary so the right-hand column belongs
+            entirely to the image — a diagram squeezed into a third column
+            beside two blocks of prose is too small to read, which makes it
+            decoration rather than explanation. */}
         <ol className="border-border border-t">
-          {services.map((service) => (
+          {services.map((service, index) => (
             <li
               key={service.number}
-              className="border-border grid gap-4 border-b py-10 lg:grid-cols-[5rem_minmax(0,1fr)_minmax(0,1.3fr)] lg:gap-10 lg:py-14"
+              className="border-border grid gap-6 border-b py-10 lg:grid-cols-[4rem_minmax(0,1fr)_minmax(0,1fr)] lg:items-start lg:gap-12 lg:py-16"
             >
               <span className="text-muted-foreground font-heading text-lg tabular-nums">
                 {service.number}
               </span>
+
               <div>
                 <h2 className="font-heading text-subsection">
                   {service.title}
@@ -67,10 +74,21 @@ export default function ServicesPage() {
                 <p className="text-lead mt-2.5 text-balance">
                   {service.summary}
                 </p>
+                <p className="text-muted-foreground mt-5 leading-7">
+                  {service.detail}
+                </p>
               </div>
-              <p className="text-muted-foreground leading-7">
-                {service.detail}
-              </p>
+
+              <figure className="border-border bg-band overflow-hidden border">
+                <Image
+                  src={service.image}
+                  alt={service.imageAlt}
+                  sizes="(min-width: 1024px) 32rem, 90vw"
+                  className="h-auto w-full"
+                  // Only the first is anywhere near the fold on this page.
+                  priority={index === 0}
+                />
+              </figure>
             </li>
           ))}
         </ol>

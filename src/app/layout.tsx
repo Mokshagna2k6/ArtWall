@@ -5,7 +5,7 @@ import { MotionProvider } from "@/components/layout/motion-provider";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SkipLink } from "@/components/layout/skip-link";
-import { siteConfig } from "@/config/site";
+import { features, siteConfig } from "@/config/site";
 import "./globals.css";
 
 /**
@@ -114,7 +114,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         />
         <MotionProvider>
           <SkipLink />
-          <SiteHeader />
+          {/* Read here, in a Server Component, and handed down: the flag is a
+              plain env var, so a client component would only ever see it as
+              undefined. */}
+          <SiteHeader physicalWallEnabled={features.physicalWall} />
           <main id="main" className="flex-1">
             {children}
           </main>

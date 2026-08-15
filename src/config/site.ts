@@ -58,6 +58,22 @@ export const siteConfig = {
  */
 export const features = {
   studio: false,
+
+  /**
+   * `physicalWall` is the Wall Management System at /physical-wall - the real
+   * wall inside the Ric Platter venue, as distinct from the digital wall at
+   * /wall. Off by default: it is operational software for a venue that has not
+   * opened, and a booking page that takes money for slots nobody can hang work
+   * in would be worse than no page.
+   *
+   * Switched on with PHYSICAL_WALL_ENABLED=true rather than by editing this
+   * file, so staging can run it while production does not.
+   *
+   * While it is off, /physical-wall and everything under it - including the
+   * /q/ QR resolver - returns a not-found. Printed codes stay dormant rather
+   * than resolving to a half-built page.
+   */
+  physicalWall: process.env.PHYSICAL_WALL_ENABLED === "true",
 } as const;
 
 /** Where a person lands after signing in when no callback was requested. */

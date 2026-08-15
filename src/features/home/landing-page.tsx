@@ -12,7 +12,7 @@ import {
 } from "@/features/home/service-cards";
 import { LivingMap } from "@/features/india/living-map";
 import { PainStages } from "@/features/platform/pain-stages";
-import { getLitCities } from "@/features/waitlist/roster";
+import { getCityStats, getLitCities } from "@/features/waitlist/roster";
 import {
   Band,
   ChapterNumeral,
@@ -37,7 +37,12 @@ import {
  * trip per revalidation rather than one per visitor.
  */
 export async function LandingPage() {
-  const litCities = await getLitCities();
+  // Both are cached on the roster tag, so a new artist lights their city and
+  // updates its figures in the same invalidation.
+  const [litCities, cityStats] = await Promise.all([
+    getLitCities(),
+    getCityStats(),
+  ]);
 
   return (
     <div className="bg-background">
@@ -191,7 +196,16 @@ export async function LandingPage() {
             04
           </ChapterNumeral>
         </div>
-        <div className="mt-10">
+        <div className="mt-10 max-w-3xl">
+          <h2 className="font-heading text-section text-balance">
+            One platform, read three ways.
+          </h2>
+          <p className="text-muted-foreground text-lead mt-5">
+            An artist, a gallery and a collector want different things from the
+            same six systems. Here is what each of them gets.
+          </p>
+        </div>
+        <div className="mt-12">
           <Audiences />
         </div>
       </Section>
@@ -204,18 +218,20 @@ export async function LandingPage() {
             05
           </ChapterNumeral>
         </div>
-        <div className="mt-10 grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
-          <div>
-            <h2 className="font-heading text-section text-balance">
-              A country that lights up one artist at a time.
-            </h2>
-            <p className="text-muted-foreground text-lead mt-5">
-              Twenty cities with traditions worth the world&apos;s attention.
-              Each one stays dark until an artist from there takes a place on
-              the wall.
-            </p>
-          </div>
-          <LivingMap litCities={litCities} />
+        <div className="mt-10 max-w-3xl">
+          <h2 className="font-heading text-section text-balance">
+            A country that lights up one artist at a time.
+          </h2>
+          <p className="text-muted-foreground text-lead mt-5">
+            Twenty-two cities with traditions worth the world&apos;s attention.
+            Each one stays dark until an artist from there takes a place on the
+            wall.
+          </p>
+        </div>
+        {/* Full width now that the map carries real figures — squeezed into a
+            side column the city panel had no room to say anything. */}
+        <div className="mt-12">
+          <LivingMap litCities={litCities} cityStats={cityStats} />
         </div>
       </Section>
 

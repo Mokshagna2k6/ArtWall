@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 import { Wordmark } from "@/components/brand/wordmark";
-import { navItems, secondaryNavItems } from "@/config/nav";
-import { siteConfig } from "@/config/site";
+import { navItems, secondaryNavItems, visibleChildren } from "@/config/nav";
+import { features, siteConfig } from "@/config/site";
 
 const socials = [
   { label: "Instagram", href: siteConfig.social.instagram },
@@ -12,9 +12,24 @@ const socials = [
   { label: "WhatsApp", href: siteConfig.social.whatsapp },
 ] as const;
 
+/**
+ * A parent with children is replaced by them, not listed alongside them.
+ *
+ * The footer is a flat directory of destinations, and "The Wall" on its own is
+ * a category rather than somewhere to go - listing it next to its two walls
+ * would offer three links to two places. Unlike the header this can read the
+ * feature flag directly, because the footer is a Server Component.
+ */
+const exploreLinks = navItems.slice(1).flatMap((item) => {
+  const children = visibleChildren(item, {
+    physicalWallEnabled: features.physicalWall,
+  });
+  return children.length > 0 ? [...children] : [item];
+});
+
 const columns = [
-  { heading: "Explore", links: navItems.slice(1) },
-  { heading: "More", links: secondaryNavItems },
+  { heading: "Explore", links: exploreLinks },
+  { heading: "More", links: [...secondaryNavItems] },
 ] as const;
 
 /**

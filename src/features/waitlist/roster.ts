@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 
 import {
   countWaitlistEntries,
+  listCityStats,
   listLitCities,
   listWallTiles,
 } from "@/features/waitlist/store";
@@ -43,5 +44,18 @@ export const getWallTiles = unstable_cache(
 export const getLitCities = unstable_cache(
   async () => listLitCities(),
   ["waitlist-lit-cities"],
+  { tags: [ROSTER_TAG], revalidate: 300 }
+);
+
+/**
+ * Per-city figures for the Living Map's detail panel.
+ *
+ * Cached on the same tag as the roster, so a new artist lights their city and
+ * updates its counts in the same invalidation rather than leaving the map
+ * saying one thing and the wall another.
+ */
+export const getCityStats = unstable_cache(
+  async () => listCityStats(),
+  ["waitlist-city-stats"],
   { tags: [ROSTER_TAG], revalidate: 300 }
 );
