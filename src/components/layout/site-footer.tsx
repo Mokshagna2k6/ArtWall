@@ -136,10 +136,21 @@ export function SiteFooter() {
               </a>
             </span>
           </div>
-          <p className="shrink-0 text-xs text-white/45">
-            &copy; {new Date().getFullYear()} {siteConfig.legalName}. All rights
-            reserved.
-          </p>
+          <div className="flex shrink-0 items-center gap-4">
+            <div className="flex items-center gap-1.5">
+              <span
+                aria-hidden
+                className="bg-signal inline-block size-1.5 rounded-full"
+              />
+              <span className="text-xs text-white/45">
+                Wall live &middot; Jaipur
+              </span>
+            </div>
+            <p className="text-xs text-white/45">
+              &copy; {new Date().getFullYear()} {siteConfig.legalName}. All
+              rights reserved.
+            </p>
+          </div>
         </div>
       </div>
     </footer>

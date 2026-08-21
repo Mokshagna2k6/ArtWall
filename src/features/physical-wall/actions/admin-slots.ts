@@ -7,6 +7,7 @@ import { requireRole } from "@/features/physical-wall/authorize";
 import { getRefundPolicyVersion } from "@/features/physical-wall/data/catalogs";
 import { refundAmountPaise } from "@/features/physical-wall/pricing";
 import { formatINR } from "@/features/physical-wall/money";
+import { createRefund, isRazorpayConfigured } from "@/features/physical-wall/razorpay";
 import {
   assertTransition,
   isOccupied,
@@ -175,8 +176,25 @@ export async function forceRelease(
         );
 
         if (refundPaise > 0) {
-          // The refund is recorded against the day it is raised. Whether it has
-          // *settled* is the PSP's business and shows up as its own reconciliation.
+          // Execute the refund through Razorpay if the booking was paid online.
+          let razorpayRefundId: string | null = null;
+          if (isRazorpayConfigured()) {
+            const payment = await client.query<{ payment_id: string }>(
+              `select payment_id from pw_payments
+               where booking_id = $1 and provider = 'razorpay' and status = 'captured' and payment_id is not null
+               order by created_at desc limit 1`,
+              [affected.id]
+            );
+            if (payment.rows[0]?.payment_id) {
+              const refund = await createRefund(
+                payment.rows[0].payment_id,
+                refundPaise,
+                affected.id
+              );
+              razorpayRefundId = refund.id;
+            }
+          }
+
           await client.query(
             `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by)
              values ($1, 'expense', 'refund', $2, $3, current_date, $4, $5)
@@ -184,7 +202,7 @@ export async function forceRelease(
             [
               newId("led"),
               refundPaise,
-              `Refund for ${affected.id} — ${policyLabel}. ${reason}`,
+              `Refund for ${affected.id} — ${policyLabel}${razorpayRefundId ? ` (${razorpayRefundId})` : ""}. ${reason}`,
               `refund:${affected.id}`,
               actor.id,
             ]

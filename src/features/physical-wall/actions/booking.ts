@@ -6,17 +6,25 @@ import { recordAuditIn } from "@/features/physical-wall/audit";
 import { requireRole } from "@/features/physical-wall/authorize";
 import {
   getCurrentRefundPolicy,
+  getRefundPolicyVersion,
   getSettings,
   listAddons,
 } from "@/features/physical-wall/data/catalogs";
 import { getActiveGrid, getOccupancyPct } from "@/features/physical-wall/data/wall";
-import { quote, type Quote } from "@/features/physical-wall/pricing";
-import { quoteRequestSchema, reserveSchema } from "@/features/physical-wall/schema";
+import { formatINR } from "@/features/physical-wall/money";
+import { quote, refundAmountPaise, type Quote } from "@/features/physical-wall/pricing";
+import { createRefund, isRazorpayConfigured } from "@/features/physical-wall/razorpay";
+import {
+  cancelBookingSchema,
+  quoteRequestSchema,
+  reserveSchema,
+} from "@/features/physical-wall/schema";
 import {
   addDays,
   fail,
   firstIssue,
   inTransaction,
+  LEDGER_TAG,
   newId,
   ok,
   PreconditionError,
@@ -388,5 +396,180 @@ export async function attachArtwork(
     return ok("Artwork attached to the booking.");
   } catch (error) {
     return toActionError("attachArtwork", error);
+  }
+}
+
+/**
+ * Artist cancels their own booking (F10).
+ *
+ * Two paths:
+ *
+ *  - **Held** bookings have not been paid. Slots go from `reserved` back to
+ *    `available` (not admin-only in the state machine) and that is it — no
+ *    refund, no ledger entry.
+ *
+ *  - **Paid** bookings are refunded according to the policy version snapshotted
+ *    at booking time, *not* whatever policy is current now. The slot transition
+ *    (`booked -> available`) would normally require admin in the state machine,
+ *    so we bypass `assertTransition` and drive the SQL directly — the action is
+ *    the artist's, the policy authorises it, and routing it through forceRelease
+ *    would misattribute the action.
+ *
+ * Once a booking reaches `received`, `installed` or `live`, the artwork is
+ * physically at the venue and a self-service cancel would leave a blank wall, so
+ * those statuses are rejected here and the artist is told to contact the team.
+ */
+export async function cancelBooking(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    const actor = await requireRole("artist");
+
+    const parsed = cancelBookingSchema.safeParse({
+      bookingId: formData.get("bookingId"),
+      reason: formData.get("reason") || undefined,
+    });
+    if (!parsed.success) return fail(firstIssue(parsed.error));
+
+    const { bookingId, reason } = parsed.data;
+
+    const outcome = await inTransaction(async (client) => {
+      const row = await client.query<{
+        id: string;
+        artist_id: string;
+        status: string;
+        total_amount_paise: number;
+        refund_policy_version: number | null;
+        artwork_id: string | null;
+      }>(
+        `select id, artist_id, status, total_amount_paise,
+                refund_policy_version, artwork_id
+         from pw_bookings
+         where id = $1
+         for update`,
+        [bookingId]
+      );
+      if (row.rowCount === 0) throw new PreconditionError("No such booking.");
+
+      const booking = row.rows[0];
+
+      if (booking.artist_id !== actor.id) {
+        throw new PreconditionError("That booking is not yours.");
+      }
+
+      if (!["held", "paid"].includes(booking.status)) {
+        throw new PreconditionError(
+          booking.status === "cancelled" || booking.status === "refunded"
+            ? "This booking has already been cancelled."
+            : "This booking is too far along to cancel online. Contact the ArtWall team for help."
+        );
+      }
+
+      let refundPaise = 0;
+      let policyLabel = "no refund due";
+
+      if (booking.status === "paid" && booking.refund_policy_version) {
+        const policy = await getRefundPolicyVersion(
+          booking.refund_policy_version
+        );
+        if (policy) {
+          refundPaise = refundAmountPaise(
+            Number(booking.total_amount_paise),
+            policy.percentage
+          );
+          policyLabel = `v${policy.version} at ${policy.percentage}%`;
+        }
+      }
+
+      await client.query(
+        `update pw_bookings
+         set status = $2, cancelled_reason = $3, hold_expires_at = null, updated_at = now()
+         where id = $1`,
+        [
+          booking.id,
+          refundPaise > 0 ? "refunded" : "cancelled",
+          reason ?? "Artist-initiated cancellation",
+        ]
+      );
+
+      if (refundPaise > 0) {
+        let razorpayRefundId: string | null = null;
+        if (isRazorpayConfigured()) {
+          const payment = await client.query<{ payment_id: string }>(
+            `select payment_id from pw_payments
+             where booking_id = $1 and provider = 'razorpay' and status = 'captured' and payment_id is not null
+             order by created_at desc limit 1`,
+            [booking.id]
+          );
+          if (payment.rows[0]?.payment_id) {
+            const refund = await createRefund(
+              payment.rows[0].payment_id,
+              refundPaise,
+              booking.id
+            );
+            razorpayRefundId = refund.id;
+          }
+        }
+
+        await client.query(
+          `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by)
+           values ($1, 'expense', 'refund', $2, $3, current_date, $4, $5)
+           on conflict (source_ref) where source_ref is not null do nothing`,
+          [
+            newId("led"),
+            refundPaise,
+            `Refund for ${booking.id} — ${policyLabel}${razorpayRefundId ? ` (${razorpayRefundId})` : ""}. Artist-initiated.`,
+            `refund:${booking.id}`,
+            actor.id,
+          ]
+        );
+      }
+
+      // Release all slots back to available.
+      await client.query(
+        `update pw_slots
+         set state = 'available', version = version + 1, updated_at = now()
+         where id in (select slot_id from pw_booking_slots where booking_id = $1)`,
+        [booking.id]
+      );
+
+      // Clear artwork physicalStatus if one was attached.
+      if (booking.artwork_id) {
+        await client.query(
+          `update artworks set "physicalStatus" = null
+           where id = $1`,
+          [booking.artwork_id]
+        );
+      }
+
+      await recordAuditIn(client, {
+        actor,
+        action: "booking.cancelled",
+        subjectType: "booking",
+        subjectId: booking.id,
+        before: { status: booking.status },
+        after: {
+          status: refundPaise > 0 ? "refunded" : "cancelled",
+          refundPaise,
+          refundPolicy: policyLabel,
+          reason: reason ?? "Artist-initiated cancellation",
+        },
+      });
+
+      return { refundPaise, policyLabel };
+    });
+
+    updateTag(WALL_TAG);
+    updateTag(LEDGER_TAG);
+
+    if (outcome.refundPaise > 0) {
+      return ok(
+        `Booking cancelled. A refund of ${formatINR(outcome.refundPaise)} has been initiated under ${outcome.policyLabel}.`
+      );
+    }
+    return ok("Booking cancelled. No payment was made, so no refund is needed.");
+  } catch (error) {
+    return toActionError("cancelBooking", error);
   }
 }

@@ -6,6 +6,7 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SkipLink } from "@/components/layout/skip-link";
 import { features, siteConfig } from "@/config/site";
+import { getSessionUser } from "@/lib/session";
 import "./globals.css";
 
 /**
@@ -97,7 +98,9 @@ export const viewport = {
   colorScheme: "light",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const user = await getSessionUser();
+
   return (
     <html
       lang="en"
@@ -117,7 +120,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           {/* Read here, in a Server Component, and handed down: the flag is a
               plain env var, so a client component would only ever see it as
               undefined. */}
-          <SiteHeader physicalWallEnabled={features.physicalWall} />
+          <SiteHeader
+            physicalWallEnabled={features.physicalWall}
+            user={user}
+          />
           <main id="main" className="flex-1">
             {children}
           </main>

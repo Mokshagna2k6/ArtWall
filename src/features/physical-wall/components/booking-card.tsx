@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 
 import { IDLE } from "@/features/physical-wall/action-state";
+import { cancelBooking } from "@/features/physical-wall/actions/booking";
 import { chooseInstallWindow, issueBookingToken } from "@/features/physical-wall/actions/ops";
 import { startPayment } from "@/features/physical-wall/actions/payment";
 import { AgreementPanel } from "@/features/physical-wall/components/agreement-panel";
@@ -39,6 +40,7 @@ export function BookingCard({
   agreement: { signedAt: string; termsHash: string } | null;
 }) {
   const [payState, payAction] = useActionState(startPayment, IDLE);
+  const [cancelState, cancelAction] = useActionState(cancelBooking, IDLE);
   const [windowState, windowAction] = useActionState(chooseInstallWindow, IDLE);
   const [tokenState, tokenAction] = useActionState(issueBookingToken, IDLE);
 
@@ -160,8 +162,19 @@ export function BookingCard({
         </div>
       )}
 
-      {/* The exhibition is over: the only thing left to ask for is what they
-          made of it (F32). Offered once, here, rather than chased by email. */}
+      {/* Cancel is available on held (pre-payment) and paid (pre-install)
+          bookings. Once artwork is received or installed, it is at the venue
+          and self-service cancel is no longer safe. */}
+      {(booking.status === "held" && !holdLapsed) ||
+      (booking.status === "paid" && !ended) ? (
+        <CancelSection
+          bookingId={booking.id}
+          isPaid={booking.status === "paid"}
+          cancelAction={cancelAction}
+          cancelState={cancelState}
+        />
+      ) : null}
+
       {ended && (
         <div className="border-hairline mt-5 border-t pt-5">
           <p className="text-ink-muted text-sm leading-6">
@@ -177,6 +190,49 @@ export function BookingCard({
         </div>
       )}
     </article>
+  );
+}
+
+function CancelSection({
+  bookingId,
+  isPaid,
+  cancelAction,
+  cancelState,
+}: {
+  bookingId: string;
+  isPaid: boolean;
+  cancelAction: (payload: FormData) => void;
+  cancelState: import("@/features/physical-wall/action-state").ActionState;
+}) {
+  return (
+    <details className="border-hairline mt-5 border-t pt-5">
+      <summary className="text-ink-muted cursor-pointer text-sm hover:underline">
+        Cancel this booking
+      </summary>
+      <div className="mt-3">
+        {isPaid && (
+          <p className="text-ink-muted mb-3 text-sm leading-6">
+            A refund will be calculated based on the policy in place when you
+            booked. This cannot be undone.
+          </p>
+        )}
+        <form action={cancelAction} className="flex flex-col gap-3">
+          <input type="hidden" name="bookingId" value={bookingId} />
+          {isPaid && (
+            <textarea
+              name="reason"
+              placeholder="Why are you cancelling? (optional)"
+              rows={2}
+              className="border-hairline focus:border-ink rounded-md border bg-transparent px-3 py-2 text-sm outline-none"
+            />
+          )}
+          <SubmitButton variant="danger">
+            {isPaid ? "Cancel and request refund" : "Cancel booking"}
+          </SubmitButton>
+          <FormStatus state={cancelState} />
+        </form>
+      </div>
+    </details>
   );
 }
 

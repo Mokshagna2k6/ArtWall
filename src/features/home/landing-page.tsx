@@ -10,6 +10,7 @@ import {
   ServiceCards,
   ServicesFooterLink,
 } from "@/features/home/service-cards";
+import { StatsBar } from "@/features/home/stats-bar";
 import { LivingMap } from "@/features/india/living-map";
 import { PainStages } from "@/features/platform/pain-stages";
 import { getCityStats, getLitCities } from "@/features/waitlist/roster";
@@ -98,6 +99,10 @@ export async function LandingPage() {
           should meet on an art platform is the art, not another paragraph. */}
       <ArtworkBand />
 
+      {/* ── Stats bar ───────────────────────────────────────────────── */}
+      {/* Five figures on a quiet band, right after the art: the scale
+          of the opportunity is the second thing you see. */}
+      <StatsBar />
 
       {/* Placed before the argument, not after it. Someone deciding whether to
           upload a painting needs the rights question answered first. */}
@@ -240,22 +245,35 @@ export async function LandingPage() {
           down keeps a monochrome page from reading as one endless sheet. */}
       <Band id="testimonials">
         <Eyebrow index="06">What our community says</Eyebrow>
-        <div className="border-hairline-strong mt-12 grid gap-px border-t md:grid-cols-3">
+        <div className="border-border mt-12 grid gap-px border-t md:grid-cols-3">
           {testimonials.map((testimonial) => (
             <figure
               key={testimonial.attribution}
-              className="border-hairline-strong flex flex-col justify-between gap-8 border-b py-10 md:border-r md:px-8 md:first:pl-0 md:last:border-r-0 md:last:pr-0"
+              className="border-border flex flex-col justify-between gap-8 border-b py-10 md:border-r md:px-8 md:first:pl-0 md:last:border-r-0 md:last:pr-0"
             >
-              <blockquote className="text-lead text-balance">
-                {testimonial.quote}
+              <blockquote className="font-heading text-card leading-[1.55] italic text-balance">
+                &ldquo;{testimonial.quote}&rdquo;
               </blockquote>
-              <figcaption>
-                <span className="block text-sm font-medium">
-                  {testimonial.attribution}
+              <figcaption className="flex items-center gap-3">
+                <span
+                  aria-hidden
+                  className="bg-foreground flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white"
+                >
+                  {testimonial.attribution
+                    .split(" ")
+                    .map((w) => w[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()}
                 </span>
-                <span className="text-muted-foreground block text-sm">
-                  {testimonial.context}
-                </span>
+                <div>
+                  <span className="block text-sm font-medium">
+                    {testimonial.attribution}
+                  </span>
+                  <span className="text-muted-foreground block text-sm">
+                    {testimonial.context}
+                  </span>
+                </div>
               </figcaption>
             </figure>
           ))}
@@ -285,54 +303,56 @@ export async function LandingPage() {
             </p>
           </div>
 
-          <ul className="border-border border-t">
-            {[
-              {
-                href: "/wall",
-                title: "The Wall",
-                detail:
-                  "Meet the founding artists and hang your own work beside them.",
-              },
-              {
-                href: "/community#archetype",
-                title: "The Archetype",
-                detail:
-                  "How much do you know about art? Five questions, two minutes.",
-              },
-              {
-                href: "/survey",
-                title: "The Survey",
-                detail:
-                  "Tell us which of the twenty-four failures you have lived through.",
-              },
-              {
-                href: "/community",
-                title: "The Community",
-                detail:
-                  "Indiagrapher: chapters, spotlights, and people who show up in person.",
-              },
-            ].map((item) => (
-              <li key={item.href} className="border-border border-b">
-                <Link
-                  href={item.href}
-                  className="group flex items-start justify-between gap-6 py-7 transition-colors"
-                >
-                  <div>
-                    <h3 className="font-heading text-subsection transition-opacity group-hover:opacity-60">
-                      {item.title}
-                    </h3>
-                    <p className="text-muted-foreground mt-2 max-w-sm leading-7">
-                      {item.detail}
-                    </p>
-                  </div>
-                  <ArrowUpRight
-                    className="mt-1.5 size-5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                    aria-hidden
-                  />
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <div className="border-border border p-8 sm:p-10">
+            <ul>
+              {[
+                {
+                  href: "/wall",
+                  title: "The Wall",
+                  detail:
+                    "Meet the founding artists and hang your own work beside them.",
+                },
+                {
+                  href: "/community#archetype",
+                  title: "The Archetype",
+                  detail:
+                    "How much do you know about art? Five questions, two minutes.",
+                },
+                {
+                  href: "/survey",
+                  title: "The Survey",
+                  detail:
+                    "Tell us which of the twenty-four failures you have lived through.",
+                },
+                {
+                  href: "/community",
+                  title: "The Community",
+                  detail:
+                    "Indiagrapher: chapters, spotlights, and people who show up in person.",
+                },
+              ].map((item) => (
+                <li key={item.href} className="border-border border-b last:border-b-0">
+                  <Link
+                    href={item.href}
+                    className="group flex items-start justify-between gap-6 py-6 transition-colors"
+                  >
+                    <div>
+                      <h3 className="font-heading text-subsection transition-opacity group-hover:opacity-60">
+                        {item.title}
+                      </h3>
+                      <p className="text-muted-foreground mt-2 max-w-sm leading-7">
+                        {item.detail}
+                      </p>
+                    </div>
+                    <ArrowUpRight
+                      className="mt-1.5 size-5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                      aria-hidden
+                    />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </Section>
     </div>

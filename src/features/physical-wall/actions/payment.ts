@@ -109,6 +109,8 @@ async function settleBooking(
     status: "captured" | "manual";
     actor: Actor | null;
     note: string;
+    /** The amount Razorpay actually captured, in paise. Verified against the booking. */
+    amountPaise?: number;
   }
 ): Promise<"settled" | "already-settled"> {
   const booking = await client.query<{
@@ -132,6 +134,17 @@ async function settleBooking(
   }
 
   const amount = Number(booking.rows[0].total_amount_paise);
+
+  // For webhook-settled bookings, the captured amount must match the booking
+  // total exactly. A mismatch means the payment was for a different amount
+  // than we quoted — refuse to confirm rather than accept a wrong price.
+  if (options.status === "captured" && options.amountPaise !== undefined) {
+    if (options.amountPaise !== amount) {
+      throw new PreconditionError(
+        `Payment amount mismatch: expected ${amount} paise, received ${options.amountPaise} paise.`
+      );
+    }
+  }
 
   const payment = await client.query(
     `insert into pw_payments
@@ -248,6 +261,7 @@ export async function settleFromWebhook(options: {
   eventId: string;
   paymentId: string | null;
   orderId: string | null;
+  amountPaise: number;
 }): Promise<"settled" | "already-settled"> {
   const result = await inTransaction((client) =>
     settleBooking(client, {

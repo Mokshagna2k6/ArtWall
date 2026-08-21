@@ -43,6 +43,8 @@ export async function POST(request: Request) {
         entity?: {
           id?: string;
           order_id?: string;
+          amount?: number;
+          currency?: string;
           notes?: { bookingId?: string };
         };
       };
@@ -70,6 +72,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "no booking reference" }, { status: 400 });
   }
 
+  // Amount and currency must be present and INR. The actual match against the
+  // booking's total happens in settleFromWebhook, where the booking is locked.
+  const paidAmountPaise = payment.amount;
+  const currency = payment.currency;
+  if (
+    typeof paidAmountPaise !== "number" ||
+    paidAmountPaise <= 0 ||
+    currency !== "INR"
+  ) {
+    console.error("[physical-wall] Webhook missing amount or currency", event.event);
+    return NextResponse.json({ error: "invalid amount" }, { status: 400 });
+  }
+
   try {
     const result = await settleFromWebhook({
       bookingId,
@@ -78,6 +93,7 @@ export async function POST(request: Request) {
       eventId: payment.id,
       paymentId: payment.id,
       orderId: payment.order_id ?? null,
+      amountPaise: paidAmountPaise,
     });
 
     return NextResponse.json({ status: result });

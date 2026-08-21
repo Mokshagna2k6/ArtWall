@@ -136,6 +136,13 @@ export const reserveSchema = quoteRequestSchema.extend({
   artworkId: id.optional(),
 });
 
+/* ── Cancellation (F10) ─────────────────────────────────────────────────── */
+
+export const cancelBookingSchema = z.object({
+  bookingId: id,
+  reason: z.string().trim().max(280).optional(),
+});
+
 /* ── Ops (F13, F14, F15) ─────────────────────────────────────────────────── */
 
 export const installWindowSchema = z.object({

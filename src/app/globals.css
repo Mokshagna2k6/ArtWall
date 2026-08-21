@@ -110,9 +110,9 @@
 
   /* The gallery placard. One size, one tracking, one weight — this role had
      eight different sizes and seven trackings across the site. */
-  --text-eyebrow: 0.75rem;
+  --text-eyebrow: 0.875rem;
   --text-eyebrow--line-height: 1;
-  --text-eyebrow--letter-spacing: 0.16em;
+  --text-eyebrow--letter-spacing: 0.14em;
   --text-eyebrow--font-weight: 500;
 
   /* The oversized chapter numeral in the section gutter. Decorative, always

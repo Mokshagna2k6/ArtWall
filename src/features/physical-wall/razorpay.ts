@@ -78,6 +78,52 @@ export async function createOrder(
  *
  * Compared in constant time, for the same reason session tokens are.
  */
+export interface RazorpayRefund {
+  id: string;
+  payment_id: string;
+  amount: number;
+  status: string;
+}
+
+/**
+ * Issue a refund on a captured payment.
+ *
+ * Razorpay supports partial refunds; we always pass an explicit amount so the
+ * refund matches the policy calculation rather than defaulting to a full refund.
+ *
+ * Idempotency: Razorpay's refund endpoint is NOT idempotent — calling it twice
+ * creates two refunds. The caller must guard against double-invocation via the
+ * ledger's source_ref unique index.
+ */
+export async function createRefund(
+  paymentId: string,
+  amountPaise: number,
+  bookingId: string
+): Promise<RazorpayRefund> {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) throw new Error("Razorpay is not configured.");
+
+  const response = await fetch(`${API}/payments/${paymentId}/refund`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
+    },
+    body: JSON.stringify({
+      amount: amountPaise,
+      notes: { bookingId, reason: "admin_force_release" },
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Razorpay refund failed (${response.status}): ${detail}`);
+  }
+
+  return (await response.json()) as RazorpayRefund;
+}
+
 export function verifyWebhookSignature(
   rawBody: string,
   signature: string | null

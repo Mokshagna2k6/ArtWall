@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { motion, useMotionValueEvent, useScroll } from "framer-motion";
 import { ChevronDown, Menu, X } from "lucide-react";
 
@@ -13,6 +13,7 @@ import {
   secondaryNavItems,
   visibleChildren,
 } from "@/config/nav";
+import { authClient } from "@/lib/auth-client";
 import { duration, ease, transition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
@@ -45,8 +46,10 @@ import { cn } from "@/lib/utils";
  */
 export function SiteHeader({
   physicalWallEnabled = false,
+  user = null,
 }: {
   physicalWallEnabled?: boolean;
+  user?: { id: string; name: string; email: string; image?: string | null } | null;
 }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -336,18 +339,24 @@ export function SiteHeader({
         </nav>
 
         <div className="ml-auto flex shrink-0 items-center gap-4 lg:ml-0">
-          <Link
-            href="/sign-in"
-            className="text-muted-foreground hover:text-foreground hidden text-sm transition-colors lg:inline-flex"
-          >
-            Sign in
-          </Link>
-          <Link
-            href={primaryCta.href}
-            className="bg-foreground hidden h-10 items-center px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-[#2b3245] lg:inline-flex"
-          >
-            {primaryCta.label}
-          </Link>
+          {user ? (
+            <UserMenu user={user} />
+          ) : (
+            <>
+              <Link
+                href="/sign-in"
+                className="text-muted-foreground hover:text-foreground hidden text-sm transition-colors lg:inline-flex"
+              >
+                Sign in
+              </Link>
+              <Link
+                href={primaryCta.href}
+                className="bg-foreground hidden h-10 items-center px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-[#2b3245] lg:inline-flex"
+              >
+                {primaryCta.label}
+              </Link>
+            </>
+          )}
 
           <button
             ref={triggerRef}
@@ -452,21 +461,170 @@ export function SiteHeader({
             </ul>
           </nav>
           <div className="mt-8 flex flex-col gap-3">
-            <Link
-              href={primaryCta.href}
-              className="bg-foreground inline-flex h-12 items-center justify-center px-5 text-sm font-medium text-white"
-            >
-              {primaryCta.label}
-            </Link>
-            <Link
-              href="/sign-in"
-              className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors"
-            >
-              Sign in
-            </Link>
+            {user ? (
+              <>
+                <div className="flex items-center gap-3 px-1 py-2">
+                  <UserAvatar user={user} size={36} />
+                  <div className="min-w-0">
+                    <p className="text-foreground truncate text-sm font-medium">
+                      {user.name}
+                    </p>
+                    <p className="text-muted-foreground truncate text-xs">
+                      {user.email}
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  href="/studio"
+                  className="bg-foreground inline-flex h-12 items-center justify-center px-5 text-sm font-medium text-white"
+                >
+                  Go to studio
+                </Link>
+                <SignOutButton className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors" />
+              </>
+            ) : (
+              <>
+                <Link
+                  href={primaryCta.href}
+                  className="bg-foreground inline-flex h-12 items-center justify-center px-5 text-sm font-medium text-white"
+                >
+                  {primaryCta.label}
+                </Link>
+                <Link
+                  href="/sign-in"
+                  className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors"
+                >
+                  Sign in
+                </Link>
+              </>
+            )}
           </div>
         </motion.div>
       )}
     </header>
+  );
+}
+
+type UserProp = { name: string; email: string; image?: string | null };
+
+function UserAvatar({ user, size = 32 }: { user: UserProp; size?: number }) {
+  if (user.image) {
+    return (
+      <img
+        src={user.image}
+        alt=""
+        width={size}
+        height={size}
+        className="rounded-full object-cover"
+        style={{ width: size, height: size }}
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+
+  const initials = user.name
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <span
+      className="bg-foreground inline-flex items-center justify-center rounded-full text-xs font-medium text-white"
+      style={{ width: size, height: size }}
+      aria-hidden
+    >
+      {initials}
+    </span>
+  );
+}
+
+function UserMenu({ user }: { user: UserProp }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function dismiss(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", dismiss);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", dismiss);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative hidden lg:block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex items-center gap-2 rounded-full"
+      >
+        <UserAvatar user={user} />
+      </button>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={transition.base}
+          className="border-border shadow-medium absolute right-0 top-[calc(100%+0.75rem)] w-56 border bg-white p-2"
+        >
+          <div className="px-3 py-2">
+            <p className="text-foreground truncate text-sm font-medium">
+              {user.name}
+            </p>
+            <p className="text-muted-foreground truncate text-xs">
+              {user.email}
+            </p>
+          </div>
+          <div className="border-border my-1 border-t" />
+          <Link
+            href="/studio"
+            onClick={() => setOpen(false)}
+            className="hover:bg-secondary block px-3 py-2 text-sm transition-colors"
+          >
+            Studio
+          </Link>
+          <div className="border-border my-1 border-t" />
+          <SignOutButton className="hover:bg-secondary w-full px-3 py-2 text-left text-sm transition-colors" />
+        </motion.div>
+      )}
+    </div>
+  );
+}
+
+function SignOutButton({ className }: { className?: string }) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+
+  const handleSignOut = useCallback(async () => {
+    setPending(true);
+    try {
+      await authClient.signOut();
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }, [router]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleSignOut}
+      disabled={pending}
+      className={className}
+    >
+      {pending ? "Signing out…" : "Sign out"}
+    </button>
   );
 }
