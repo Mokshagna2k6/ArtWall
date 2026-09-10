@@ -81,6 +81,18 @@ export const navItems: readonly NavItem[] = [
     label: "About",
     href: "/about",
     description: "The company, the mark, and what we're building",
+    children: [
+      {
+        label: "The Company",
+        href: "/about",
+        description: "The company, the mark, and what we're building",
+      },
+      {
+        label: "Team",
+        href: "/team",
+        description: "The people building ArtWall",
+      },
+    ],
   },
 ] as const;
 
@@ -112,11 +124,6 @@ export function visibleChildren(
  * wandering. Every one of them is still a real, linkable page.
  */
 export const secondaryNavItems: readonly NavItem[] = [
-  {
-    label: "See it hung",
-    href: "/preview",
-    description: "Put your work on a gallery wall",
-  },
   {
     label: "Artists",
     href: "/artists",

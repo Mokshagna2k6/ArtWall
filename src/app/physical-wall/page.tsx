@@ -10,6 +10,7 @@ import {
 
 import { WallBrowser } from "@/features/physical-wall/components/wall-browser";
 import { WallGrid } from "@/features/physical-wall/components/wall-grid";
+import { CommunityGallerySection } from "@/features/physical-wall/components/community-gallery";
 import {
   getActiveGrid,
   listLiveArtworks,
@@ -380,6 +381,16 @@ export default async function PhysicalWallPage() {
               ))}
             </ul>
           </div>
+        </div>
+      </Section>
+
+      {/* ── Community ─────────────────────────────────────────────────── */}
+      <Section id="community">
+        <div className="flex items-baseline gap-6">
+          <Eyebrow index="05">Community</Eyebrow>
+        </div>
+        <div className="mt-10">
+          <CommunityGallerySection />
         </div>
       </Section>
 

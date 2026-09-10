@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { settleFromWebhook } from "@/features/physical-wall/actions/payment";
-import { verifyWebhookSignature } from "@/features/physical-wall/razorpay";
+import { validateRazorpayConfig, verifyWebhookSignature } from "@/features/physical-wall/razorpay";
 
 export const dynamic = "force-dynamic";
+
+validateRazorpayConfig();
 
 /**
  * Razorpay webhook (F17).

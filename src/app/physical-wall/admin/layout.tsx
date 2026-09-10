@@ -3,17 +3,14 @@ import {
   CalendarDays,
   ClipboardCheck,
   FileText,
+  ImageIcon,
   LayoutGrid,
   TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
 
-import { getSessionUser } from "@/lib/session";
-import {
-  requireRolePage,
-  syncAdminAllowlist,
-} from "@/features/physical-wall/authorize";
+import { requireRolePage } from "@/features/physical-wall/authorize";
 
 const ITEMS = [
   { href: "/physical-wall/admin", label: "Overview", icon: TrendingUp },
@@ -23,6 +20,7 @@ const ITEMS = [
   { href: "/physical-wall/admin/queue", label: "Queue", icon: Users },
   { href: "/physical-wall/admin/catalogs", label: "Pricing", icon: Wallet },
   { href: "/physical-wall/admin/ledger", label: "Ledger", icon: ClipboardCheck },
+  { href: "/physical-wall/admin/moderation", label: "Moderation", icon: ImageIcon },
 ] as const;
 
 /**
@@ -33,17 +31,13 @@ const ITEMS = [
  * rail keeps the current section visible while a wide table or the wall map
  * uses the full width beside it. It collapses to a horizontal scroller on a
  * phone, where a fixed 13rem column would eat a third of the screen.
- *
- * The allowlist sync runs before the role check, and that order is the
- * bootstrap: the first founder has no admin role yet, so checking first would
- * lock them out of the only screen that could grant it.
+
+ * The ADMIN_EMAILS bootstrap happens inside `getActor`, so a founder arriving
+ * here is already promoted by the time the role is checked.
  */
 export default async function PhysicalWallAdminLayout({
   children,
 }: LayoutProps<"/physical-wall/admin">) {
-  const user = await getSessionUser();
-  if (user) await syncAdminAllowlist(user);
-
   const actor = await requireRolePage("admin", "/physical-wall/admin");
 
   return (

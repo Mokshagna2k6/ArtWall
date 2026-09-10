@@ -576,3 +576,134 @@ export const pwAuditLog = pgTable("pw_audit_log", {
   after: jsonb("after"),
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ── Production readiness (migration 0009) ──────────────────────────────────── */
+
+export const pwNotifications = pgTable("pw_notifications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"),
+  channel: text("channel").notNull().default("email"),
+  recipient: text("recipient").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  kind: text("kind").notNull(),
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwGrievanceResponses = pgTable("pw_grievance_responses", {
+  id: text("id").primaryKey(),
+  grievanceId: text("grievance_id").notNull(),
+  authorId: text("author_id"),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwConditionPhotos = pgTable("pw_condition_photos", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  slotId: text("slot_id"),
+  itemKey: text("item_key").notNull(),
+  cloudinaryId: text("cloudinary_id").notNull(),
+  url: text("url").notNull(),
+  uploadedBy: text("uploaded_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwDamageRecords = pgTable("pw_damage_records", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  slotId: text("slot_id"),
+  itemKey: text("item_key").notNull(),
+  description: text("description").notNull(),
+  severity: text("severity").notNull().default("minor"),
+  photoId: text("photo_id"),
+  recordedBy: text("recorded_by"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwInvoices = pgTable("pw_invoices", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  number: text("number").notNull(),
+  issueDate: date("issue_date").notNull(),
+  placeOfSupply: text("place_of_supply").notNull(),
+  hsnSac: text("hsn_sac").notNull(),
+  gstinSupplier: text("gstin_supplier").notNull(),
+  gstinCustomer: text("gstin_customer"),
+  netPaise: integer("net_paise").notNull(),
+  cgstPaise: integer("cgst_paise").notNull(),
+  sgstPaise: integer("sgst_paise").notNull(),
+  totalPaise: integer("total_paise").notNull(),
+  lineItems: jsonb("line_items").notNull(),
+  status: text("status").notNull().default("issued"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwLedgerLocks = pgTable("pw_ledger_locks", {
+  month: text("month").primaryKey(),
+  lockedBy: text("locked_by"),
+  lockedAt: timestamp("locked_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwUgcSubmissions = pgTable("pw_ugc_submissions", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id"),
+  userId: text("user_id"),
+  visitorId: text("visitor_id"),
+  kind: text("kind").notNull().default("selfie"),
+  cloudinaryId: text("cloudinary_id").notNull(),
+  url: text("url").notNull(),
+  consentId: text("consent_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  moderatorId: text("moderator_id"),
+  moderationNote: text("moderation_note"),
+  reportedCount: integer("reported_count").notNull().default(0),
+  withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwCommunityGallery = pgTable("pw_community_gallery", {
+  id: text("id").primaryKey(),
+  submissionId: text("submission_id").notNull(),
+  imageUrl: text("image_url").notNull(),
+  caption: text("caption"),
+  byline: text("byline"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwSearchLog = pgTable("pw_search_log", {
+  id: text("id").primaryKey(),
+  query: text("query").notNull(),
+  results: integer("results").notNull().default(0),
+  filters: jsonb("filters"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwIdentityVerifications = pgTable("pw_identity_verifications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  docCloudinaryId: text("doc_cloudinary_id").notNull(),
+  docKind: text("doc_kind").notNull().default("government_id"),
+  status: text("status").notNull().default("pending"),
+  reviewerId: text("reviewer_id"),
+  reviewNote: text("review_note"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwRetentionRuns = pgTable("pw_retention_runs", {
+  id: text("id").primaryKey(),
+  target: text("target").notNull(),
+  deleted: integer("deleted").notNull().default(0),
+  details: jsonb("details"),
+  ranAt: timestamp("ran_at", { withTimezone: true }).notNull().defaultNow(),
+});

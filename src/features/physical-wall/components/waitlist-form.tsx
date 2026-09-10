@@ -3,7 +3,12 @@
 import { useActionState } from "react";
 
 import { IDLE } from "@/features/physical-wall/action-state";
-import { joinWaitlist, leaveWaitlist } from "@/features/physical-wall/actions/waitlist";
+import {
+  acceptOffer,
+  declineOffer,
+  joinWaitlist,
+  leaveWaitlist,
+} from "@/features/physical-wall/actions/waitlist";
 import {
   Field,
   FormStatus,
@@ -47,6 +52,8 @@ export function WaitlistPanel({
 }) {
   const [joinState, joinAction] = useActionState(joinWaitlist, IDLE);
   const [leaveState, leaveAction] = useActionState(leaveWaitlist, IDLE);
+  const [acceptState, acceptAction] = useActionState(acceptOffer, IDLE);
+  const [declineState, declineAction] = useActionState(declineOffer, IDLE);
 
   if (entry) {
     const offered = entry.status === "offered";
@@ -63,12 +70,22 @@ export function WaitlistPanel({
                 ? `It's yours until ${new Date(entry.offerExpiresAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}, after which it goes to the next artist in the queue.`
                 : "Claim it before it passes to the next artist."}
             </p>
-            <a
-              href="/physical-wall/book"
-              className="bg-ember text-wall-paper hover:bg-ember-glow text-small mt-5 inline-flex h-10 items-center rounded-md px-4 font-medium transition-colors"
-            >
-              Book it now
-            </a>
+            <form action={acceptAction} className="mt-5">
+              <input type="hidden" name="waitlistId" value={entry.id} />
+              <SubmitButton>Accept this slot</SubmitButton>
+              <div className="mt-2">
+                <FormStatus state={acceptState} />
+              </div>
+            </form>
+            <form action={declineAction} className="mt-3">
+              <input type="hidden" name="waitlistId" value={entry.id} />
+              <SubmitButton variant="quiet">
+                Not this one — keep my place
+              </SubmitButton>
+              <div className="mt-2">
+                <FormStatus state={declineState} />
+              </div>
+            </form>
           </>
         ) : (
           <>

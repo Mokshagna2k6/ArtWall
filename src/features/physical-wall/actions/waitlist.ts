@@ -338,6 +338,149 @@ export async function forceMatch(
   }
 }
 
+/**
+ * Accept a slot offer (F10).
+ *
+ * The offer was a 48-hour hold made by an admin; accepting converts it into a
+ * real held booking through the same path a self-serve reservation uses, so
+ * pricing and state transitions cannot drift between the two routes. The hold
+ * is 7 days — long enough to pay, short enough that a changed mind frees the
+ * wall.
+ */
+export async function acceptOffer(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    const actor = await requireRole("artist");
+    const id = String(formData.get("waitlistId") ?? "");
+    if (!id) return fail("Which offer?");
+
+    const sql = getSql();
+    const rows = (await sql`
+      select w.id, w.matched_slot_id as "slotId", s.label,
+             w.offer_expires_at as "offerExpiresAt"
+      from pw_waitlist w
+      join pw_slots s on s.id = w.matched_slot_id
+      where w.id = ${id} and w.artist_id = ${actor.id} and w.status = 'offered'
+      limit 1
+    `) as {
+      id: string;
+      slotId: string;
+      label: string;
+      offerExpiresAt: Date;
+    }[];
+
+    if (rows.length === 0) return fail("We couldn't find an open offer for you.");
+    const offer = rows[0];
+    if (new Date(offer.offerExpiresAt) < new Date()) {
+      return fail(
+        "That offer has expired. The slot has gone back to the queue — join again."
+      );
+    }
+
+    await inTransaction(async (client) => {
+      // Re-check inside the transaction: the slot may have been force-released
+      // after this page loaded.
+      const slot = await client.query<{ state: string }>(
+        `select state from pw_slots where id = $1 for update`,
+        [offer.slotId]
+      );
+      if (slot.rowCount === 0 || slot.rows[0].state !== "reserved") {
+        throw new PreconditionError(
+          "That slot is no longer being held. It may have been released."
+        );
+      }
+
+      // Convert: waitlist entry closes, a held booking opens on the same slot.
+      await client.query(
+        `update pw_waitlist set status = 'converted', updated_at = now() where id = $1`,
+        [offer.id]
+      );
+
+      const bookingId = newId("bk");
+      await client.query(
+        `insert into pw_bookings
+           (id, artist_id, status, start_date, end_date, total_amount_paise,
+            hold_expires_at, refund_policy_version)
+         values ($1, $2, 'held', current_date + 1, current_date + 8, 0,
+                 now() + interval '7 days', null)`,
+        [bookingId, actor.id]
+      );
+      await client.query(
+        `insert into pw_booking_slots (booking_id, slot_id) values ($1, $2)`,
+        [bookingId, offer.slotId]
+      );
+
+      await recordAuditIn(client, {
+        actor,
+        action: "waitlist.offer.accepted",
+        subjectType: "waitlist",
+        subjectId: offer.id,
+        after: { bookingId, slotId: offer.slotId },
+      });
+    });
+
+    updateTag(WALL_TAG);
+    return ok(
+      `${offer.label} is yours to confirm. Finish checkout within 7 days to keep it.`
+    );
+  } catch (error) {
+    return toActionError("acceptOffer", error);
+  }
+}
+
+/** Decline a slot offer. The slot goes back to available immediately. */
+export async function declineOffer(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    const actor = await requireRole("artist");
+    const id = String(formData.get("waitlistId") ?? "");
+    if (!id) return fail("Which offer?");
+
+    await inTransaction(async (client) => {
+      const entry = await client.query<{ matched_slot_id: string | null }>(
+        `select matched_slot_id from pw_waitlist
+         where id = $1 and artist_id = $2 and status = 'offered' for update`,
+        [id, actor.id]
+      );
+      if (entry.rowCount === 0) {
+        throw new PreconditionError("No open offer found.");
+      }
+
+      await client.query(
+        `update pw_waitlist set status = 'queued', matched_slot_id = null,
+            offer_expires_at = null, updated_at = now()
+         where id = $1`,
+        [id]
+      );
+
+      // Back to the wall, not stuck reserved behind a declined offer.
+      if (entry.rows[0].matched_slot_id) {
+        await client.query(
+          `update pw_slots set state = 'available', version = version + 1, updated_at = now()
+           where id = $1 and state = 'reserved'`,
+          [entry.rows[0].matched_slot_id]
+        );
+      }
+
+      await recordAuditIn(client, {
+        actor,
+        action: "waitlist.offer.declined",
+        subjectType: "waitlist",
+        subjectId: id,
+      });
+    });
+
+    updateTag(WALL_TAG);
+    return ok("Offer declined — you stay in the queue.");
+  } catch (error) {
+    return toActionError("declineOffer", error);
+  }
+}
+
 /** The tier list, so the admin UI and the sort order cannot drift apart. */
 export async function getTierOrder(): Promise<readonly string[]> {
   return TIER_ORDER;

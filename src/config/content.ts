@@ -391,6 +391,7 @@ export const team = [
     initials: "KC",
     name: "Kailashpati Choudhary",
     role: "Founder and CEO",
+    photo: "/kalishpati ji.png",
     bio: "LLB, Rajasthan University. Corporate law, IP and regulatory compliance. Founder of Indiagrapher. DPIIT, NSWS and SISFS signatory.",
   },
   {

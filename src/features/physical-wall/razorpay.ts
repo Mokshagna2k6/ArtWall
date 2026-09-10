@@ -26,6 +26,18 @@ export function isRazorpayConfigured(): boolean {
   );
 }
 
+export function validateRazorpayConfig(): void {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+  if (keyId && keySecret && !webhookSecret) {
+    throw new Error(
+      "RAZORPAY_WEBHOOK_SECRET is missing. Set it before accepting live payments."
+    );
+  }
+}
+
 export interface RazorpayOrder {
   id: string;
   amount: number;

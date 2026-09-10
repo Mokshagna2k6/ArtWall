@@ -6,6 +6,7 @@ create table if not exists artist_profiles (
   handle text not null unique,
   "displayName" text not null,
   discipline text,
+  
   location text,
   bio text,
   website text,

@@ -5,6 +5,7 @@ import { siteConfig } from "@/config/site";
 import { requireOnboardedPage } from "@/features/physical-wall/authorize";
 import { BookingCard } from "@/features/physical-wall/components/booking-card";
 import { listBookingsForArtist } from "@/features/physical-wall/data/bookings";
+import { myScanStats } from "@/features/physical-wall/data/analytics";
 import { isRazorpayConfigured } from "@/features/physical-wall/razorpay";
 import { getSql } from "@/lib/db";
 
@@ -67,9 +68,10 @@ async function loadAgreements(artistId: string) {
 export default async function MyBookingsPage() {
   const actor = await requireOnboardedPage("artist", "/physical-wall/bookings");
   const bookings = await listBookingsForArtist(actor.id);
-  const [labels, agreements] = await Promise.all([
+  const [labels, agreements, stats] = await Promise.all([
     loadSlotLabels(bookings.map((booking) => booking.id)),
     loadAgreements(actor.id),
+    myScanStats(actor.id),
   ]);
 
   return (
@@ -109,6 +111,57 @@ export default async function MyBookingsPage() {
             </li>
           ))}
         </ul>
+      )}
+
+      {stats.perArtwork.length > 0 && (
+        <section className="mt-14">
+          <h2 className="font-heading text-section">Who&rsquo;s looking</h2>
+          <p className="text-ink-muted mt-2 text-sm leading-6">
+            Scans and reactions across your work — counted, never identified. We
+            don&rsquo;t record who scanned, so there is nobody here to show.
+          </p>
+          <div className="border-hairline mt-5 grid grid-cols-3 rounded-md border text-center">
+            <div className="p-4">
+              <p className="font-heading text-section tabular-nums">{stats.totalScans}</p>
+              <p className="text-ink-muted mt-1 text-xs uppercase tracking-wider">
+                Total scans
+              </p>
+            </div>
+            <div className="border-hairline border-x p-4">
+              <p className="font-heading text-section tabular-nums">{stats.scansLast7d}</p>
+              <p className="text-ink-muted mt-1 text-xs uppercase tracking-wider">
+                Last 7 days
+              </p>
+            </div>
+            <div className="p-4">
+              <p className="font-heading text-section tabular-nums">{stats.totalReactions}</p>
+              <p className="text-ink-muted mt-1 text-xs uppercase tracking-wider">
+                Reactions
+              </p>
+            </div>
+          </div>
+
+          <ul className="border-hairline mt-4 flex flex-col overflow-hidden rounded-md border">
+            {stats.perArtwork.map((artwork, index) => (
+              <li
+                key={artwork.artworkId}
+                className={`flex items-center justify-between gap-3 px-4 py-3 text-sm ${
+                  index > 0 ? "border-hairline border-t" : ""
+                }`}
+              >
+                <Link
+                  href={`/physical-wall/a/${artwork.artworkId}`}
+                  className="text-ink hover:underline underline-offset-4"
+                >
+                  {artwork.title}
+                </Link>
+                <span className="text-ink-muted shrink-0 text-xs tabular-nums">
+                  {artwork.scans} scans · {artwork.reactions} reactions
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </main>
   );

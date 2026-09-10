@@ -153,3 +153,32 @@ export interface LiveArtwork {
   endDate: string;
   qrToken: string | null;
 }
+
+export interface UgcSubmission {
+  id: string;
+  artworkId: string | null;
+  userId: string | null;
+  visitorId: string | null;
+  kind: "selfie" | "community";
+  cloudinaryId: string;
+  url: string;
+  consentId: string;
+  status: "pending" | "approved" | "rejected";
+  moderatorId: string | null;
+  moderationNote: string | null;
+  reportedCount: number;
+  withdrawnAt: string | null;
+  removedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CommunityGalleryItem {
+  id: string;
+  submissionId: string;
+  imageUrl: string;
+  caption: string | null;
+  byline: string | null;
+  sortOrder: number;
+  createdAt: string;
+}
