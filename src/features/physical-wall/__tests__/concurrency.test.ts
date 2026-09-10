@@ -35,6 +35,34 @@ const sqlTag = (strings: TemplateStringsArray, ...values: unknown[]) =>
 vi.mock("@/lib/db/index", () => ({ pool: mockPool, getSql: () => sqlTag }));
 vi.mock("@/lib/db", () => ({ pool: mockPool, getSql: () => sqlTag }));
 
+// Mock catalog/wall data modules with fixed values matching DEFAULT_SETTINGS
+// and a published grid, so reserveBooking gets past its preflight reads.
+vi.mock("@/features/physical-wall/data/wall", () => ({
+  getActiveGrid: vi.fn(async () => ({
+    id: "grid-1",
+    name: "Test Wall",
+    rowCount: 4,
+    colCount: 4,
+    isTemplate: false,
+  })),
+  getOccupancyPct: vi.fn(async () => 10),
+}));
+
+vi.mock("@/features/physical-wall/data/catalogs", () => ({
+  getSettings: vi.fn(async () => ({
+    holdMinutes: 30,
+    bufferDays: 0,
+    gstRateBp: 1800,
+    surgeEnabled: false,
+    surgeThresholdPct: 80,
+    surgeMultiplierBp: 12000,
+    groupDiscountTiers: [],
+  })),
+  listAddons: vi.fn(async () => []),
+  getCurrentRefundPolicy: vi.fn(async () => null),
+  getRefundPolicyVersion: vi.fn(async () => "v1"),
+}));
+
 /**
  * Concurrency test: 50 parallel booking attempts against the same slot cannot
  * produce a double booking.
@@ -139,7 +167,6 @@ describe("Concurrent slot reservation", () => {
       fd.set("slotIds", "slot-1");
       fd.set("durationDays", "7");
       fd.set("startDate", "2026-09-01");
-      fd.set("addonIds", "");
       return reserveBooking({ status: "idle" }, fd);
     });
 

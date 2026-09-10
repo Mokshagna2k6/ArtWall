@@ -63,6 +63,10 @@ export async function getActor(): Promise<Actor | null> {
     `) as { role: string }[];
 
     const role = rows[0]?.role;
+    if (role !== "admin" && isAllowlisted(user.email)) {
+      await promoteToAdmin(user.id);
+      return { ...user, role: "admin" };
+    }
     return { ...user, role: isRole(role) ? role : "artist" };
   } catch (error) {
     // An unreadable role must not be an *escalated* role. Falling back to the
@@ -148,23 +152,26 @@ export async function requireRole(required: Role): Promise<Actor> {
  *
  * Bootstrapping problem: the first admin cannot be promoted through an admin
  * screen. Rather than a seeded password or a magic user id, the allowlist is an
- * env var and promotion happens the next time that person loads an admin page.
- * Demotion is not automatic — removing an email from the list does not strip a
- * role someone may have been legitimately granted since.
+ * env var and promotion happens inside `getActor` - so it fires wherever the
+ * actor is first resolved, including the header on the home page, rather than
+ * only on an admin route the founder cannot discover until they are already an
+ * admin. Demotion is not automatic - removing an email from the list does not
+ * strip a role someone may have been legitimately granted since.
  */
-export async function syncAdminAllowlist(user: SessionUser): Promise<void> {
-  const allowlist = (process.env.ADMIN_EMAILS ?? "")
+function isAllowlisted(email: string): boolean {
+  return (process.env.ADMIN_EMAILS ?? "")
     .split(",")
     .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean);
+    .filter(Boolean)
+    .includes(email.toLowerCase());
+}
 
-  if (!allowlist.includes(user.email.toLowerCase())) return;
-
+async function promoteToAdmin(userId: string): Promise<void> {
   try {
     const sql = getSql();
     await sql`
       update "user" set role = 'admin'
-      where id = ${user.id} and role <> 'admin'
+      where id = ${userId} and role <> 'admin'
     `;
   } catch (error) {
     console.error("[physical-wall] Could not sync admin allowlist", error);

@@ -54,7 +54,12 @@ describe("QR token security (F15)", () => {
     const { mintQrToken, verifyQrToken } = await import("../qr");
     const token = mintQrToken();
     const [id, sig] = token.split(".");
-    const tampered = `${id}.X${sig.slice(1)}`;
+    // Flip the first signature char to one that is guaranteed different,
+    // so the tampered token can never equal the original (base64url may
+    // legitimately start with "X").
+    const flipped = sig[0] === "X" ? `Y${sig.slice(1)}` : `X${sig.slice(1)}`;
+    const tampered = `${id}.${flipped}`;
+    expect(tampered).not.toBe(token);
     expect(verifyQrToken(tampered)).toBe(false);
   });
 

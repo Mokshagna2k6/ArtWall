@@ -245,19 +245,31 @@ export async function LandingPage() {
           down keeps a monochrome page from reading as one endless sheet. */}
       <Band id="testimonials">
         <Eyebrow index="06">What our community says</Eyebrow>
-        <div className="border-border mt-12 grid gap-px border-t md:grid-cols-3">
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
           {testimonials.map((testimonial) => (
             <figure
               key={testimonial.attribution}
-              className="border-border flex flex-col justify-between gap-8 border-b py-10 md:border-r md:px-8 md:first:pl-0 md:last:border-r-0 md:last:pr-0"
+              className="bg-wall-paper border-border flex flex-col gap-6 rounded-sm border p-8 transition-shadow hover:shadow-sm"
             >
-              <blockquote className="font-heading text-card leading-[1.55] italic text-balance">
-                &ldquo;{testimonial.quote}&rdquo;
+              <blockquote className="font-heading relative text-xl leading-relaxed text-ink italic">
+                <span
+                  aria-hidden
+                  className="text-signal/25 absolute -top-3 -left-1 font-serif text-7xl leading-none select-none"
+                >
+                  &ldquo;
+                </span>
+                <span className="relative">{testimonial.quote}</span>
+                <span
+                  aria-hidden
+                  className="text-signal/25 absolute -bottom-4 -right-1 font-serif text-5xl leading-none select-none"
+                >
+                  &rdquo;
+                </span>
               </blockquote>
               <figcaption className="flex items-center gap-3">
                 <span
                   aria-hidden
-                  className="bg-foreground flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-medium text-white"
+                  className="border-foreground/10 flex size-10 shrink-0 items-center justify-center rounded-full border text-xs font-semibold text-foreground"
                 >
                   {testimonial.attribution
                     .split(" ")
@@ -267,7 +279,7 @@ export async function LandingPage() {
                     .toUpperCase()}
                 </span>
                 <div>
-                  <span className="block text-sm font-medium">
+                  <span className="text-sm font-medium">
                     {testimonial.attribution}
                   </span>
                   <span className="text-muted-foreground block text-sm">

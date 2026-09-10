@@ -5,6 +5,8 @@ import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 
 import { requireRole } from "@/features/physical-wall/authorize";
+import { getActor } from "@/features/physical-wall/authorize";
+import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
 import { feedbackSchema, reactionSchema } from "@/features/physical-wall/schema";
 import {
   fail,
@@ -84,8 +86,43 @@ export async function react(
 }
 
 /**
- * Submit the post-exhibition survey (F32).
+ * Record a share (F23).
  *
+ * No state is changed — this is a signal, not a mutation. The action exists
+ * so the share is logged to the audit trail with who shared what and when,
+ * which is what the spec means by "share is a tracked event".
+ */
+export async function shareArtwork(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    const actor = await getActor();
+
+    const artworkId = String(formData.get("artworkId") ?? "");
+    const target = String(formData.get("target") ?? "");
+
+    if (!artworkId || !target) {
+      return fail("Share what, and where?");
+    }
+
+    await recordAudit({
+      actor,
+      action: "artwork.shared",
+      subjectType: "artwork",
+      subjectId: artworkId,
+      after: { target },
+    });
+
+    updateTag(WALL_TAG);
+    return ok(`Shared to ${target}.`);
+  } catch (error) {
+    console.error("[physical-wall] shareArtwork", error);
+    return fail("That didn't share. Try again.");
+  }
+}
+
+/**
  * Tied to a booking the artist actually owns, and refused once answered - the
  * unique index does the enforcing, so a link opened twice from an email is a
  * clean message rather than a duplicate row.

@@ -230,6 +230,35 @@ export const feedbackSchema = z.object({
   note: z.string().trim().max(1000).optional(),
 });
 
+/* ── UGC (F25, F30) ───────────────────────────────────────────────────────── */
+
+export const ugcSubmitSchema = z.object({
+  caption: z.string().trim().max(500).default(""),
+  imageUrl: z.string().trim().url("Enter a valid image URL."),
+  cloudinaryId: z.string().trim().min(1, "Upload a photo first."),
+  visitId: z.string().trim().max(64).optional(),
+  consent: z.literal(true, {
+    error: "You must give explicit consent to submit a photo.",
+  }),
+  adultConfirmed: z.literal(true, {
+    error: "Confirm that everyone in the photo is 18+.",
+  }),
+});
+
+export const ugcModerateSchema = z.object({
+  submissionId: id,
+  verdict: z.enum(["approved", "removed"]),
+});
+
+export const ugcWithdrawSchema = z.object({
+  submissionId: id,
+});
+
+export const shareArtworkSchema = z.object({
+  artworkId: id,
+  target: z.enum(["whatsapp", "instagram", "x", "copy"]),
+});
+
 /* ── Ledger (F18) ────────────────────────────────────────────────────────── */
 
 export const ledgerEntrySchema = z.object({

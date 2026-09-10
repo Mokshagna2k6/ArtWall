@@ -49,7 +49,13 @@ export function SiteHeader({
   user = null,
 }: {
   physicalWallEnabled?: boolean;
-  user?: { id: string; name: string; email: string; image?: string | null } | null;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    image?: string | null;
+    role?: string;
+  } | null;
 }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -474,6 +480,14 @@ export function SiteHeader({
                     </p>
                   </div>
                 </div>
+                {dashboardHref(user.role) && (
+                  <Link
+                    href={dashboardHref(user.role)!}
+                    className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm font-medium transition-colors"
+                  >
+                    Dashboard
+                  </Link>
+                )}
                 <Link
                   href="/studio"
                   className="bg-foreground inline-flex h-12 items-center justify-center px-5 text-sm font-medium text-white"
@@ -505,7 +519,22 @@ export function SiteHeader({
   );
 }
 
-type UserProp = { name: string; email: string; image?: string | null };
+type UserProp = {
+  name: string;
+  email: string;
+  image?: string | null;
+  role?: string;
+};
+
+/**
+ * Staff and admins get a link to the console they actually work in.
+ *
+ * Artists and visitors never see it: the console redirects them away anyway,
+ * so offering the link would only be a dead end that confirms the route exists.
+ */
+function dashboardHref(role?: string): string | null {
+  return role === "admin" || role === "staff" ? "/physical-wall/admin" : null;
+}
 
 function UserAvatar({ user, size = 32 }: { user: UserProp; size?: number }) {
   if (user.image) {
@@ -542,6 +571,7 @@ function UserAvatar({ user, size = 32 }: { user: UserProp; size?: number }) {
 
 function UserMenu({ user }: { user: UserProp }) {
   const [open, setOpen] = useState(false);
+  const dashboard = dashboardHref(user.role);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -588,6 +618,15 @@ function UserMenu({ user }: { user: UserProp }) {
             </p>
           </div>
           <div className="border-border my-1 border-t" />
+          {dashboard && (
+            <Link
+              href={dashboard}
+              onClick={() => setOpen(false)}
+              className="hover:bg-secondary block px-3 py-2 text-sm font-medium transition-colors"
+            >
+              Dashboard
+            </Link>
+          )}
           <Link
             href="/studio"
             onClick={() => setOpen(false)}

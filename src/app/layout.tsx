@@ -6,7 +6,7 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SkipLink } from "@/components/layout/skip-link";
 import { features, siteConfig } from "@/config/site";
-import { getSessionUser } from "@/lib/session";
+import { getActor } from "@/features/physical-wall/authorize";
 import "./globals.css";
 
 /**
@@ -99,7 +99,7 @@ export const viewport = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const user = await getSessionUser();
+  const user = await getActor();
 
   return (
     <html
