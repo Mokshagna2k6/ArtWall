@@ -20,8 +20,7 @@ const eslintConfig = defineConfig([
     // Specs and reference prototypes handed to us, kept verbatim so they can be
     // compared against what we built. Not source, never bundled, and linting
     // someone else's single-file prototype to our rules produces only noise.
-    "context_for_claude*/**",
-    "_to_delete/**",
+    "docs/wms-spec/**",
   ]),
 ]);
 
