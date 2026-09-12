@@ -1,16 +1,15 @@
 /**
  * Apply SQL migrations in db/migrations, in filename order.
  *
- * Deliberately tiny: this project has one table and no need for a migration
- * framework's ceremony. Applied migrations are recorded in `_migrations`, so
- * re-running is safe and only new files execute.
+ * Each file's statements + the ledger insert run inside a single transaction,
+ * so a mid-file failure rolls back cleanly instead of leaving partial state.
  *
  * Usage:  node --env-file=.env scripts/migrate.mjs
  */
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { neon } from "@neondatabase/serverless";
+import { neon, Pool } from "@neondatabase/serverless";
 
 const DIR = join(import.meta.dirname, "..", "db", "migrations");
 
@@ -21,7 +20,9 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
+// HTTP driver for simple reads; Pool (WebSocket) for transactional writes.
 const sql = neon(process.env.DATABASE_URL);
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
 await sql`
   create table if not exists _migrations (
@@ -44,20 +45,31 @@ for (const file of files) {
   }
 
   const statements = (await readFile(join(DIR, file), "utf8"))
-    // Strip full-line comments so they cannot swallow a statement.
     .replace(/^\s*--.*$/gm, "")
     .split(";")
     .map((s) => s.trim())
     .filter(Boolean);
 
-  for (const statement of statements) {
-    await sql.query(statement);
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    for (const statement of statements) {
+      await client.query(statement);
+    }
+    await client.query("INSERT INTO _migrations (name) VALUES ($1)", [file]);
+    await client.query("COMMIT");
+    console.log(`✓ ${file}`);
+    count += 1;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error(`✗ ${file}:`, error.message ?? error);
+    process.exit(1);
+  } finally {
+    client.release();
   }
-
-  await sql`insert into _migrations (name) values (${file})`;
-  console.log(`✓ ${file}`);
-  count += 1;
 }
+
+await pool.end();
 
 console.log(
   count === 0 ? "Nothing to apply." : `Applied ${count} migration(s).`

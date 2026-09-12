@@ -64,7 +64,7 @@ export async function submitUgc(
     await inTransaction(async (client) => {
       await client.query(
         `insert into pw_ugc_submissions
-           (id, visit_id, caption, cloudinary_id, url, consent_id, status, kind)
+           (id, visitor_id, caption, cloudinary_id, url, consent_id, status, kind)
          values ($1, $2, $3, $4, $5, $6, 'pending', 'selfie')`,
         [id, visitId ?? null, caption, imageUrl, imageUrl, consentId]
       );
@@ -104,7 +104,7 @@ export async function moderateUgc(
     const sql = getSql();
 
     const existing = (await sql.query(
-      `select id, status, cloudinary_id, url, caption, visit_id, kind
+      `select id, status, cloudinary_id, url, caption, visitor_id, kind
        from pw_ugc_submissions
        where id = $1
        limit 1`,
@@ -119,7 +119,7 @@ export async function moderateUgc(
       cloudinary_id: string;
       url: string;
       caption: string;
-      visit_id: string | null;
+      visitor_id: string | null;
       kind: string;
     };
 
@@ -163,7 +163,7 @@ export async function moderateUgc(
             submissionId,
             String(row.url),
             row.caption || "Spotted at The Wall",
-            row.visit_id ? "Visitor" : "Guest",
+            row.visitor_id ? "Visitor" : "Guest",
           ]
         );
 
