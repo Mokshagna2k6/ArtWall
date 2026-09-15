@@ -78,6 +78,7 @@ export const artistProfiles = pgTable("artist_profiles", {
   published: boolean("published").notNull().default(false),
   publishedAt: timestamp("publishedAt"),
   onboardingCompleted: boolean("onboardingCompleted").notNull().default(false),
+  walletAddress: text("wallet_address"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
@@ -101,6 +102,9 @@ export const artworks = pgTable("artworks", {
    */
   physicalStatus: text("physicalStatus"),
   qrToken: text("qrToken"),
+  category: text("category"),
+  pricePaise: integer("price_paise"),
+  tags: text("tags").array(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
@@ -708,4 +712,133 @@ export const pwRetentionRuns = pgTable("pw_retention_runs", {
   deleted: integer("deleted").notNull().default(0),
   details: jsonb("details"),
   ranAt: timestamp("ran_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── Phase 2: COA / Provenance / Blockchain ────────────────────────────────── */
+
+export const editions = pgTable("editions", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull(),
+  userId: text("user_id").notNull(),
+  editionType: text("edition_type").notNull().default("unique"),
+  editionNumber: integer("edition_number"),
+  totalEditions: integer("total_editions"),
+  isAp: boolean("is_ap").notNull().default(false),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const coaCertificates = pgTable("coa_certificates", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull(),
+  editionId: text("edition_id"),
+  userId: text("user_id").notNull(),
+  metadataHash: text("metadata_hash").notNull(),
+  version: integer("version").notNull().default(1),
+  pdfUrl: text("pdf_url"),
+  status: text("status").notNull().default("draft"),
+  issuedAt: timestamp("issued_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokeReason: text("revoke_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const provenanceEvents = pgTable("provenance_events", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull(),
+  eventType: text("event_type").notNull(),
+  actorId: text("actor_id"),
+  label: text("label"),
+  metadata: jsonb("metadata"),
+  txHash: text("tx_hash"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const merkleRoots = pgTable("merkle_roots", {
+  id: text("id").primaryKey(),
+  rootHash: text("root_hash").notNull(),
+  txHash: text("tx_hash"),
+  chainId: integer("chain_id"),
+  blockNumber: bigint("block_number", { mode: "number" }),
+  leafCount: integer("leaf_count").notNull().default(0),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const mintCommitments = pgTable("mint_commitments", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull(),
+  editionId: text("edition_id"),
+  userId: text("user_id").notNull(),
+  leafHash: text("leaf_hash").notNull(),
+  walletAddress: text("wallet_address"),
+  erc2981RoyaltyBps: integer("erc2981_royalty_bps").notNull().default(400),
+  status: text("status").notNull().default("pending"),
+  merkleRootId: text("merkle_root_id"),
+  tokenId: text("token_id"),
+  mintTxHash: text("mint_tx_hash"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── Exhibitions & Curators ────────────────────────────────────────────────── */
+
+export const exhibitions = pgTable("exhibitions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  venue: text("venue"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const exhibitionArtworks = pgTable("exhibition_artworks", {
+  exhibitionId: text("exhibition_id").notNull(),
+  artworkId: text("artwork_id").notNull(),
+  displayOrder: integer("display_order").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.exhibitionId, t.artworkId] })]);
+
+export const curators = pgTable("curators", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  displayName: text("display_name").notNull(),
+  bio: text("bio"),
+  commissionBps: integer("commission_bps").notNull().default(1000),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const curatorPicks = pgTable("curator_picks", {
+  id: text("id").primaryKey(),
+  curatorId: text("curator_id").notNull(),
+  artworkId: text("artwork_id").notNull(),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── ArtQR / NFC Tags ─────────────────────────────────────────────────────── */
+
+export const artTags = pgTable("art_tags", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id"),
+  tagType: text("tag_type").notNull().default("qr"),
+  tagUid: text("tag_uid").notNull(),
+  boundBy: text("bound_by"),
+  boundAt: timestamp("bound_at", { withTimezone: true }),
+  scanCount: integer("scan_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const artTagScans = pgTable("art_tag_scans", {
+  id: text("id").primaryKey(),
+  tagId: text("tag_id").notNull(),
+  scannedAt: timestamp("scanned_at", { withTimezone: true }).notNull().defaultNow(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  location: jsonb("location"),
 });
