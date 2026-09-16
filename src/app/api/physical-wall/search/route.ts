@@ -8,7 +8,10 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const q = url.searchParams.get("q") ?? "";
 
-  const result = await searchArtworks({ status: "idle" }, new FormData());
+  const form = new FormData();
+  form.set("q", q);
+
+  const result = await searchArtworks({ status: "idle" }, form);
   if (result.status !== "ok" || !result.results) {
     return NextResponse.json(
       { error: result.status === "error" ? result.message : "Search failed" },
