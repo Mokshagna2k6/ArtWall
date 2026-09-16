@@ -20,8 +20,7 @@ export async function searchArtworks(
     const rows = (await sql.query(
       `select a.id, a.title, a.medium, a."imageUrl", a.year,
               u.name as artist_name, ap.handle as artist_handle, ap.location as artist_city,
-              s.label as slot_label,
-              to_tsvector('english', coalesce(a.title, '') || ' ' || coalesce(a.medium, '') || ' ' || coalesce(u.name, '') || ' ' || coalesce(ap.location, '')) as tsvector
+              s.label as slot_label
        from artworks a
        join "user" u on u.id = a."userId"
        left join artist_profiles ap on ap."userId" = a."userId"
@@ -33,8 +32,8 @@ export async function searchArtworks(
          limit 1
        )
        where a.status = 'available' and a."isPublic" = true
-       and to_tsvector('english', coalesce(a.title, '') || ' ' || coalesce(a.medium, '') || ' ' || coalesce(u.name, '') || ' ' || coalesce(ap.location, '')) @@ plainto_tsquery('english', $1)
-       order by ts_rank(to_tsvector('english', coalesce(a.title, '') || ' ' || coalesce(a.medium, '') || ' ' || coalesce(u.name, '') || ' ' || coalesce(ap.location, '')), plainto_tsquery('english', $1)) desc
+       and a.search_tsv @@ plainto_tsquery('english', $1)
+       order by ts_rank(a.search_tsv, plainto_tsquery('english', $1)) desc
        limit 50`,
       [query]
     )) as Record<string, unknown>[];
