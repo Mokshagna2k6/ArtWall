@@ -3,6 +3,10 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { discoverArtworks } from "@/features/marketplace/actions";
+import {
+  ARTWORK_CATEGORIES,
+  categoryLabel,
+} from "@/features/marketplace/categories";
 import { formatINR } from "@/features/physical-wall/money";
 
 export const metadata: Metadata = {
@@ -14,12 +18,23 @@ export const metadata: Metadata = {
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; medium?: string; sort?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    medium?: string;
+    category?: string;
+    min?: string;
+    max?: string;
+    sort?: string;
+  }>;
 }) {
   const params = await searchParams;
+  const category = ARTWORK_CATEGORIES.find((c) => c === params.category);
   const items = await discoverArtworks({
     q: params.q,
     medium: params.medium,
+    category,
+    minPrice: rupeesToPaise(params.min),
+    maxPrice: rupeesToPaise(params.max),
     sort: (params.sort as "recent" | "price_asc" | "price_desc" | "title") ?? "recent",
   });
 
@@ -37,6 +52,41 @@ export default async function DiscoverPage({
           placeholder="Search artworks…"
           defaultValue={params.q}
           className="border-hairline rounded-md border bg-transparent px-4 py-2 text-sm"
+        />
+        <select
+          name="category"
+          aria-label="Category"
+          defaultValue={category ?? ""}
+          className="border-hairline rounded-md border bg-transparent px-4 py-2 text-sm"
+        >
+          <option value="">All categories</option>
+          {ARTWORK_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {categoryLabel(c)}
+            </option>
+          ))}
+        </select>
+        <input
+          name="min"
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          placeholder="Min ₹"
+          aria-label="Minimum price in rupees"
+          defaultValue={params.min}
+          className="border-hairline w-28 rounded-md border bg-transparent px-4 py-2 text-sm"
+        />
+        <input
+          name="max"
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          placeholder="Max ₹"
+          aria-label="Maximum price in rupees"
+          defaultValue={params.max}
+          className="border-hairline w-28 rounded-md border bg-transparent px-4 py-2 text-sm"
         />
         <select
           name="sort"
@@ -105,4 +155,11 @@ export default async function DiscoverPage({
       )}
     </main>
   );
+}
+
+/** Rupees from a query string -> paise; blank or garbage means no bound. */
+function rupeesToPaise(value: string | undefined): number | undefined {
+  if (value == null || value.trim() === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : undefined;
 }

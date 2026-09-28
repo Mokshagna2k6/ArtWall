@@ -10,6 +10,7 @@ import { auth } from "@/lib/auth";
 import { isOwnAsset } from "@/lib/cloudinary";
 import { db } from "@/lib/db/index";
 import { artworks } from "@/lib/db/schema";
+import { ARTWORK_CATEGORIES } from "@/features/marketplace/categories";
 import { toPaise } from "@/features/physical-wall/money";
 
 async function getUserId() {
@@ -39,6 +40,10 @@ const artworkSchema = z.object({
   imagePublicId: optionalText(500),
   isPublic: z.boolean().default(true),
   status: z.enum(["available", "sold", "reserved"]).default("available"),
+  category: z
+    .union([z.enum(ARTWORK_CATEGORIES), z.literal("")])
+    .optional()
+    .transform((value) => value || null),
   /** Rupees as typed -> integer paise. Blank = price on request (null). */
   // ponytail: price_paise is int4, so ₹2 crore is the ceiling; move to bigint if that bites.
   price: z
