@@ -9,6 +9,7 @@ export interface MarketplaceFilters {
   q?: string;
   medium?: string;
   category?: string;
+  /** Inclusive bounds, in paise (artworks.price_paise). */
   minPrice?: number;
   maxPrice?: number;
   sort?: "recent" | "price_asc" | "price_desc" | "title";
@@ -18,7 +19,7 @@ export async function discoverArtworks(filters: MarketplaceFilters = {}) {
   const conditions = [
     eq(artworks.isPublic, true),
     eq(artworks.status, "available"),
-    // A private (unpublished) profile's works stay off the public marketplace.
+    // An artist who unpublished their profile is not on the marketplace.
     eq(artistProfiles.published, true),
   ];
 
@@ -36,18 +37,10 @@ export async function discoverArtworks(filters: MarketplaceFilters = {}) {
     conditions.push(ilike(artworks.medium, `%${filters.medium}%`));
   }
 
-  if (filters.category) {
-    conditions.push(eq(artworks.category, filters.category));
-  }
-
-  // Prices are paise. A price bound excludes "price on request" (null) works,
-  // since they can't be shown to fall inside the range.
-  if (filters.minPrice != null) {
-    conditions.push(gte(artworks.pricePaise, filters.minPrice));
-  }
-  if (filters.maxPrice != null) {
-    conditions.push(lte(artworks.pricePaise, filters.maxPrice));
-  }
+  if (filters.category) conditions.push(eq(artworks.category, filters.category));
+  // A price bound excludes unpriced works (null price_paise never compares true).
+  if (Number.isFinite(filters.minPrice)) conditions.push(gte(artworks.pricePaise, filters.minPrice!));
+  if (Number.isFinite(filters.maxPrice)) conditions.push(lte(artworks.pricePaise, filters.maxPrice!));
 
   const orderBy =
     filters.sort === "price_asc"
@@ -99,13 +92,7 @@ export async function getArtworkDetail(id: string) {
     })
     .from(artworks)
     .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
-    .where(
-      and(
-        eq(artworks.id, id),
-        eq(artworks.isPublic, true),
-        eq(artistProfiles.published, true)
-      )
-    );
+    .where(and(eq(artworks.id, id), eq(artworks.isPublic, true), eq(artistProfiles.published, true)));
 
   if (!artwork) return null;
 

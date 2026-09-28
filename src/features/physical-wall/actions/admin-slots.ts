@@ -7,7 +7,7 @@ import { requireRole } from "@/features/physical-wall/authorize";
 import { getRefundPolicyVersion } from "@/features/physical-wall/data/catalogs";
 import { refundAmountPaise } from "@/features/physical-wall/pricing";
 import { formatINR } from "@/features/physical-wall/money";
-import { createRefund, isRazorpayConfigured } from "@/features/physical-wall/razorpay";
+import { processRefund, queueRefundIn } from "@/features/physical-wall/refunds";
 import {
   assertTransition,
   isOccupied,
@@ -151,6 +151,7 @@ export async function forceRelease(
       );
 
       let refundPaise = 0;
+      let refundId: string | null = null;
       let policyLabel = "no policy on file";
       const affected = booking.rows[0];
 
@@ -176,24 +177,12 @@ export async function forceRelease(
         );
 
         if (refundPaise > 0) {
-          // Execute the refund through Razorpay if the booking was paid online.
-          let razorpayRefundId: string | null = null;
-          if (isRazorpayConfigured()) {
-            const payment = await client.query<{ payment_id: string }>(
-              `select payment_id from pw_payments
-               where booking_id = $1 and provider = 'razorpay' and status = 'captured' and payment_id is not null
-               order by created_at desc limit 1`,
-              [affected.id]
-            );
-            if (payment.rows[0]?.payment_id) {
-              const refund = await createRefund(
-                payment.rows[0].payment_id,
-                refundPaise,
-                affected.id
-              );
-              razorpayRefundId = refund.id;
-            }
-          }
+          ({ refundId } = await queueRefundIn(client, {
+            bookingId: affected.id,
+            amountPaise: refundPaise,
+            reason,
+            actorId: actor.id,
+          }));
 
           await client.query(
             `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by, booking_id)
@@ -202,7 +191,7 @@ export async function forceRelease(
             [
               newId("led"),
               refundPaise,
-              `Refund for ${affected.id} — ${policyLabel}${razorpayRefundId ? ` (${razorpayRefundId})` : ""}. ${reason}`,
+              `Refund for ${affected.id} — ${policyLabel} (${refundId}). ${reason}`,
               `refund:${affected.id}`,
               actor.id,
               affected.id,
@@ -262,8 +251,11 @@ export async function forceRelease(
         },
       });
 
-      return { refundPaise, policyLabel, wasLive, hadBooking: Boolean(affected) };
+      return { refundPaise, refundId, policyLabel, wasLive, hadBooking: Boolean(affected) };
     });
+
+    // After commit: the refund row is durable; /api/cron/refunds retries failures.
+    if (outcome.refundId) await processRefund(outcome.refundId);
 
     updateTag(WALL_TAG);
     updateTag(LEDGER_TAG);

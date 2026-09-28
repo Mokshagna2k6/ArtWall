@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { recordAudit } from "@/features/physical-wall/audit";
 import { requireRole } from "@/features/physical-wall/authorize";
-import { queueNotification } from "@/features/physical-wall/notifications";
+import { notify, notifyUser } from "@/features/physical-wall/notifications";
 import {
   fail,
   firstIssue,
@@ -64,20 +64,10 @@ export async function respondToGrievance(
       values (${newId("grs")}, ${parsed.data.grievanceId}, ${actor.id}, ${parsed.data.body})
     `;
 
-    await queueNotification({
-      userId: grievance.user_id,
-      recipient: grievance.contact,
-      subject: "Your grievance has a reply",
-      body:
-        `We have responded to your grievance ("${parsed.data.body.slice(0, 80)}…").
-
-` +
-        `Reply:
-${parsed.data.body}
-
-— Artwall Labs`,
-      kind: "grievance.responded",
-    });
+    const replyTo = { userId: grievance.user_id, email: grievance.contact };
+    if (!(await notify("grievance.responded", replyTo, { reply: parsed.data.body })) && grievance.user_id) {
+      await notifyUser("grievance.responded", grievance.user_id, () => ({ reply: parsed.data.body }));
+    }
 
     await recordAudit({
       actor,
