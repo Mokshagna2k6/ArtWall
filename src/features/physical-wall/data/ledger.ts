@@ -146,3 +146,86 @@ export async function getPerkSummary(month?: string): Promise<PerkSummary> {
     };
   }
 }
+
+export interface RevenueRow {
+  period: string;
+  grossPaise: number;
+  refundPaise: number;
+  netPaise: number;
+  bookings: number;
+}
+
+export interface RevenueReport {
+  rows: RevenueRow[];
+  totals: { grossPaise: number; refundPaise: number; netPaise: number; bookings: number };
+  /** Paid/completed bookings with no GST invoice yet — the admin's to-do. */
+  awaitingInvoice: { count: number; paise: number };
+  /** Paid/completed bookings with no revenue ledger row. Should be 0; anything else is a bug. */
+  unreconciled: { count: number; paise: number };
+}
+
+/**
+ * Booking revenue by period, from pw_ledger joined on its real booking_id FK.
+ *
+ * Only the two real ledger types exist ('revenue', 'expense' — docs/db/ledger.md).
+ * Gross = booking revenue rows; refunds = expense/refund rows for a booking;
+ * dated by entry_date (the accounting date), not created_at. Manual founder
+ * entries (booking_id null) are excluded: this is booking revenue, the ledger
+ * page shows everything.
+ *
+ * There is no settlement signal in the schema (Razorpay payouts are not
+ * recorded), so the old "pending settlement" card is replaced by two derived
+ * figures that are real: bookings awaiting an invoice, and unreconciled ones.
+ */
+export async function getRevenueReport(range: "day" | "week" | "month"): Promise<RevenueReport> {
+  const sql = getSql();
+
+  const rows = (await sql.query(
+    `select to_char(date_trunc($1, l.entry_date), 'YYYY-MM-DD') as period,
+            coalesce(sum(l.amount_paise) filter (where l.type = 'revenue'), 0)::bigint as gross,
+            coalesce(sum(l.amount_paise) filter (where l.type = 'expense' and l.category = 'refund'), 0)::bigint as refunds,
+            count(distinct l.booking_id) filter (where l.type = 'revenue')::int as bookings
+     from pw_ledger l
+     join pw_bookings b on b.id = l.booking_id
+     where l.type = 'revenue' or (l.type = 'expense' and l.category = 'refund')
+     group by 1
+     order by 1 desc
+     limit 24`,
+    [range]
+  )) as { period: string; gross: string; refunds: string; bookings: number }[];
+
+  const [open] = (await sql`
+    select
+      count(*) filter (where i.id is null)::int as awaiting_n,
+      coalesce(sum(b.total_amount_paise) filter (where i.id is null), 0)::bigint as awaiting_paise,
+      count(*) filter (where l.id is null)::int as unrec_n,
+      coalesce(sum(b.total_amount_paise) filter (where l.id is null), 0)::bigint as unrec_paise
+    from pw_bookings b
+    left join pw_invoices i on i.booking_id = b.id
+    left join pw_ledger l on l.booking_id = b.id and l.type = 'revenue'
+    where b.status in ('paid', 'completed')
+  `) as { awaiting_n: number; awaiting_paise: string; unrec_n: number; unrec_paise: string }[];
+
+  const mapped = rows.map((r) => ({
+    period: r.period,
+    grossPaise: Number(r.gross),
+    refundPaise: Number(r.refunds),
+    netPaise: Number(r.gross) - Number(r.refunds),
+    bookings: Number(r.bookings),
+  }));
+
+  return {
+    rows: mapped,
+    totals: mapped.reduce(
+      (t, r) => ({
+        grossPaise: t.grossPaise + r.grossPaise,
+        refundPaise: t.refundPaise + r.refundPaise,
+        netPaise: t.netPaise + r.netPaise,
+        bookings: t.bookings + r.bookings,
+      }),
+      { grossPaise: 0, refundPaise: 0, netPaise: 0, bookings: 0 }
+    ),
+    awaitingInvoice: { count: open.awaiting_n, paise: Number(open.awaiting_paise) },
+    unreconciled: { count: open.unrec_n, paise: Number(open.unrec_paise) },
+  };
+}

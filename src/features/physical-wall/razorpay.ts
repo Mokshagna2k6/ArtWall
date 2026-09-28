@@ -18,6 +18,36 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 const API = "https://api.razorpay.com/v1";
 
+async function razorpay<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  if (!keyId || !keySecret) throw new Error("Razorpay is not configured.");
+
+  const response = await fetch(`${API}${path}`, {
+    method: init?.method ?? "GET",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
+    },
+    body: init?.body === undefined ? undefined : JSON.stringify(init.body),
+    signal: AbortSignal.timeout(15_000),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new RazorpayApiError(response.status, `Razorpay ${init?.method ?? "GET"} ${path.split("?")[0]} failed (${response.status}): ${detail}`);
+  }
+  return (await response.json()) as T;
+}
+
+export class RazorpayApiError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+    this.name = "RazorpayApiError";
+  }
+}
+
 export function isRazorpayConfigured(): boolean {
   return Boolean(
     process.env.RAZORPAY_KEY_ID &&
@@ -54,42 +84,51 @@ export async function createOrder(
   bookingId: string,
   amountPaise: number
 ): Promise<RazorpayOrder> {
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if (!keyId || !keySecret) throw new Error("Razorpay is not configured.");
-
-  const response = await fetch(`${API}/orders`, {
+  if (!Number.isInteger(amountPaise) || amountPaise < 100) {
+    throw new Error(`Refusing to create an order for ${amountPaise} paise`);
+  }
+  return razorpay<RazorpayOrder>("/orders", {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
-    },
-    body: JSON.stringify({
+    body: {
       amount: amountPaise,
       currency: "INR",
       receipt: bookingId,
+      // Capture on authorisation: a booking is confirmed on capture only.
+      payment_capture: 1,
       notes: { bookingId },
-    }),
+    },
   });
+}
 
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Razorpay order failed (${response.status}): ${detail}`);
-  }
+export interface RazorpayPayment {
+  id: string;
+  order_id: string | null;
+  amount: number;
+  currency: string;
+  status: "created" | "authorized" | "captured" | "refunded" | "failed";
+  notes?: { bookingId?: string } | [];
+}
 
-  return (await response.json()) as RazorpayOrder;
+export async function fetchPayment(paymentId: string): Promise<RazorpayPayment> {
+  return razorpay<RazorpayPayment>(`/payments/${encodeURIComponent(paymentId)}`);
+}
+
+export async function fetchOrder(orderId: string): Promise<RazorpayOrder & { status: string; amount_paid: number }> {
+  return razorpay(`/orders/${encodeURIComponent(orderId)}`);
 }
 
 /**
- * Is this webhook genuinely from Razorpay?
- *
- * HMAC-SHA256 over the **raw** request body with the webhook secret. The body
- * must be the exact bytes received — re-serialising parsed JSON reorders keys
- * and changes whitespace, and the signature will not match. That is why the
- * route reads `request.text()` before it reads `request.json()`.
- *
- * Compared in constant time, for the same reason session tokens are.
+ * Checkout success callback signature: HMAC-SHA256 of "order_id|payment_id"
+ * with the key secret (not the webhook secret). Constant-time compare.
  */
+export function verifyPaymentSignature(orderId: string, paymentId: string, signature: string): boolean {
+  const secret = process.env.RAZORPAY_KEY_SECRET;
+  if (!secret || !orderId || !paymentId || !signature) return false;
+  const expected = Buffer.from(createHmac("sha256", secret).update(`${orderId}|${paymentId}`).digest("hex"));
+  const actual = Buffer.from(signature);
+  return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
 export interface RazorpayRefund {
   id: string;
   payment_id: string;
@@ -104,38 +143,41 @@ export interface RazorpayRefund {
  * refund matches the policy calculation rather than defaulting to a full refund.
  *
  * Idempotency: Razorpay's refund endpoint is NOT idempotent — calling it twice
- * creates two refunds. The caller must guard against double-invocation via the
- * ledger's source_ref unique index.
+ * creates two refunds. Only refunds.ts calls this, after claiming the pw_refunds
+ * row and after findRefund() has confirmed no refund with this refundId exists.
  */
 export async function createRefund(
   paymentId: string,
   amountPaise: number,
-  bookingId: string
+  refs: { bookingId: string; refundId: string }
 ): Promise<RazorpayRefund> {
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
-  if (!keyId || !keySecret) throw new Error("Razorpay is not configured.");
-
-  const response = await fetch(`${API}/payments/${paymentId}/refund`, {
+  return razorpay<RazorpayRefund>(`/payments/${encodeURIComponent(paymentId)}/refund`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Basic ${Buffer.from(`${keyId}:${keySecret}`).toString("base64")}`,
-    },
-    body: JSON.stringify({
-      amount: amountPaise,
-      notes: { bookingId, reason: "admin_force_release" },
-    }),
+    body: { amount: amountPaise, receipt: refs.refundId, notes: refs },
   });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Razorpay refund failed (${response.status}): ${detail}`);
-  }
-
-  return (await response.json()) as RazorpayRefund;
 }
 
+/**
+ * The refund we already issued for this pw_refunds row, if any. Razorpay
+ * refunds are not idempotent, so a retry must look before it creates.
+ */
+export async function findRefund(paymentId: string, refundId: string): Promise<RazorpayRefund | null> {
+  const list = await razorpay<{ items: (RazorpayRefund & { notes?: { refundId?: string } | [] })[] }>(
+    `/payments/${encodeURIComponent(paymentId)}/refunds?count=100`
+  );
+  return list.items.find((r) => !Array.isArray(r.notes) && r.notes?.refundId === refundId) ?? null;
+}
+
+/**
+ * Is this webhook genuinely from Razorpay?
+ *
+ * HMAC-SHA256 over the **raw** request body with the webhook secret. The body
+ * must be the exact bytes received — re-serialising parsed JSON reorders keys
+ * and changes whitespace, and the signature will not match. That is why the
+ * route reads `request.text()` before it reads `request.json()`.
+ *
+ * Compared in constant time, for the same reason session tokens are.
+ */
 export function verifyWebhookSignature(
   rawBody: string,
   signature: string | null

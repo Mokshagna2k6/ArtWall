@@ -353,6 +353,22 @@ export const pwPayments = pgTable("pw_payments", {
     .defaultNow(),
 });
 
+/** Refunds owed/sent. Written before Razorpay is called — see 0022_be_refunds.sql. */
+export const pwRefunds = pgTable("pw_refunds", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  paymentId: text("payment_id"),
+  amountPaise: integer("amount_paise").notNull(),
+  status: text("status").notNull().default("pending"),
+  providerRefundId: text("provider_refund_id").unique(),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  reason: text("reason"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /**
  * The founder's ledger. Full notes: docs/db/ledger.md.
  *
