@@ -82,19 +82,59 @@ export async function chooseInstallWindow(
       );
     }
 
-    // One window per booking: choosing again replaces the previous choice
-    // rather than stacking up offers nobody will attend.
-    await sql`
-      update pw_install_windows set status = 'cancelled'
-      where booking_id = ${bookingId} and status in ('offered', 'reserved')
-    `;
-
+    if (starts.getTime() < Date.now()) return fail("Choose a time in the future.");
     const ends = new Date(starts.getTime() + 60 * 60 * 1000);
-    await sql`
-      insert into pw_install_windows (id, booking_id, starts_at, ends_at, status)
-      values (${newId("iw")}, ${bookingId}, ${starts.toISOString()},
-              ${ends.toISOString()}, 'reserved')
-    `;
+
+    await inTransaction(async (client) => {
+      // ponytail: one global lock serialises all install bookings; per-day
+      // locks if this ever becomes contended (it's a handful a day).
+      await client.query(`select pg_advisory_xact_lock(hashtext('pw_install_windows'))`);
+
+      // One window per booking: choosing again replaces the previous choice
+      // rather than stacking up offers nobody will attend.
+      await client.query(
+        `update pw_install_windows set status = 'cancelled'
+         where booking_id = $1 and status in ('offered', 'reserved')`,
+        [bookingId]
+      );
+
+      // BE-1.16: no two installs on the same wall slot at the same time.
+      const clash = await client.query<{ label: string }>(
+        `select s.label
+         from pw_install_windows w
+         join pw_booking_slots theirs on theirs.booking_id = w.booking_id
+         join pw_booking_slots mine on mine.slot_id = theirs.slot_id and mine.booking_id = $3
+         join pw_slots s on s.id = theirs.slot_id
+         where w.status = 'reserved' and w.starts_at < $2 and w.ends_at > $1
+         limit 1`,
+        [starts.toISOString(), ends.toISOString(), bookingId]
+      );
+      if (clash.rowCount) {
+        throw new PreconditionError(
+          `Another install is already booked on your wall position (${clash.rows[0].label}) at that time. Pick another time.`
+        );
+      }
+
+      // BE-1.15: the venue team can only run so many installs at once.
+      const load = await client.query<{ n: number; cap: number }>(
+        `select (select count(*)::int from pw_install_windows
+                 where status = 'reserved' and starts_at < $2 and ends_at > $1) as n,
+                (select install_capacity from pw_settings limit 1) as cap`,
+        [starts.toISOString(), ends.toISOString()]
+      );
+      const { n, cap } = load.rows[0];
+      if (n >= (cap ?? 2)) {
+        throw new PreconditionError(
+          `That time is fully booked (${cap} install${cap === 1 ? "" : "s"} at once). Pick another time.`
+        );
+      }
+
+      await client.query(
+        `insert into pw_install_windows (id, booking_id, starts_at, ends_at, status)
+         values ($1, $2, $3, $4, 'reserved')`,
+        [newId("iw"), bookingId, starts.toISOString(), ends.toISOString()]
+      );
+    });
 
     updateTag(WALL_TAG);
     return ok("Install window booked. Bring the work and your booking QR.");
