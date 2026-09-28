@@ -275,8 +275,8 @@ export async function redeemPerk(
 
       if (ourCost > 0) {
         await client.query(
-          `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by)
-           values ($1, 'expense', 'platter-perk', $2, $3, current_date, $4, $5)
+          `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by, booking_id)
+           values ($1, 'expense', 'platter-perk', $2, $3, current_date, $4, $5, $6)
            on conflict (source_ref) where source_ref is not null do nothing`,
           [
             newId("led"),
@@ -284,6 +284,7 @@ export async function redeemPerk(
             `Platter perk for ${principalType} — bill ${formatINR(billPaise)}`,
             `perk:${inserted.rows[0].id}`,
             actor.id,
+            bookingRef,
           ]
         );
       }

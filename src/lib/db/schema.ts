@@ -349,15 +349,34 @@ export const pwPayments = pgTable("pw_payments", {
     .defaultNow(),
 });
 
+/**
+ * The founder's ledger. Full notes: docs/db/ledger.md.
+ *
+ * `type` — CHECK pw_ledger_type_check allows exactly two values:
+ *   'revenue' | 'expense'
+ * There is no 'payment', 'settlement' or 'refund' *type*: a captured payment is
+ * type 'revenue' / category 'booking'; a refund is type 'expense' / category
+ * 'refund'. Categories are validated in app code (CATEGORIES in
+ * src/features/physical-wall/actions/ledger.ts), not by the DB.
+ *
+ * `amountPaise` is never negative (CHECK, 0017); direction comes from `type`.
+ */
 export const pwLedger = pgTable("pw_ledger", {
   id: text("id").primaryKey(),
-  type: text("type").notNull(),
+  type: text("type").notNull().$type<"revenue" | "expense">(),
   category: text("category").notNull(),
   amountPaise: integer("amount_paise").notNull(),
   note: text("note"),
-  entryDate: date("entry_date").notNull(),
+  entryDate: date("entry_date").notNull().defaultNow(),
+  /** 'booking:<id>' | 'refund:<id>' | 'perk:<redemption id>'; unique; null for manual rows. */
   sourceRef: text("source_ref"),
   createdBy: text("created_by"),
+  /**
+   * FK -> pw_bookings.id (0017), indexed. The booking this entry concerns; set
+   * on booking revenue, booking refunds and artist perks. Null for manual rows.
+   * Join on this for revenue-per-booking, never on parsed source_ref.
+   */
+  bookingId: text("booking_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
