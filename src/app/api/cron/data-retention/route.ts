@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isCronAuthorized } from "@/lib/cron";
 import { getSql } from "@/lib/db";
 import { newId } from "@/features/physical-wall/actions/shared";
+import { processAssetDeletions } from "@/features/physical-wall/data-rights";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -41,5 +42,8 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ results });
+  // Retry Cloudinary deletions queued by DPDP erasure (BE-1.32).
+  const assetDeletions = await processAssetDeletions();
+
+  return NextResponse.json({ results, assetDeletions });
 }
