@@ -16,6 +16,7 @@ import {
   WALL_TAG,
   type ActionState,
 } from "@/features/physical-wall/actions/shared";
+import { notify, notifyUser } from "@/features/physical-wall/notifications";
 import { getSql } from "@/lib/db";
 
 /**
@@ -278,7 +279,7 @@ export async function forceMatch(
     const slotId = String(formData.get("slotId") ?? "");
     if (!id || !slotId) return fail("Choose an entry and a slot.");
 
-    const label = await inTransaction(async (client) => {
+    const matched = await inTransaction(async (client) => {
       const slot = await client.query<{ state: string; label: string }>(
         `select state, label from pw_slots where id = $1 for update`,
         [slotId]
@@ -290,8 +291,8 @@ export async function forceMatch(
         );
       }
 
-      const entry = await client.query<{ name: string }>(
-        `select name from pw_waitlist where id = $1 and status = 'queued' for update`,
+      const entry = await client.query<{ name: string; artist_id: string | null; contact: string | null }>(
+        `select name, artist_id, contact from pw_waitlist where id = $1 and status = 'queued' for update`,
         [id]
       );
       if (entry.rowCount === 0) {
@@ -328,11 +329,22 @@ export async function forceMatch(
         after: { slotId, slotLabel: slot.rows[0].label, expiresInHours: 48 },
       });
 
-      return slot.rows[0].label;
+      return { label: slot.rows[0].label, entry: entry.rows[0] };
     });
 
+    const offer = {
+      name: matched.entry.name,
+      slotLabel: matched.label,
+      expiresAt: new Date(Date.now() + 48 * 3600_000).toISOString(),
+    };
+    const sent =
+      (await notify("waitlist.offer", { userId: matched.entry.artist_id, email: matched.entry.contact }, offer)) ??
+      (matched.entry.artist_id ? await notifyUser("waitlist.offer", matched.entry.artist_id, () => offer) : null);
+
     updateTag(WALL_TAG);
-    return ok(`${label} is held for them for 48 hours. Let them know.`);
+    return ok(
+      `${matched.label} is held for them for 48 hours. ${sent ? "They have been emailed." : "We have no email for them: let them know."}`
+    );
   } catch (error) {
     return toActionError("forceMatch", error);
   }

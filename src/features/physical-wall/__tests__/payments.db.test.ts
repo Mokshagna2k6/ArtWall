@@ -85,6 +85,8 @@ describe("payments (BE-1.11 / 1.12 / 1.13)", () => {
     expect(await q(`select 1 from pw_ledger where booking_id = $1 and type = 'revenue'`, [booking])).toHaveLength(1);
     const states = await q<{ state: string }>(`select state from pw_slots where id = any($1::text[])`, [slots]);
     expect(states.every((s) => s.state === "booked")).toBe(true);
+    // Settled once, so the artist is told once.
+    expect(await q(`select 1 from pw_notifications where user_id = $1 and kind = 'booking.confirmed'`, [artist.id])).toHaveLength(1);
   });
 
   it("webhook alone settles (client never came back), booking found via our order row", async () => {

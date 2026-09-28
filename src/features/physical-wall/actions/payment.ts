@@ -12,6 +12,7 @@ import {
   isRazorpayConfigured,
   verifyPaymentSignature,
 } from "@/features/physical-wall/razorpay";
+import { notifyUser } from "@/features/physical-wall/notifications";
 import { processRefund, queueRefundIn } from "@/features/physical-wall/refunds";
 import {
   fail,
@@ -280,6 +281,19 @@ async function settleBooking(
 async function settleAndRefund(options: Parameters<typeof settleBooking>[1]): Promise<SettleResult> {
   const outcome = await inTransaction((client) => settleBooking(client, options));
   if (outcome.result === "refund-queued") await processRefund(outcome.refundId);
+  if (outcome.result === "settled") {
+    const [b] = (await getSql()`
+      select artist_id, start_date::text, end_date::text, total_amount_paise
+      from pw_bookings where id = ${options.bookingId}
+    `) as { artist_id: string; start_date: string; end_date: string; total_amount_paise: number }[];
+    await notifyUser("booking.confirmed", b.artist_id, ({ name }) => ({
+      name,
+      bookingId: options.bookingId,
+      startDate: b.start_date,
+      endDate: b.end_date,
+      totalPaise: Number(b.total_amount_paise),
+    }));
+  }
   updateTag(WALL_TAG);
   updateTag(LEDGER_TAG);
   return outcome;

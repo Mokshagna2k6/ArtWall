@@ -21,6 +21,7 @@ import {
   WALL_TAG,
   type ActionState,
 } from "@/features/physical-wall/actions/shared";
+import { notify } from "@/features/physical-wall/notifications";
 import { getSql } from "@/lib/db";
 
 /**
@@ -389,6 +390,11 @@ export async function raiseGrievance(
               ${parsed.data.subject}, ${parsed.data.body},
               now() + (${String(GRIEVANCE_RESPONSE_DAYS)} || ' days')::interval)
     `;
+
+    const ack = { subject: parsed.data.subject, dueDays: GRIEVANCE_RESPONSE_DAYS };
+    if (!(await notify("grievance.received", { userId: actor?.id, email: parsed.data.contact }, ack)) && actor) {
+      await notify("grievance.received", { userId: actor.id, email: actor.email }, ack);
+    }
 
     await recordAudit({
       actor,

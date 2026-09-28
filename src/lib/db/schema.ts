@@ -636,6 +636,8 @@ export const pwNotifications = pgTable("pw_notifications", {
   attempts: integer("attempts").notNull().default(0),
   lastError: text("last_error"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
+  /** Scheduled sends go out once per key (0026). */
+  dedupeKey: text("dedupe_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
