@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/index";
@@ -306,7 +306,9 @@ export async function verifyCertificateByHash(hash: string) {
     .from(coaCertificates)
     .innerJoin(artworks, eq(coaCertificates.artworkId, artworks.id))
     .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
-    .where(eq(coaCertificates.metadataHash, hash));
+    // By metadata hash (COA PDFs, artwork pages) or by certificate id: NFT
+    // metadata can't embed its own hash, so its external_url uses the id.
+    .where(or(eq(coaCertificates.metadataHash, hash), eq(coaCertificates.id, hash)));
   if (!cert) return null;
 
   // Callable as a public server action, so never hand back the owner's user id;

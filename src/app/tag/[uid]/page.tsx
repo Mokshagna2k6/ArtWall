@@ -5,7 +5,7 @@ import Link from "next/link";
 import { resolveTagScan } from "@/features/art-tags/actions";
 
 export const metadata: Metadata = {
-  title: "ArtTag | ArtWall",
+  title: "ArtTag",
   description: "Scan an ArtWall tag to discover the artwork",
 };
 

@@ -39,8 +39,10 @@ export async function discoverArtworks(filters: MarketplaceFilters = {}) {
 
   if (filters.category) conditions.push(eq(artworks.category, filters.category));
   // A price bound excludes unpriced works (null price_paise never compares true).
-  if (Number.isFinite(filters.minPrice)) conditions.push(gte(artworks.pricePaise, filters.minPrice!));
-  if (Number.isFinite(filters.maxPrice)) conditions.push(lte(artworks.pricePaise, filters.maxPrice!));
+  // price_paise is an int4: clamp so an out-of-range bound filters instead of throwing.
+  const paise = (n: number) => Math.min(Math.max(Math.round(n), 0), 2_147_483_647);
+  if (Number.isFinite(filters.minPrice)) conditions.push(gte(artworks.pricePaise, paise(filters.minPrice!)));
+  if (Number.isFinite(filters.maxPrice)) conditions.push(lte(artworks.pricePaise, paise(filters.maxPrice!)));
 
   const orderBy =
     filters.sort === "price_asc"

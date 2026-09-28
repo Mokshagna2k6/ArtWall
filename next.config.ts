@@ -24,7 +24,7 @@ const nextConfig: NextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://checkout.razorpay.com https://cdn.razorpay.com",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob: https://res.cloudinary.com",
               "font-src 'self' data:",
@@ -33,7 +33,7 @@ const nextConfig: NextConfig = {
               [
                 "connect-src 'self'",
                 "https://api.cloudinary.com",
-                "https://api.razorpay.com https://checkout.razorpay.com https://lumberjack.razorpay.com",
+                "https://api.razorpay.com https://checkout.razorpay.com https://cdn.razorpay.com https://lumberjack.razorpay.com",
                 "https://*.walletconnect.com wss://*.walletconnect.com",
                 "https://*.walletconnect.org wss://*.walletconnect.org",
                 "https://*.reown.com wss://*.reown.com https://*.web3modal.org https://*.web3modal.com",

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
+import { siteConfig } from "@/config/site";
 import { db } from "@/lib/db/index";
 import { coaCertificates, artworks } from "@/lib/db/schema";
 import { pinata, type NftMetadata } from "@/lib/blockchain/pinata";
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
       name: artwork.title,
       description: `Certificate of Authenticity for "${artwork.title}" by ${input.creatorName}.`,
       image: `ipfs://${input.imageCid}`,
-      external_url: `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/verify/${certId}`,
+      external_url: `${process.env.NEXT_PUBLIC_APP_URL ?? siteConfig.url}/verify/${certId}`,
       attributes: [
         { trait_type: "Creator", value: input.creatorName },
         { trait_type: "Object type", value: input.objectType },
