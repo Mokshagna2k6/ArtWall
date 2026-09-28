@@ -4,6 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createArtwork } from "@/app/actions/artworks";
+import {
+  ARTWORK_CATEGORIES,
+  categoryLabel,
+} from "@/features/marketplace/categories";
 import { ImageDrop } from "@/features/upload/image-drop";
 
 export function ArtworkForm() {
@@ -25,6 +29,7 @@ export function ArtworkForm() {
         description: formData.get("description"),
         dimensions: formData.get("dimensions"),
         status: formData.get("status"),
+        category: formData.get("category") ?? undefined,
         price: formData.get("price") ?? undefined,
         isPublic: formData.get("isPublic") === "on",
         imageUrl: image?.url,
@@ -113,6 +118,17 @@ export function ArtworkForm() {
           </select>
         </label>
       </div>
+      <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
+        Category
+        <select className="studio-input" name="category" defaultValue="">
+          <option value="">Not set</option>
+          {ARTWORK_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {categoryLabel(c)}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
         Price (₹)
         <input

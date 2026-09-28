@@ -1,6 +1,6 @@
 "use server";
 
-import { desc, eq, and, ilike, sql, or } from "drizzle-orm";
+import { eq, and, gte, ilike, lte, sql, or } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { artworks, artistProfiles, coaCertificates } from "@/lib/db/schema";
@@ -18,6 +18,8 @@ export async function discoverArtworks(filters: MarketplaceFilters = {}) {
   const conditions = [
     eq(artworks.isPublic, true),
     eq(artworks.status, "available"),
+    // A private (unpublished) profile's works stay off the public marketplace.
+    eq(artistProfiles.published, true),
   ];
 
   if (filters.q) {
@@ -32,6 +34,19 @@ export async function discoverArtworks(filters: MarketplaceFilters = {}) {
 
   if (filters.medium) {
     conditions.push(ilike(artworks.medium, `%${filters.medium}%`));
+  }
+
+  if (filters.category) {
+    conditions.push(eq(artworks.category, filters.category));
+  }
+
+  // Prices are paise. A price bound excludes "price on request" (null) works,
+  // since they can't be shown to fall inside the range.
+  if (filters.minPrice != null) {
+    conditions.push(gte(artworks.pricePaise, filters.minPrice));
+  }
+  if (filters.maxPrice != null) {
+    conditions.push(lte(artworks.pricePaise, filters.maxPrice));
   }
 
   const orderBy =
@@ -84,7 +99,13 @@ export async function getArtworkDetail(id: string) {
     })
     .from(artworks)
     .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
-    .where(and(eq(artworks.id, id), eq(artworks.isPublic, true)));
+    .where(
+      and(
+        eq(artworks.id, id),
+        eq(artworks.isPublic, true),
+        eq(artistProfiles.published, true)
+      )
+    );
 
   if (!artwork) return null;
 
