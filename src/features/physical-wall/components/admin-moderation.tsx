@@ -26,7 +26,15 @@ export function AdminModeration() {
 
   // Load once on mount. (Was a useState initializer, i.e. setState during render.)
   useEffect(() => {
-    void refresh();
+    let live = true;
+    listPendingUgc().then((data) => {
+      if (!live) return;
+      setItems(data);
+      setLoading(false);
+    });
+    return () => {
+      live = false;
+    };
   }, []);
 
   return (
