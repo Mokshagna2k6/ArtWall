@@ -825,6 +825,8 @@ export const mintCommitments = pgTable("mint_commitments", {
   merkleRootId: text("merkle_root_id"),
   tokenId: text("token_id"),
   mintTxHash: text("mint_tx_hash"),
+  /** Sibling path to merkle_roots.root_hash (0x bytes32[]), written by the merkle-root cron. */
+  merkleProof: jsonb("merkle_proof").$type<string[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
