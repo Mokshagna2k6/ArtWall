@@ -31,13 +31,13 @@ export default async function VerifyPage({
     );
   }
 
-  const timeline = await getProvenanceTimeline(cert.id);
+  const timeline = await getProvenanceTimeline(cert.artworkId);
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
       <div className="flex items-center gap-2 text-sm text-green-600">
         <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-        {cert.status === "issued" ? "Verified" : "Revoked"}
+        {cert.status === "revoked" ? "Revoked" : "Verified"}
       </div>
 
       <h1 className="text-display font-heading mt-4">{cert.artworkTitle}</h1>
@@ -125,7 +125,8 @@ export default async function VerifyPage({
             creator: { "@type": "Person", name: cert.artistName },
             artMedium: cert.medium,
             dateCreated: cert.year?.toString(),
-          }),
+            // Titles are artist-supplied: "</script>" must not end the tag.
+          }).replace(/</g, "\\u003c"),
         }}
       />
     </main>
