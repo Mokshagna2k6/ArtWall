@@ -161,6 +161,10 @@ export function AuthForm({
   const [pendingMethod, setPendingMethod] = useState<PendingMethod>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
+  // Controlled on purpose: a form `action` resets uncontrolled fields when it
+  // settles, which wiped the email after every failed sign-in.
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
 
   const destination = destinationFor(callbackUrl);
   const isPending = pendingMethod !== null;
@@ -273,6 +277,8 @@ export function AuthForm({
           <input
             className="border-input focus:border-foreground h-11 border bg-white px-3 text-base transition-colors outline-none"
             name="name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
             autoComplete="name"
             placeholder="How should we know you?"
             disabled={isPending}
@@ -287,6 +293,8 @@ export function AuthForm({
           className="border-input focus:border-foreground h-11 border bg-white px-3 text-base transition-colors outline-none"
           type="email"
           name="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
           autoComplete="email"
           inputMode="email"
           placeholder="you@example.com"
