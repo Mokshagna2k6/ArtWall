@@ -1,20 +1,25 @@
 /**
- * GST place-of-supply and tax split for wall-rental invoices.
+ * GST place of supply and tax split for wall-rental invoices.
  *
- * Intra-state supply (supplier state = place of supply): CGST + SGST, half
- * each. Inter-state: IGST, all of it. pw_invoices CHECKs enforce one regime.
+ * Decision (resolves the earlier "CA to confirm" note): a wall-slot booking is
+ * the grant of a right to use part of a physical wall at the venue — SAC 997212,
+ * renting of non-residential immovable property. IGST Act s.12(3)(a) fixes the
+ * place of supply of any service "by way of grant of rights to use immovable
+ * property" as the location of that property, and s.12(3) overrides the
+ * recipient-based rules in s.12(2) for everyone, registered or not. So the
+ * artist's GSTIN or home state never moves the place of supply: it is always
+ * the venue's state. We must be GST-registered in the state the venue is in,
+ * so supplier state == venue state and every wall-rental invoice is intra-state
+ * CGST + SGST. A B2B artist still claims ITC — their GSTIN is printed on the
+ * invoice, it just does not change the tax regime.
  *
- * Place of supply, in order:
- *   1. recipient GSTIN (B2B) — its first two digits are the state code;
- *   2. a state the admin chose explicitly when generating the invoice;
- *   3. the artist's profile location, if it names a state/UT unambiguously;
- *   4. no location on record → the supplier's state (IGST Act s.12(2)(b)(ii)).
- * A location that is present but names no state is an error, not a guess.
+ * Add-ons (install, lighting) are ancillary to the rental and invoiced as one
+ * composite supply with it, so they follow the same place of supply.
  *
- * ponytail: CA to confirm. SAC 997212 is renting of non-residential property;
- * if the supply is "in relation to immovable property" (IGST Act s.12(3)), the
- * place of supply is the venue's state for every artist — i.e. always
- * CGST+SGST. If so, make resolvePlaceOfSupply return the supplier state.
+ * splitGst stays general (IGST when the states differ) because pw_invoices
+ * supports both regimes; if a supply NOT tied to the venue is ever invoiced
+ * (e.g. an online-only service), its place of supply comes from s.12(2), not
+ * from venuePlaceOfSupply.
  */
 
 export const GST_STATES: Record<string, string> = {
@@ -56,72 +61,34 @@ export const GST_STATES: Record<string, string> = {
   "38": "Ladakh",
 };
 
-const ALIASES: Record<string, string> = {
-  "new delhi": "07",
-  "nct of delhi": "07",
-  orissa: "21",
-  pondicherry: "34",
-  "j&k": "01",
-  "j and k": "01",
-  uttaranchal: "05",
-  "daman and diu": "26",
-  "dadra and nagar haveli": "26",
-  "andaman": "35",
-};
+export class GstinError extends Error {}
 
-const norm = (text: string) =>
-  ` ${text.toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim()} `;
-
-/** A two-digit state code from free text, or null if it names none (or several). */
-export function stateCodeFromText(text: string | null | undefined): string | null {
-  if (!text?.trim()) return null;
-  const hay = norm(text);
-  const found = new Set<string>();
-  for (const [code, name] of Object.entries(GST_STATES)) if (hay.includes(norm(name))) found.add(code);
-  for (const [alias, code] of Object.entries(ALIASES)) if (hay.includes(norm(alias))) found.add(code);
-  // Whole-word matching; two different states named is ambiguous → null.
-  return found.size === 1 ? [...found][0] : null;
-}
-
+/** State code of a well-formed GSTIN, or null. */
 export function stateCodeFromGstin(gstin: string | null | undefined): string | null {
   const m = gstin?.trim().toUpperCase().match(/^(\d{2})[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/);
   return m && GST_STATES[m[1]] ? m[1] : null;
 }
 
-/** Supplier state: from our GSTIN when registered, else ARTWALL_GST_STATE_CODE (default Rajasthan). */
+/**
+ * Supplier state = the venue's state. From our GSTIN when registered, else
+ * ARTWALL_GST_STATE_CODE, else Rajasthan (08, where the first wall is).
+ */
 export function supplierStateCode(): string {
-  return (
-    stateCodeFromGstin(process.env.ARTWALL_GSTIN) ??
-    (GST_STATES[process.env.ARTWALL_GST_STATE_CODE ?? ""] ? process.env.ARTWALL_GST_STATE_CODE! : "08")
-  );
+  const fromEnv = process.env.ARTWALL_GST_STATE_CODE ?? "";
+  return stateCodeFromGstin(process.env.ARTWALL_GSTIN) ?? (GST_STATES[fromEnv] ? fromEnv : "08");
 }
 
-export class PlaceOfSupplyError extends Error {}
+/** Place of supply for a wall rental: the venue (s.12(3)(a)), whoever the customer is. */
+export function venuePlaceOfSupply(): string {
+  return supplierStateCode();
+}
 
-export function resolvePlaceOfSupply(input: {
-  supplierState: string;
-  customerGstin?: string | null;
-  explicitState?: string | null;
-  profileLocation?: string | null;
-}): string {
-  if (input.customerGstin) {
-    const code = stateCodeFromGstin(input.customerGstin);
-    if (!code) throw new PlaceOfSupplyError("That GSTIN is not valid.");
-    return code;
-  }
-  if (input.explicitState) {
-    const code = GST_STATES[input.explicitState] ? input.explicitState : stateCodeFromText(input.explicitState);
-    if (!code) throw new PlaceOfSupplyError(`"${input.explicitState}" is not an Indian state or UT.`);
-    return code;
-  }
-  if (!input.profileLocation?.trim()) return input.supplierState;
-  const code = stateCodeFromText(input.profileLocation);
-  if (!code) {
-    throw new PlaceOfSupplyError(
-      `Can't tell the artist's state from "${input.profileLocation}". Choose the place of supply.`
-    );
-  }
-  return code;
+/** Validate an optional customer GSTIN; returns it normalised, or null. */
+export function normaliseCustomerGstin(gstin: string | null | undefined): string | null {
+  const trimmed = gstin?.trim().toUpperCase();
+  if (!trimmed) return null;
+  if (!stateCodeFromGstin(trimmed)) throw new GstinError("That GSTIN is not valid.");
+  return trimmed;
 }
 
 export function splitGst(gstPaise: number, supplierState: string, placeOfSupply: string) {

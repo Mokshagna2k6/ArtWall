@@ -57,6 +57,60 @@ export async function makeArtwork(
   return id;
 }
 
+/** An inactive grid (never the public wall) with `n` available slots. */
+export async function makeSlots(n: number): Promise<string[]> {
+  const grid = tid("grid");
+  await q(`insert into pw_grid_config (id, name, row_count, col_count) values ($1, $1, 1, 20)`, [grid]);
+  const ids: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const id = tid("slot");
+    await q(
+      `insert into pw_slots (id, grid_id, row_index, col_index, label, size_id, type_id)
+       values ($1, $2, 0, $3, $4, (select id from pw_size_catalog order by sort_order limit 1),
+               (select id from pw_slot_types order by sort_order limit 1))`,
+      [id, grid, i, `T${i}`]
+    );
+    ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * A booking on `slotIds`, in `status`. Held bookings reserve their slots;
+ * paid ones book them. Total 11800 paise (10000 + 18% GST) unless given.
+ */
+export async function makeBooking(
+  artistId: string,
+  slotIds: string[],
+  opts: { status?: "held" | "paid" | "expired"; totalPaise?: number; start?: string; days?: number; orderId?: string } = {}
+) {
+  const id = tid("bk");
+  const status = opts.status ?? "held";
+  const total = opts.totalPaise ?? 11800;
+  const gst = Math.round((total * 18) / 118);
+  const start = opts.start ?? "2027-01-10";
+  const days = opts.days ?? 7;
+  await q(
+    `insert into pw_bookings (id, artist_id, status, start_date, end_date, duration_days, base_amount_paise,
+       gst_amount_paise, total_amount_paise, refund_policy_version, hold_expires_at)
+     values ($1, $2, $3, $4::date, $4::date + ($5::int - 1), $5, $6, $7, $8,
+       (select max(version) from pw_refund_policy), case when $3 = 'held' then now() + interval '30 minutes' end)`,
+    [id, artistId, status, start, days, total - gst, gst, total]
+  );
+  for (const slot of slotIds) {
+    await q(`insert into pw_booking_slots (booking_id, slot_id, quoted_price_paise) values ($1, $2, 0)`, [id, slot]);
+  }
+  const state = status === "held" ? "reserved" : status === "paid" ? "booked" : "available";
+  await q(`update pw_slots set state = $2 where id = any($1::text[])`, [slotIds, state]);
+  if (opts.orderId) {
+    await q(
+      `insert into pw_payments (id, booking_id, provider, order_id, amount_paise, status) values ($1, $2, 'razorpay', $3, $4, 'created')`,
+      [tid("pay"), id, opts.orderId, total]
+    );
+  }
+  return id;
+}
+
 /**
  * Delete every row a test run created, children first. Tables are listed
  * explicitly (not discovered) so a typo cannot widen the blast radius.
@@ -78,6 +132,7 @@ export async function purgeTestData() {
     await client.query(`delete from pw_ugc_submissions where id in (${ugc})`, [like]);
     await client.query(`delete from pw_invoices where booking_id like $1`, [like]);
     await client.query(`delete from pw_ledger where booking_id like $1 or source_ref like '%betest\\_%'`, [like]);
+    await client.query(`delete from pw_refunds where booking_id like $1`, [like]);
     await client.query(`delete from pw_payments where booking_id like $1`, [like]);
     await client.query(`delete from pw_condition_photos where booking_id like $1`, [like]);
     await client.query(`delete from pw_damage_records where booking_id like $1`, [like]);
@@ -86,6 +141,7 @@ export async function purgeTestData() {
     await client.query(`delete from pw_agreements where booking_id like $1`, [like]);
     await client.query(`delete from pw_bookings where id like $1`, [like]);
     await client.query(`delete from pw_slots where id like $1`, [like]);
+    await client.query(`delete from pw_grid_config where id like $1`, [like]);
     await client.query(`delete from pw_identity_verifications where user_id like $1`, [like]);
     await client.query(`delete from provenance_events where artwork_id like $1`, [like]);
     await client.query(`delete from mint_commitments where artwork_id like $1`, [like]);

@@ -5,7 +5,14 @@ import type { PoolClient } from "pg";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
 import { requireRole, type Actor } from "@/features/physical-wall/authorize";
-import { createOrder, isRazorpayConfigured } from "@/features/physical-wall/razorpay";
+import {
+  createOrder,
+  fetchOrder,
+  fetchPayment,
+  isRazorpayConfigured,
+  verifyPaymentSignature,
+} from "@/features/physical-wall/razorpay";
+import { processRefund, queueRefundIn } from "@/features/physical-wall/refunds";
 import {
   fail,
   inTransaction,
@@ -85,19 +92,27 @@ export async function startPayment(
   }
 }
 
+type SettleResult =
+  | { result: "settled" | "already-settled" }
+  /** Money arrived for a booking we cannot confirm; a full refund is queued. */
+  | { result: "refund-queued"; refundId: string; reason: string };
+
 /**
  * Mark a booking paid, whatever the money's route in.
  *
- * Called by the webhook (signature already verified) and by the admin fallback.
- * Everything it touches commits together:
+ * Called by the webhook and the client verify (both signature-verified) and by
+ * the admin offline path. Everything it touches commits together:
  *
- *  - the payment row, with `event_id` unique so a replayed webhook is a no-op,
- *  - the booking status,
- *  - each slot from `reserved` to `booked`,
+ *  - the payment row. Both online paths key it on the Razorpay payment id
+ *    (unique), so webhook + client verify, in any order and any number of
+ *    times, record one payment;
+ *  - the booking status, and each slot to `booked`;
  *  - the ledger entry, with `source_ref` unique so the revenue is counted once.
  *
- * Idempotency is enforced by those two unique indexes rather than by a check
- * that "already paid" — a check is a race, an index is a guarantee.
+ * A captured payment is never rejected with an error, because the money has
+ * already moved: if the booking cannot be confirmed (cancelled, amount wrong,
+ * hold lapsed and the slots were taken, or a second payment for a booking
+ * already paid) the payment is recorded and a full refund is queued instead.
  */
 async function settleBooking(
   client: PoolClient,
@@ -112,13 +127,15 @@ async function settleBooking(
     /** The amount Razorpay actually captured, in paise. Verified against the booking. */
     amountPaise?: number;
   }
-): Promise<"settled" | "already-settled"> {
+): Promise<SettleResult> {
   const booking = await client.query<{
     id: string;
     status: string;
     total_amount_paise: number;
+    start_date: string;
+    end_date: string;
   }>(
-    `select id, status, total_amount_paise from pw_bookings
+    `select id, status, total_amount_paise, start_date::text, end_date::text from pw_bookings
      where id = $1 for update`,
     [options.bookingId]
   );
@@ -126,46 +143,96 @@ async function settleBooking(
   if (booking.rowCount === 0) {
     throw new PreconditionError("We couldn't find that booking.");
   }
-  if (booking.rows[0].status === "paid") return "already-settled";
-  if (!["held", "expired"].includes(booking.rows[0].status)) {
-    throw new PreconditionError(
-      `That booking is ${booking.rows[0].status} and cannot be marked paid.`
-    );
+  const b = booking.rows[0];
+  const amount = Number(b.total_amount_paise);
+  const online = options.status === "captured";
+
+  // The booking row lock serialises webhook and client verify, so this read is safe.
+  if (options.paymentId) {
+    const seen = await client.query(`select 1 from pw_payments where payment_id = $1`, [options.paymentId]);
+    if (seen.rowCount) return { result: "already-settled" };
   }
 
-  const amount = Number(booking.rows[0].total_amount_paise);
-
-  // For webhook-settled bookings, the captured amount must match the booking
-  // total exactly. A mismatch means the payment was for a different amount
-  // than we quoted — refuse to confirm rather than accept a wrong price.
-  if (options.status === "captured" && options.amountPaise !== undefined) {
-    if (options.amountPaise !== amount) {
-      throw new PreconditionError(
-        `Payment amount mismatch: expected ${amount} paise, received ${options.amountPaise} paise.`
-      );
+  // Why this booking cannot be confirmed, if it can't.
+  let blocker: string | null = null;
+  if (b.status === "paid" || b.status === "completed") {
+    if (!online) return { result: "already-settled" };
+    blocker = "booking was already paid (duplicate payment)";
+  } else if (!["held", "expired"].includes(b.status)) {
+    blocker = `booking is ${b.status}`;
+  } else if (online && options.amountPaise !== undefined && options.amountPaise !== amount) {
+    blocker = `amount mismatch: expected ${amount} paise, received ${options.amountPaise}`;
+  } else {
+    // The slots must still be this booking's to take. A held booking's slots
+    // are `reserved` for it; an expired one's went back to the wall and may
+    // since have been reserved or booked by someone else.
+    const slots = await client.query<{ label: string; state: string }>(
+      `select s.label, s.state from pw_slots s
+       join pw_booking_slots bs on bs.slot_id = s.id
+       where bs.booking_id = $1 for update of s`,
+      [b.id]
+    );
+    const wanted = b.status === "held" ? "reserved" : "available";
+    const lost = slots.rows.filter((row) => row.state !== wanted);
+    const clash =
+      b.status === "expired"
+        ? await client.query(
+            `select 1 from pw_booking_slots bs
+             join pw_bookings o on o.id = bs.booking_id
+             where o.id <> $1
+               and bs.slot_id in (select slot_id from pw_booking_slots where booking_id = $1)
+               and o.status in ('held', 'paid', 'completed')
+               and (o.status <> 'held' or o.hold_expires_at > now())
+               and o.start_date <= ($3::date + coalesce((select buffer_days from pw_settings limit 1), 0))
+               and o.end_date   >= ($2::date - coalesce((select buffer_days from pw_settings limit 1), 0))
+             limit 1`,
+            [b.id, b.start_date, b.end_date]
+          )
+        : { rowCount: 0 };
+    if (slots.rowCount === 0 || lost.length > 0 || clash.rowCount) {
+      blocker = `slots no longer available (${lost.map((r) => r.label).join(", ") || "date clash"})`;
     }
   }
 
-  const payment = await client.query(
+  if (blocker && !online) throw new PreconditionError(`Cannot mark paid: ${blocker}.`);
+
+  // Record the money that arrived: always, even when it is going straight back.
+  await client.query(
     `insert into pw_payments
        (id, booking_id, provider, order_id, payment_id, event_id, amount_paise, status, notes)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-     on conflict (event_id) do nothing`,
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
     [
       newId("pay"),
       options.bookingId,
-      options.status === "manual" ? "manual" : "razorpay",
+      online ? "razorpay" : "manual",
       options.orderId,
       options.paymentId,
       options.eventId,
-      amount,
-      options.status,
+      online ? options.amountPaise ?? amount : amount,
+      // An orphaned payment is 'refunded' so a later policy refund never picks it.
+      blocker ? "refunded" : options.status,
       options.note,
     ]
   );
 
-  // The webhook has been delivered before and we already handled it.
-  if (options.eventId && payment.rowCount === 0) return "already-settled";
+  if (blocker) {
+    const refundPaise = options.amountPaise ?? amount;
+    const { refundId } = await queueRefundIn(client, {
+      bookingId: b.id,
+      paymentId: options.paymentId,
+      amountPaise: refundPaise,
+      reason: `Auto-refund: ${blocker}`,
+      actorId: null,
+    });
+    await recordAuditIn(client, {
+      actor: null,
+      action: "booking.payment-refunded",
+      subjectType: "booking",
+      subjectId: b.id,
+      after: { paymentId: options.paymentId, refundId, refundPaise, reason: blocker },
+    });
+    return { result: "refund-queued", refundId, reason: blocker };
+  }
 
   await client.query(
     `update pw_bookings set status = 'paid', hold_expires_at = null, updated_at = now()
@@ -173,13 +240,10 @@ async function settleBooking(
     [options.bookingId]
   );
 
-  // reserved -> booked for every slot on the booking. Held bookings whose
-  // slots were force-released by an admin in the meantime simply match nothing.
   await client.query(
     `update pw_slots
      set state = 'booked', version = version + 1, updated_at = now()
-     where id in (select slot_id from pw_booking_slots where booking_id = $1)
-       and state = 'reserved'`,
+     where id in (select slot_id from pw_booking_slots where booking_id = $1)`,
     [options.bookingId]
   );
 
@@ -202,18 +266,33 @@ async function settleBooking(
     action: "booking.paid",
     subjectType: "booking",
     subjectId: options.bookingId,
-    after: { amountPaise: amount, via: options.status, eventId: options.eventId },
+    before: { status: b.status },
+    after: { amountPaise: amount, via: options.status, paymentId: options.paymentId, note: options.note },
   });
 
-  return "settled";
+  return { result: "settled" };
 }
 
+/** Settle, then (outside the transaction) send any auto-refund it queued. */
+async function settleAndRefund(options: Parameters<typeof settleBooking>[1]): Promise<SettleResult> {
+  const outcome = await inTransaction((client) => settleBooking(client, options));
+  if (outcome.result === "refund-queued") await processRefund(outcome.refundId);
+  updateTag(WALL_TAG);
+  updateTag(LEDGER_TAG);
+  return outcome;
+}
+
+const OFFLINE_METHODS = ["cash", "bank_transfer", "upi", "cheque"];
+
 /**
- * The admin fallback: confirm a booking without a PSP.
+ * Admin: record a payment that arrived OUTSIDE Razorpay (BE-1.13).
  *
- * Not a stub. A bank transfer, a UPI payment made in person, or a cash payment
- * at the venue all need recording, and this is the honest way to record them —
- * with an actor in the audit log and a note saying how the money arrived.
+ * Form fields: bookingId, method (cash | bank_transfer | upi | cheque), note
+ * (the payment reference, at least 3 chars). Audited with the admin as actor.
+ *
+ * Refused when the booking has a Razorpay order that Razorpay reports paid:
+ * that money is online and the webhook/verify path records it; recording it
+ * here as well would book one payment twice.
  */
 export async function markBookingPaid(
   _previous: ActionState,
@@ -222,29 +301,43 @@ export async function markBookingPaid(
   try {
     const actor = await requireRole("admin");
     const bookingId = String(formData.get("bookingId") ?? "");
+    const method = String(formData.get("method") ?? "");
     const note = String(formData.get("note") ?? "").trim();
     if (!bookingId) return fail("Which booking?");
+    if (!OFFLINE_METHODS.includes(method)) {
+      return fail("Choose how the money arrived: cash, bank transfer, UPI or cheque.");
+    }
     if (note.length < 3) {
-      return fail("Say how the payment arrived — this is audited.");
+      return fail("Add the payment reference. This is audited.");
     }
 
-    const result = await inTransaction((client) =>
-      settleBooking(client, {
-        bookingId,
-        eventId: null,
-        paymentId: null,
-        orderId: null,
-        status: "manual",
-        actor,
-        note,
-      })
-    );
+    if (isRazorpayConfigured()) {
+      const orders = (await getSql()`
+        select order_id from pw_payments
+        where booking_id = ${bookingId} and provider = 'razorpay' and order_id is not null
+      `) as { order_id: string }[];
+      for (const { order_id } of orders) {
+        const order = await fetchOrder(order_id);
+        if (order.status === "paid" || order.amount_paid > 0) {
+          return fail(
+            "This booking was paid online through Razorpay. It confirms automatically, so don't record it by hand."
+          );
+        }
+      }
+    }
 
-    updateTag(WALL_TAG);
-    updateTag(LEDGER_TAG);
+    const outcome = await settleAndRefund({
+      bookingId,
+      eventId: null,
+      paymentId: null,
+      orderId: null,
+      status: "manual",
+      actor,
+      note: `${method}: ${note}`,
+    });
 
     return ok(
-      result === "already-settled"
+      outcome.result === "already-settled"
         ? "That booking was already paid."
         : "Booking confirmed and recorded in the ledger."
     );
@@ -254,26 +347,97 @@ export async function markBookingPaid(
 }
 
 /**
- * Webhook entry point. Called only by the route, and only after the signature
- * has been verified — this function trusts its caller on that and nothing else.
+ * Artist: confirm a Razorpay Checkout success (BE-1.11).
+ *
+ * Input: exactly what Razorpay Checkout's `handler` callback receives,
+ * { razorpay_order_id, razorpay_payment_id, razorpay_signature }.
+ *
+ * The signature (HMAC-SHA256 of "order_id|payment_id" with the key secret) is
+ * checked first; the booking comes from OUR order row, never from the client;
+ * the amount comes from Razorpay's own payment record. Idempotent with the
+ * webhook: both key the payment on its Razorpay id.
+ */
+export async function verifyPayment(input: {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}): Promise<ActionState> {
+  try {
+    const actor = await requireRole("artist");
+    const orderId = String(input?.razorpay_order_id ?? "");
+    const paymentId = String(input?.razorpay_payment_id ?? "");
+    if (!verifyPaymentSignature(orderId, paymentId, String(input?.razorpay_signature ?? ""))) {
+      return fail(
+        "We couldn't verify that payment. If money left your account, it will be confirmed or refunded automatically."
+      );
+    }
+
+    const rows = (await getSql()`
+      select p.booking_id from pw_payments p
+      join pw_bookings b on b.id = p.booking_id
+      where p.order_id = ${orderId} and b.artist_id = ${actor.id}
+      limit 1
+    `) as { booking_id: string }[];
+    const bookingId = rows[0]?.booking_id;
+    if (!bookingId) return fail("That payment is not for one of your bookings.");
+
+    const payment = await fetchPayment(paymentId);
+    if (payment.order_id !== orderId) return fail("That payment does not belong to this order.");
+    if (payment.status !== "captured") {
+      // Authorised, not yet captured: the webhook confirms it on capture.
+      return ok("Payment received. Your booking will be confirmed in a moment.", {
+        bookingId,
+        status: "pending",
+      });
+    }
+
+    const outcome = await settleAndRefund({
+      bookingId,
+      eventId: paymentId,
+      paymentId,
+      orderId,
+      status: "captured",
+      actor,
+      note: "Razorpay checkout (client verify)",
+      amountPaise: payment.amount,
+    });
+
+    if (outcome.result === "refund-queued") {
+      return fail(`We couldn't confirm this booking (${outcome.reason}). Your payment is being refunded in full.`);
+    }
+    return ok("Payment confirmed. Your booking is paid.", { bookingId, status: "paid" });
+  } catch (error) {
+    return toActionError("verifyPayment", error);
+  }
+}
+
+/**
+ * Webhook entry point (BE-1.12). Called only by the route, after the webhook
+ * signature has been verified. The booking comes from the payment's notes or,
+ * if absent, from our own order row.
  */
 export async function settleFromWebhook(options: {
-  bookingId: string;
+  bookingId: string | null;
   eventId: string;
-  paymentId: string | null;
+  paymentId: string;
   orderId: string | null;
   amountPaise: number;
-}): Promise<"settled" | "already-settled"> {
-  const result = await inTransaction((client) =>
-    settleBooking(client, {
-      ...options,
-      status: "captured",
-      actor: null,
-      note: "Razorpay webhook",
-    })
-  );
+}): Promise<SettleResult["result"] | "unknown-order"> {
+  let bookingId = options.bookingId;
+  if (!bookingId && options.orderId) {
+    const rows = (await getSql()`
+      select booking_id from pw_payments where order_id = ${options.orderId} limit 1
+    `) as { booking_id: string }[];
+    bookingId = rows[0]?.booking_id ?? null;
+  }
+  if (!bookingId) return "unknown-order";
 
-  updateTag(WALL_TAG);
-  updateTag(LEDGER_TAG);
-  return result;
+  const outcome = await settleAndRefund({
+    ...options,
+    bookingId,
+    status: "captured",
+    actor: null,
+    note: "Razorpay webhook",
+  });
+  return outcome.result;
 }

@@ -5,10 +5,11 @@ import { getActor, hasRole, requireRole } from "@/features/physical-wall/authori
 import { formatINR } from "@/features/physical-wall/money";
 import {
   GST_STATES,
-  PlaceOfSupplyError,
-  resolvePlaceOfSupply,
+  GstinError,
+  normaliseCustomerGstin,
   splitGst,
   supplierStateCode,
+  venuePlaceOfSupply,
 } from "@/features/physical-wall/gst";
 import {
   fail,
@@ -38,9 +39,9 @@ function fiscalYear(isoDate: string): string {
 /**
  * Issue a GST tax invoice for a paid booking. Admin only.
  *
- * Form fields: bookingId (required); placeOfSupply (optional: 2-digit GST
- * state code or state name — needed when the artist's location names no
- * state); customerGstin (optional, B2B — decides the place of supply).
+ * Form fields: bookingId (required); customerGstin (optional, B2B — printed
+ * on the invoice for the artist's input tax credit). Place of supply is always
+ * the venue's state (IGST Act s.12(3)(a), see gst.ts), so CGST + SGST.
  *
  * Amounts come from pw_bookings.total_amount_paise / gst_amount_paise, which
  * were fixed server-side when the booking was quoted. One transaction with an
@@ -54,8 +55,7 @@ export async function generateInvoice(
   try {
     const actor = await requireRole("admin");
     const bookingId = String(formData.get("bookingId") ?? "");
-    const explicitState = String(formData.get("placeOfSupply") ?? "").trim() || null;
-    const customerGstin = String(formData.get("customerGstin") ?? "").trim().toUpperCase() || null;
+    const customerGstin = normaliseCustomerGstin(String(formData.get("customerGstin") ?? ""));
     if (!bookingId) return fail("Which booking?");
 
     const result = await inTransaction(async (client) => {
@@ -64,15 +64,9 @@ export async function generateInvoice(
       const existing = await client.query(`select 1 from pw_invoices where booking_id = $1`, [bookingId]);
       if (existing.rowCount) throw new PreconditionError("An invoice already exists for this booking.");
 
-      const { rows } = await client.query<{
-        total_amount_paise: number;
-        gst_amount_paise: number;
-        artist_location: string | null;
-      }>(
-        `select b.total_amount_paise, b.gst_amount_paise, ap.location as artist_location
-         from pw_bookings b
-         left join artist_profiles ap on ap."userId" = b.artist_id
-         where b.id = $1 and b.status in ('paid', 'completed')`,
+      const { rows } = await client.query<{ total_amount_paise: number; gst_amount_paise: number }>(
+        `select total_amount_paise, gst_amount_paise from pw_bookings
+         where id = $1 and status in ('paid', 'completed')`,
         [bookingId]
       );
       const booking = rows[0];
@@ -84,12 +78,7 @@ export async function generateInvoice(
       if (netPaise < 0 || gstPaise < 0) throw new Error(`Booking ${bookingId} has inconsistent amounts`);
 
       const supplierState = supplierStateCode();
-      const placeOfSupply = resolvePlaceOfSupply({
-        supplierState,
-        customerGstin,
-        explicitState,
-        profileLocation: booking.artist_location,
-      });
+      const placeOfSupply = venuePlaceOfSupply();
       const { cgstPaise, sgstPaise, igstPaise } = splitGst(gstPaise, supplierState, placeOfSupply);
 
       const issueDate = istDate();
@@ -151,7 +140,7 @@ export async function generateInvoice(
 
     return ok(`Invoice ${result.number} generated — ${formatINR(result.totalPaise)}.`, result);
   } catch (error) {
-    if (error instanceof PlaceOfSupplyError) return fail(error.message);
+    if (error instanceof GstinError) return fail(error.message);
     return toActionError("generateInvoice", error);
   }
 }
