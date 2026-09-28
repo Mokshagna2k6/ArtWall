@@ -48,12 +48,12 @@ describe("install scheduling (BE-1.15 / 1.16)", () => {
 
     const clash = await choose(b.artist, b.bk);
     expect(clash.status).toBe("error");
-    expect(clash.message).toMatch(/wall position/);
+    expect((clash as { message: string }).message).toMatch(/wall position/);
 
     expect((await choose(c.artist, c.bk)).status).toBe("ok"); // 2 of 2
     const full = await choose(d.artist, d.bk);
     expect(full.status).toBe("error");
-    expect(full.message).toMatch(/fully booked/);
+    expect((full as { message: string }).message).toMatch(/fully booked/);
 
     // Re-choosing replaces your own window rather than counting against you.
     expect((await choose(a.artist, a.bk)).status).toBe("ok");
