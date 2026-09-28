@@ -18,6 +18,7 @@ import {
 } from "@/features/physical-wall/actions/shared";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getSql } from "@/lib/db";
+import { notifyUser } from "@/features/physical-wall/notifications";
 import { isOwnAsset } from "@/lib/cloudinary";
 import { getSessionUser } from "@/lib/session";
 import { UGC_UPLOAD_FOLDER } from "@/features/physical-wall/image-validation";
@@ -147,7 +148,7 @@ export async function moderateUgc(
     const sql = getSql();
 
     const existing = (await sql.query(
-      `select id, status, cloudinary_id, url, caption, visitor_id, kind
+      `select id, status, cloudinary_id, url, caption, visitor_id, kind, user_id
        from pw_ugc_submissions
        where id = $1
        limit 1`,
@@ -164,6 +165,7 @@ export async function moderateUgc(
       caption: string;
       visitor_id: string | null;
       kind: string;
+      user_id: string | null;
     };
 
     if (row.status === "approved" || row.status === "rejected") {
@@ -220,6 +222,13 @@ export async function moderateUgc(
         });
       }
     });
+
+    // Guests left no address; signed-in submitters hear the outcome.
+    if (row.user_id) {
+      const caption = row.caption || "your photo";
+      if (verdict === "approved") await notifyUser("ugc.approved", row.user_id, () => ({ caption }));
+      else await notifyUser("ugc.removed", row.user_id, () => ({ caption }));
+    }
 
     updateTag(WALL_TAG);
     return ok(

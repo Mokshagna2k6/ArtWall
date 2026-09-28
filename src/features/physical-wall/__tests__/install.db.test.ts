@@ -45,6 +45,7 @@ describe("install scheduling (BE-1.15 / 1.16)", () => {
     const d = await signedPaidBooking([other2]);
 
     expect((await choose(a.artist, a.bk)).status).toBe("ok");
+    expect(await q(`select 1 from pw_notifications where user_id = $1 and kind = 'install.scheduled'`, [a.artist.id])).toHaveLength(1);
 
     const clash = await choose(b.artist, b.bk);
     expect(clash.status).toBe("error");

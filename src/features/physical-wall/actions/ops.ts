@@ -31,6 +31,7 @@ import {
   WALL_TAG,
   type ActionState,
 } from "@/features/physical-wall/actions/shared";
+import { notify } from "@/features/physical-wall/notifications";
 import { getSql } from "@/lib/db";
 
 /**
@@ -135,6 +136,8 @@ export async function chooseInstallWindow(
         [newId("iw"), bookingId, starts.toISOString(), ends.toISOString()]
       );
     });
+
+    await notify("install.scheduled", { userId: actor.id, email: actor.email }, { name: actor.name, startsAt: starts.toISOString() });
 
     updateTag(WALL_TAG);
     return ok("Install window booked. Bring the work and your booking QR.");

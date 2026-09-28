@@ -2,7 +2,7 @@
 
 import { recordAudit } from "@/features/physical-wall/audit";
 import { requireRole } from "@/features/physical-wall/authorize";
-import { queueNotification } from "@/features/physical-wall/notifications";
+import { notify } from "@/features/physical-wall/notifications";
 import {
   fail,
   newId,
@@ -48,17 +48,9 @@ export async function reviewIdentity(
     `) as { email: string; name: string }[];
 
     if (user.length > 0) {
-      await queueNotification({
-        userId,
-        recipient: user[0].email,
-        subject: verdict === "approved"
-          ? "Identity verified — payouts are now enabled"
-          : "Identity verification needs attention",
-        body: verdict === "approved"
-          ? `Hi ${user[0].name},\n\nYour identity has been verified. You can now receive payouts for your exhibitions.\n\n— Artwall Labs`
-          : `Hi ${user[0].name},\n\nWe could not verify your identity from the document you submitted.${note ? `\n\nNote: ${note}` : ""}\n\nPlease upload a clearer image and try again.\n\n— Artwall Labs`,
-        kind: verdict === "approved" ? "identity.approved" : "identity.rejected",
-      });
+      const to = { userId, email: user[0].email };
+      if (verdict === "approved") await notify("identity.approved", to, { name: user[0].name });
+      else await notify("identity.rejected", to, { name: user[0].name, note: note || null });
     }
 
     await recordAudit({
