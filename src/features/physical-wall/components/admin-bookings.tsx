@@ -176,6 +176,40 @@ function BookingRow({
           </div>
         )}
       </div>
+
+      {booking.condition && (booking.condition.photos.length > 0 || booking.condition.damage.length > 0) && (
+        <div className="border-hairline mt-5 border-t pt-5 text-sm">
+          <p className="text-ink-muted text-label tracking-wider uppercase">Condition report</p>
+          {(["install", "deinstall"] as const).map((stage) => {
+            const photos = booking.condition!.photos.filter((p) => p.stage === stage);
+            if (photos.length === 0) return null;
+            return (
+              <div key={stage} className="mt-3">
+                <p className="font-medium">{stage === "install" ? "At install" : "At de-install"}</p>
+                <ul className="mt-2 flex flex-wrap gap-3">
+                  {photos.map((p) => (
+                    <li key={p.id}>
+                      <a href={p.url} target="_blank" rel="noreferrer" className="underline underline-offset-4">
+                        {p.itemKey}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+          {booking.condition.damage.length > 0 && (
+            <ul className="mt-3 flex flex-col gap-1">
+              {booking.condition.damage.map((d) => (
+                <li key={d.id} className={d.severity === "major" ? "text-destructive" : undefined}>
+                  {d.severity} damage · {d.itemKey}: {d.description}
+                  {d.resolvedAt ? " (resolved)" : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </article>
   );
 }

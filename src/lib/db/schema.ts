@@ -654,6 +654,8 @@ export const pwConditionPhotos = pgTable("pw_condition_photos", {
   itemKey: text("item_key").notNull(),
   cloudinaryId: text("cloudinary_id").notNull(),
   url: text("url").notNull(),
+  /** 'install' | 'deinstall' (0025). */
+  stage: text("stage").notNull().default("install"),
   uploadedBy: text("uploaded_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -666,6 +668,7 @@ export const pwDamageRecords = pgTable("pw_damage_records", {
   description: text("description").notNull(),
   severity: text("severity").notNull().default("minor"),
   photoId: text("photo_id"),
+  artworkId: text("artwork_id"),
   recordedBy: text("recorded_by"),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
