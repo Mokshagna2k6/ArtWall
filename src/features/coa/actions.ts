@@ -219,6 +219,20 @@ export async function addProvenanceEvent(input: {
 
 /* ── Mint Commitments ────────────────────────────────────────────────────── */
 
+/**
+ * ERC-2981 royalty for new mints, in basis points. Interim: one platform-wide
+ * value from MINT_ROYALTY_BPS (default 400 = 4%) until per-artist royalty
+ * policy exists. Misconfiguration throws rather than minting a wrong royalty.
+ */
+function mintRoyaltyBps(): number {
+  const raw = process.env.MINT_ROYALTY_BPS ?? "400";
+  const bps = Number(raw);
+  if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) {
+    throw new Error(`MINT_ROYALTY_BPS must be an integer 0–10000, got "${raw}"`);
+  }
+  return bps;
+}
+
 export async function createMintCommitment(artworkId: string) {
   const userId = await getUserId();
   const [cert] = await db
@@ -232,12 +246,18 @@ export async function createMintCommitment(artworkId: string) {
     .from(artistProfiles)
     .where(eq(artistProfiles.userId, userId));
 
-  const wallet = profile?.walletAddress ?? "0x0000000000000000000000000000000000000000";
+  // The wallet is both the mint recipient and the ERC-2981 royalty receiver.
+  // Never fall back to the zero address: tokens and royalties sent there are burned.
+  const wallet = profile?.walletAddress?.trim() ?? "";
+  if (!/^0x[0-9a-fA-F]{40}$/.test(wallet) || /^0x0{40}$/.test(wallet)) {
+    throw new Error("Connect a wallet before minting: it receives the token and your royalties.");
+  }
+  const royaltyBps = mintRoyaltyBps();
   const leafHash = computeLeafHash({
     artworkId,
     metadataHash: cert.metadataHash,
     walletAddress: wallet,
-    royaltyBps: 400,
+    royaltyBps,
   });
 
   const id = newId("mint");
@@ -248,7 +268,7 @@ export async function createMintCommitment(artworkId: string) {
     userId,
     leafHash,
     walletAddress: wallet,
-    erc2981RoyaltyBps: 400,
+    erc2981RoyaltyBps: royaltyBps,
     status: "pending",
   });
 
@@ -271,6 +291,7 @@ export async function verifyCertificateByHash(hash: string) {
   const [cert] = await db
     .select({
       id: coaCertificates.id,
+      artworkId: coaCertificates.artworkId,
       status: coaCertificates.status,
       issuedAt: coaCertificates.issuedAt,
       artworkTitle: artworks.title,
@@ -288,9 +309,20 @@ export async function verifyCertificateByHash(hash: string) {
   return cert ?? null;
 }
 
+/**
+ * Public provenance for a verified certificate's artwork, newest first. Keyed
+ * on the ARTWORK id (provenance_events.artwork_id), not the certificate id.
+ * Public fields only: no actor ids or internal metadata.
+ */
 export async function getProvenanceTimeline(artworkId: string) {
   return db
-    .select()
+    .select({
+      id: provenanceEvents.id,
+      eventType: provenanceEvents.eventType,
+      label: provenanceEvents.label,
+      txHash: provenanceEvents.txHash,
+      occurredAt: provenanceEvents.occurredAt,
+    })
     .from(provenanceEvents)
     .where(eq(provenanceEvents.artworkId, artworkId))
     .orderBy(desc(provenanceEvents.occurredAt));
