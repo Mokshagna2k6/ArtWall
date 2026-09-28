@@ -1,8 +1,8 @@
-import { BarChart3 } from "lucide-react";
 import {
-  StudioEmptyState,
+  StudioNotAvailable,
   StudioPageHeader,
 } from "@/components/dashboard/studio-shell";
+
 export default function ReportsPage() {
   return (
     <div className="flex flex-col gap-8">
@@ -11,13 +11,7 @@ export default function ReportsPage() {
         title="Reports"
         description="Clear views into your catalogue, activity, and the health of your practice."
       />
-      <div className="studio-card">
-        <StudioEmptyState
-          title="Reports will appear here"
-          description="Once your catalogue has a little history, this space will turn it into useful, exportable views."
-          action={<BarChart3 className="text-studio-accent" aria-hidden />}
-        />
-      </div>
+      <StudioNotAvailable what="Reporting" />
     </div>
   );
 }

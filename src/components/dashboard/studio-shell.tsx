@@ -4,16 +4,17 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
-  Bell,
+  BadgeCheck,
   CalendarDays,
   ChevronDown,
   ClipboardList,
   FolderKanban,
+  GalleryHorizontal,
   Grid2X2,
   LayoutDashboard,
   Menu,
-  Search,
   Settings2,
+  Tag,
   Users,
   X,
 } from "lucide-react";
@@ -26,6 +27,9 @@ const navigation = [
   { label: "Artworks", href: "/studio/artworks", icon: Grid2X2 },
   { label: "Collections", href: "/studio/collections", icon: FolderKanban },
   { label: "Contacts", href: "/studio/contacts", icon: Users },
+  { label: "Certificates", href: "/studio/certificates", icon: BadgeCheck },
+  { label: "Exhibitions", href: "/studio/exhibitions", icon: GalleryHorizontal },
+  { label: "Tags", href: "/studio/tags", icon: Tag },
   { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
   { label: "Tasks", href: "/studio/tasks", icon: ClipboardList },
 ];
@@ -122,15 +126,7 @@ export function StudioShell({
           >
             <Menu />
           </button>
-          <div className="studio-search">
-            <Search aria-hidden />
-            <span>Search artworks, contacts, exhibitions</span>
-            <kbd>⌘ K</kbd>
-          </div>
           <div className="ml-auto flex items-center gap-3">
-            <button className="studio-icon-button" aria-label="Notifications">
-              <Bell />
-            </button>
             {avatarUrl ? (
               <div className="studio-avatar relative overflow-hidden rounded-full">
                 <Image
@@ -231,6 +227,18 @@ export function StudioEmptyState({
         {description}
       </p>
       {action && <div className="mt-5">{action}</div>}
+    </div>
+  );
+}
+
+/** Honest placeholder for a studio module that has no backend yet. */
+export function StudioNotAvailable({ what }: { what: string }) {
+  return (
+    <div className="studio-card">
+      <StudioEmptyState
+        title="Not yet available"
+        description={`${what} isn't built yet. Nothing here is saved or tracked, and no data on this page is real. It will appear here once it ships.`}
+      />
     </div>
   );
 }

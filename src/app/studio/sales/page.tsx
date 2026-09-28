@@ -1,7 +1,5 @@
-import { ArrowRight } from "lucide-react";
 import { getSales } from "@/app/actions/workspaces";
 import {
-  StudioButton,
   StudioEmptyState,
   StudioPageHeader,
 } from "@/components/dashboard/studio-shell";
@@ -21,12 +19,6 @@ export default async function SalesPage() {
           <StudioEmptyState
             title="Your pipeline is clear"
             description="When a collector asks about a work, add the opportunity here to keep the next step visible."
-            action={
-              <StudioButton>
-                <ArrowRight data-icon="inline-start" />
-                Add first opportunity
-              </StudioButton>
-            }
           />
         </div>
       ) : (
