@@ -18,6 +18,9 @@ import {
 } from "@/features/physical-wall/actions/shared";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getSql } from "@/lib/db";
+import { isOwnAsset } from "@/lib/cloudinary";
+import { getSessionUser } from "@/lib/session";
+import { UGC_UPLOAD_FOLDER } from "@/features/physical-wall/image-validation";
 import { ugcSubmitSchema, ugcModerateSchema } from "@/features/physical-wall/schema";
 
 async function rotatingKey(prefix: string): Promise<string> {
@@ -44,29 +47,69 @@ export async function submitUgc(
     const parsed = ugcSubmitSchema.safeParse({
       caption: formData.get("caption"),
       imageUrl: formData.get("imageUrl"),
+      cloudinaryId: formData.get("cloudinaryId"),
       visitId: formData.get("visitId") || undefined,
       consent: formData.get("consent") === "on",
       adultConfirmed: formData.get("adultConfirmed") === "on",
     });
     if (!parsed.success) return fail(firstIssue(parsed.error));
 
-    const { caption, imageUrl, visitId } = parsed.data;
+    const { caption, imageUrl, cloudinaryId, visitId } = parsed.data;
 
-    const sql = getSql();
+    // The browser uploads straight to Cloudinary and reports back the URL and
+    // public id, so both are untrusted: the URL must be one of our own assets
+    // in the UGC folder, and must actually be the asset the id names.
+    if (
+      !isOwnAsset(imageUrl, UGC_UPLOAD_FOLDER) ||
+      !cloudinaryId.startsWith(`${UGC_UPLOAD_FOLDER}/`) ||
+      !imageUrl.includes(`/${cloudinaryId}`)
+    ) {
+      return fail("That photo did not come from our uploader. Please upload it again.");
+    }
+
+    // Signed-in submitters are linked so their UGC shows up in a DPDP export
+    // and is erased with their account. A registered visitor is linked through
+    // their visit; anyone else is an anonymous guest.
+    const user = await getSessionUser();
     const id = newId("ugc");
-    const consentId = newId("cns");
-
-    await sql`
-      insert into pw_consents (id, purpose, granted, notice_version)
-      values (${consentId}, 'ugc_display', true, 'v1')
-    `;
 
     await inTransaction(async (client) => {
+      let visitorId: string | null = null;
+      if (!user && visitId) {
+        const visit = await client.query<{ visitor_id: string }>(
+          `select visitor_id from pw_visits where id = $1`,
+          [visitId]
+        );
+        visitorId = visit.rows[0]?.visitor_id ?? null;
+      }
+
+      // One live 'ugc_publication' consent per person (unique partial index),
+      // reused across their submissions; a guest's consent is per submission.
+      let consentId: string | null = null;
+      if (user || visitorId) {
+        const live = await client.query<{ id: string }>(
+          `select id from pw_consents
+           where purpose = 'ugc_publication' and withdrawn_at is null
+             and ${user ? "user_id" : "visitor_id"} = $1
+           limit 1`,
+          [user?.id ?? visitorId]
+        );
+        consentId = live.rows[0]?.id ?? null;
+      }
+      if (!consentId) {
+        consentId = newId("cns");
+        await client.query(
+          `insert into pw_consents (id, user_id, visitor_id, purpose, granted, notice_version)
+           values ($1, $2, $3, 'ugc_publication', true, 'v1')`,
+          [consentId, user?.id ?? null, visitorId]
+        );
+      }
+
       await client.query(
         `insert into pw_ugc_submissions
-           (id, visitor_id, caption, cloudinary_id, url, consent_id, status, kind)
-         values ($1, $2, $3, $4, $5, $6, 'pending', 'selfie')`,
-        [id, visitId ?? null, caption, imageUrl, imageUrl, consentId]
+           (id, user_id, visitor_id, caption, cloudinary_id, url, consent_id, status, kind)
+         values ($1, $2, $3, $4, $5, $6, $7, 'pending', 'selfie')`,
+        [id, user?.id ?? null, visitorId, caption, cloudinaryId, imageUrl, consentId]
       );
 
       await recordAuditIn(client, {

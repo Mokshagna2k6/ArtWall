@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 
 import { createUploadSignature } from "@/lib/cloudinary";
 
-const UGC_UPLOAD_FOLDER = "artwall/ugc";
+export const UGC_UPLOAD_FOLDER = "artwall/ugc";
 
 export interface UgcUploadSignature {
   signature: string;

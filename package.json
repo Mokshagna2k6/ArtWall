@@ -15,12 +15,17 @@
     "db:check": "node --env-file=.env scripts/db-check.mts",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:db": "vitest run --config vitest.db.config.ts",
     "db:seed-accounts": "node --env-file=.env scripts/seed-accounts.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@neondatabase/serverless": "^1.1.0",
+<<<<<<< HEAD
     "@rainbow-me/rainbowkit": "^2.2.11",
+=======
+    "@noble/hashes": "2.3.0",
+>>>>>>> worktree-agent-a4633a858d88b8df9
     "@swc/helpers": "0.5.15",
     "@tanstack/react-query": "^5.104.0",
     "@types/qrcode": "^1.5.6",
