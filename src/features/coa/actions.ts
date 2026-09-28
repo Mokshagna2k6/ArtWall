@@ -271,8 +271,11 @@ export async function verifyCertificateByHash(hash: string) {
   const [cert] = await db
     .select({
       id: coaCertificates.id,
+      artworkId: coaCertificates.artworkId,
+      ownerId: coaCertificates.userId,
       status: coaCertificates.status,
       issuedAt: coaCertificates.issuedAt,
+      revokedAt: coaCertificates.revokedAt,
       artworkTitle: artworks.title,
       artworkImage: artworks.imageUrl,
       medium: artworks.medium,
@@ -284,8 +287,13 @@ export async function verifyCertificateByHash(hash: string) {
     .innerJoin(artworks, eq(coaCertificates.artworkId, artworks.id))
     .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
     .where(eq(coaCertificates.metadataHash, hash));
+  if (!cert) return null;
 
-  return cert ?? null;
+  // Callable as a public server action, so never hand back the owner's user id;
+  // just whether the current viewer is that owner (gates the mint panel).
+  const { ownerId, ...rest } = cert;
+  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
+  return { ...rest, viewerIsOwner: session?.user.id === ownerId };
 }
 
 export async function getProvenanceTimeline(artworkId: string) {
