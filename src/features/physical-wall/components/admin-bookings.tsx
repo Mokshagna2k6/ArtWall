@@ -85,8 +85,16 @@ function BookingRow({
         {booking.status === "held" && (
           <form action={payAction} className="flex flex-col gap-3">
             <input type="hidden" name="bookingId" value={booking.id} />
+            <Field label="Offline payment method" htmlFor={`method-${booking.id}`}>
+              <select id={`method-${booking.id}`} name="method" required className={inputClass}>
+                <option value="upi">UPI</option>
+                <option value="bank_transfer">Bank transfer</option>
+                <option value="cash">Cash</option>
+                <option value="cheque">Cheque</option>
+              </select>
+            </Field>
             <Field
-              label="How did the money arrive?"
+              label="Payment reference"
               htmlFor={`note-${booking.id}`}
               hint={
                 paymentsEnabled

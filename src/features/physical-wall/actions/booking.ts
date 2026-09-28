@@ -13,7 +13,7 @@ import {
 import { getActiveGrid, getOccupancyPct } from "@/features/physical-wall/data/wall";
 import { formatINR } from "@/features/physical-wall/money";
 import { quote, refundAmountPaise, type Quote } from "@/features/physical-wall/pricing";
-import { createRefund, isRazorpayConfigured } from "@/features/physical-wall/razorpay";
+import { processRefund, queueRefundIn } from "@/features/physical-wall/refunds";
 import {
   cancelBookingSchema,
   quoteRequestSchema,
@@ -493,24 +493,15 @@ export async function cancelBooking(
         ]
       );
 
+      let refundId: string | null = null;
       if (refundPaise > 0) {
-        let razorpayRefundId: string | null = null;
-        if (isRazorpayConfigured()) {
-          const payment = await client.query<{ payment_id: string }>(
-            `select payment_id from pw_payments
-             where booking_id = $1 and provider = 'razorpay' and status = 'captured' and payment_id is not null
-             order by created_at desc limit 1`,
-            [booking.id]
-          );
-          if (payment.rows[0]?.payment_id) {
-            const refund = await createRefund(
-              payment.rows[0].payment_id,
-              refundPaise,
-              booking.id
-            );
-            razorpayRefundId = refund.id;
-          }
-        }
+        const note = reason ?? "Artist-initiated cancellation";
+        ({ refundId } = await queueRefundIn(client, {
+          bookingId: booking.id,
+          amountPaise: refundPaise,
+          reason: note,
+          actorId: actor.id,
+        }));
 
         await client.query(
           `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by, booking_id)
@@ -519,7 +510,7 @@ export async function cancelBooking(
           [
             newId("led"),
             refundPaise,
-            `Refund for ${booking.id} — ${policyLabel}${razorpayRefundId ? ` (${razorpayRefundId})` : ""}. Artist-initiated.`,
+            `Refund for ${booking.id} — ${policyLabel} (${refundId}). Artist-initiated.`,
             `refund:${booking.id}`,
             actor.id,
             booking.id,
@@ -558,8 +549,12 @@ export async function cancelBooking(
         },
       });
 
-      return { refundPaise, policyLabel };
+      return { refundPaise, policyLabel, refundId };
     });
+
+    // After commit, outside the transaction: the refund row is durable, so a
+    // failure or crash here is retried by /api/cron/refunds.
+    if (outcome.refundId) await processRefund(outcome.refundId);
 
     updateTag(WALL_TAG);
     updateTag(LEDGER_TAG);
