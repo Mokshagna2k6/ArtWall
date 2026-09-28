@@ -44,18 +44,16 @@ for (const file of files) {
     continue;
   }
 
-  const statements = (await readFile(join(DIR, file), "utf8"))
-    .replace(/^\s*--.*$/gm, "")
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  // The whole file goes to the server as one simple-protocol query. Postgres
+  // parses it itself, so dollar-quoted ($$) function/trigger bodies, semicolons
+  // inside string literals and trailing comments all just work. Splitting on
+  // ";" client-side (the old approach) broke every PL/pgSQL body.
+  const body = await readFile(join(DIR, file), "utf8");
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    for (const statement of statements) {
-      await client.query(statement);
-    }
+    await client.query(body);
     await client.query("INSERT INTO _migrations (name) VALUES ($1)", [file]);
     await client.query("COMMIT");
     console.log(`✓ ${file}`);
