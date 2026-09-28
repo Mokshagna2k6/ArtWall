@@ -1,3 +1,6 @@
+import Link from "next/link";
+
+import { getStudioArtistProfile } from "@/app/actions/artist-profile";
 import { getArtworks } from "@/app/actions/artworks";
 import {
   StudioEmptyState,
@@ -10,7 +13,11 @@ import {
 import { getArtTags } from "@/features/art-tags/actions";
 
 export default async function TagsPage() {
-  const [tags, works] = await Promise.all([getArtTags(), getArtworks()]);
+  const [tags, works, profile] = await Promise.all([
+    getArtTags(),
+    getArtworks(),
+    getStudioArtistProfile(),
+  ]);
   const artworks = works.map((a) => ({ id: a.id, title: a.title }));
 
   return (
@@ -20,6 +27,18 @@ export default async function TagsPage() {
         title="ArtTags"
         description="QR and NFC tags that lead a scan straight to the work. Bind a tag to one of your artworks; a scan only shows it while the work is public."
       />
+      {!profile.published && (
+        // resolveTagScan hides every work of an unpublished artist, so without
+        // this the "Artwork is public" box would promise more than a scan shows.
+        <p role="note" className="studio-card text-studio-muted p-4 text-sm">
+          Your profile is not published yet, so scans show &ldquo;not public
+          right now&rdquo; even for public works. Publish it from{" "}
+          <Link href="/studio/settings" className="text-studio-accent hover:underline">
+            Settings
+          </Link>
+          .
+        </p>
+      )}
       <CreateTagForm artworks={artworks} />
       {tags.length === 0 ? (
         <div className="studio-card">

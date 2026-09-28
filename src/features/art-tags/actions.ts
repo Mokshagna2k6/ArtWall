@@ -60,7 +60,8 @@ export async function createTag(input: {
     tagUid: input.tagUid,
     artworkId: input.artworkId ?? null,
     boundBy: userId,
-    boundAt: new Date(),
+    // Same invariant as unbindTag: no artwork, no bound_at.
+    boundAt: input.artworkId ? new Date() : null,
   });
 
   revalidatePath("/studio/tags");
