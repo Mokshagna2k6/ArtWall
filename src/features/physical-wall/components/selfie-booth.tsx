@@ -17,6 +17,7 @@ export function SelfieBooth({ visitId }: { visitId?: string }) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [cloudinaryId, setCloudinaryId] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const submitted = state.status === "ok";
@@ -29,6 +30,7 @@ export function SelfieBooth({ visitId }: { visitId?: string }) {
     setProgress(0);
     setPreview(null);
     setCloudinaryId(null);
+    setUploadError(null);
 
     try {
       const sigRes = await fetch("/api/physical-wall/ugc/upload-signature", {
@@ -36,7 +38,7 @@ export function SelfieBooth({ visitId }: { visitId?: string }) {
       });
       const sigData = await sigRes.json();
       if (!sigData.ok || !sigData.signature) {
-        throw new Error(sigData.message || "Could not get upload signature.");
+        throw new Error(sigData.error || "Could not get upload signature.");
       }
 
       const { signature, timestamp, apiKey, cloudName, folder } = sigData.signature;
@@ -82,6 +84,9 @@ export function SelfieBooth({ visitId }: { visitId?: string }) {
     } catch (err) {
       console.error("[selfie-booth] upload", err);
       setPreview(null);
+      setUploadError(
+        `${err instanceof Error ? err.message : "Upload failed."} Please choose the photo again.`
+      );
     } finally {
       setUploading(false);
     }
@@ -129,6 +134,11 @@ export function SelfieBooth({ visitId }: { visitId?: string }) {
                   style={{ width: `${progress}%` }}
                 />
               </div>
+            )}
+            {uploadError && (
+              <p role="alert" className="mt-2 text-sm text-red-600">
+                {uploadError}
+              </p>
             )}
             {preview && (
               <div className="mt-2 overflow-hidden rounded-md border">
