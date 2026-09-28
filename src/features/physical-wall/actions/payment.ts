@@ -1,6 +1,6 @@
 "use server";
 
-import { updateTag } from "next/cache";
+import { revalidateTag, updateTag } from "next/cache";
 import type { PoolClient } from "pg";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -278,7 +278,11 @@ async function settleBooking(
 }
 
 /** Settle, then (outside the transaction) send any auto-refund it queued. */
-async function settleAndRefund(options: Parameters<typeof settleBooking>[1]): Promise<SettleResult> {
+async function settleAndRefund(
+  options: Parameters<typeof settleBooking>[1],
+  // updateTag only works inside a Server Action; the webhook Route Handler passes revalidateTag.
+  expireTag: (tag: string) => void = updateTag
+): Promise<SettleResult> {
   const outcome = await inTransaction((client) => settleBooking(client, options));
   if (outcome.result === "refund-queued") await processRefund(outcome.refundId);
   if (outcome.result === "settled") {
@@ -294,8 +298,8 @@ async function settleAndRefund(options: Parameters<typeof settleBooking>[1]): Pr
       totalPaise: Number(b.total_amount_paise),
     }));
   }
-  updateTag(WALL_TAG);
-  updateTag(LEDGER_TAG);
+  expireTag(WALL_TAG);
+  expireTag(LEDGER_TAG);
   return outcome;
 }
 
@@ -455,6 +459,6 @@ export async function settleFromWebhook(options: {
     status: "captured",
     actor: null,
     note: "Razorpay webhook",
-  });
+  }, (tag) => revalidateTag(tag, "max"));
   return outcome.result;
 }
