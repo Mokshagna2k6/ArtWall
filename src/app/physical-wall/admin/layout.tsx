@@ -1,10 +1,16 @@
 import Link from "next/link";
 import {
+  BadgeCheck,
   CalendarDays,
   ClipboardCheck,
   FileText,
+  IdCard,
   ImageIcon,
+  IndianRupee,
   LayoutGrid,
+  MessageSquareWarning,
+  ScrollText,
+  SquareX,
   TrendingUp,
   Users,
   Wallet,
@@ -20,7 +26,14 @@ const ITEMS = [
   { href: "/physical-wall/admin/queue", label: "Queue", icon: Users },
   { href: "/physical-wall/admin/catalogs", label: "Pricing", icon: Wallet },
   { href: "/physical-wall/admin/ledger", label: "Ledger", icon: ClipboardCheck },
+  { href: "/physical-wall/admin/revenue", label: "Revenue", icon: IndianRupee },
   { href: "/physical-wall/admin/moderation", label: "Moderation", icon: ImageIcon },
+  { href: "/physical-wall/admin/grievances", label: "Grievances", icon: MessageSquareWarning },
+  { href: "/physical-wall/admin/identity", label: "Identity", icon: IdCard },
+  { href: "/physical-wall/admin/curators", label: "Curators", icon: BadgeCheck },
+  { href: "/physical-wall/admin/audit", label: "Audit log", icon: ScrollText },
+  // The virtual wall's tile takedown console lives outside /physical-wall.
+  { href: "/admin", label: "Virtual wall tiles", icon: SquareX },
 ] as const;
 
 /**

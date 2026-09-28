@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { IDLE } from "@/features/physical-wall/action-state";
 import { moderateUgc, listPendingUgc } from "@/features/physical-wall/actions/ugc";
@@ -24,9 +24,10 @@ export function AdminModeration() {
     setLoading(false);
   }
 
-  useState(() => {
-    refresh();
-  });
+  // Load once on mount. (Was a useState initializer, i.e. setState during render.)
+  useEffect(() => {
+    void refresh();
+  }, []);
 
   return (
     <div className="flex flex-col gap-6">

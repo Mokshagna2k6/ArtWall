@@ -2,11 +2,11 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/index";
-import { curators, curatorPicks, artworks, artistProfiles } from "@/lib/db/schema";
+import { curators, curatorPicks, artworks, artistProfiles, user } from "@/lib/db/schema";
 import { recordAuditIn } from "@/features/physical-wall/audit";
 import { requireRole } from "@/features/physical-wall/authorize";
 import { inTransaction } from "@/features/physical-wall/actions/shared";
@@ -135,4 +135,23 @@ export async function approveCurator(curatorId: string) {
 export async function suspendCurator(curatorId: string, reason: string) {
   if (!reason?.trim()) throw new Error("Give a reason for suspending this curator.");
   return moveCurator(curatorId, "active", "suspended", "curator.suspended", reason.trim());
+}
+
+/** Admin: curators awaiting a decision, plus active ones (suspendable). */
+export async function getCuratorsForReview() {
+  await requireRole("admin");
+  return db
+    .select({
+      id: curators.id,
+      displayName: curators.displayName,
+      bio: curators.bio,
+      status: curators.status,
+      commissionBps: curators.commissionBps,
+      createdAt: curators.createdAt,
+      email: user.email,
+    })
+    .from(curators)
+    .innerJoin(user, eq(curators.userId, user.id))
+    .where(inArray(curators.status, ["pending", "active"]))
+    .orderBy(curators.status, desc(curators.createdAt));
 }
