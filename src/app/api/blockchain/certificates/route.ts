@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/lib/db/index";
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
     const [artwork] = await db
       .select({ id: artworks.id, title: artworks.title })
       .from(artworks)
-      .where(eq(artworks.id, input.artworkId));
+      .where(and(eq(artworks.id, input.artworkId), eq(artworks.userId, user.id)));
     if (!artwork) return apiError("not_found", { reqId, details: "artwork not found" });
 
     const certId = `coa_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;

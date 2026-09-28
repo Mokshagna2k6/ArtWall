@@ -36,7 +36,7 @@ const nextConfig: NextConfig = {
                 "https://api.razorpay.com https://checkout.razorpay.com https://lumberjack.razorpay.com",
                 "https://*.walletconnect.com wss://*.walletconnect.com",
                 "https://*.walletconnect.org wss://*.walletconnect.org",
-                "https://*.reown.com wss://*.reown.com",
+                "https://*.reown.com wss://*.reown.com https://*.web3modal.org https://*.web3modal.com",
                 "https://sepolia.base.org https://mainnet.base.org",
               ].join(" "),
               "frame-src https://checkout.razorpay.com https://api.razorpay.com https://verify.walletconnect.com https://verify.walletconnect.org",
