@@ -31,6 +31,7 @@ export async function getArtTags() {
       scanCount: artTags.scanCount,
       boundAt: artTags.boundAt,
       artworkTitle: artworks.title,
+      artworkIsPublic: artworks.isPublic,
     })
     .from(artTags)
     .leftJoin(artworks, eq(artTags.artworkId, artworks.id))
@@ -74,10 +75,29 @@ export async function bindTagToArtwork(tagId: string, artworkId: string) {
     .where(and(eq(artTags.id, tagId), eq(artTags.boundBy, userId)));
   if (!tag) throw new Error("Tag not found");
 
+  // Only to your own work: a scan shows whatever the tag is bound to.
+  const [artwork] = await db
+    .select({ id: artworks.id })
+    .from(artworks)
+    .where(and(eq(artworks.id, artworkId), eq(artworks.userId, userId)));
+  if (!artwork) throw new Error("Artwork not found");
+
   await db
     .update(artTags)
     .set({ artworkId, boundAt: new Date() })
     .where(eq(artTags.id, tagId));
+
+  revalidatePath("/studio/tags");
+}
+
+export async function unbindTag(tagId: string) {
+  const userId = await getUserId();
+  const [row] = await db
+    .update(artTags)
+    .set({ artworkId: null, boundAt: null })
+    .where(and(eq(artTags.id, tagId), eq(artTags.boundBy, userId)))
+    .returning({ id: artTags.id });
+  if (!row) throw new Error("Tag not found");
 
   revalidatePath("/studio/tags");
 }
@@ -119,7 +139,14 @@ export async function resolveTagScan(tagUid: string, ip?: string, ua?: string) {
     })
     .from(artworks)
     .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
-    .where(eq(artworks.id, tag.artworkId));
+    // A scan must not reveal a private work or an unpublished artist.
+    .where(
+      and(
+        eq(artworks.id, tag.artworkId),
+        eq(artworks.isPublic, true),
+        eq(artistProfiles.published, true)
+      )
+    );
 
-  return { tagId: tag.id, artwork: artwork ?? null };
+  return { tagId: tag.id, artwork: artwork ?? null, private: !artwork };
 }
