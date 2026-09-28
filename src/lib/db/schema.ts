@@ -281,6 +281,8 @@ export const pwSettings = pgTable("pw_settings", {
   groupDiscountTiers: jsonb("group_discount_tiers").notNull().default([]),
   venueOpenHour: integer("venue_open_hour").notNull().default(11),
   venueCloseHour: integer("venue_close_hour").notNull().default(22),
+  /** Concurrent install windows the venue team can run (BE-1.15). */
+  installCapacity: integer("install_capacity").notNull().default(2),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
