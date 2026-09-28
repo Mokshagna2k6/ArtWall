@@ -12,6 +12,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:migrate": "node --env-file=.env scripts/migrate.mjs",
+    "db:check": "node --env-file=.env scripts/db-check.mts",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:seed-accounts": "node --env-file=.env scripts/seed-accounts.mjs"

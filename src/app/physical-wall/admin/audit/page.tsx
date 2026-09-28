@@ -38,10 +38,10 @@ export default async function AuditLogPage({
   const where = filter ? { action: `${filter}%` } : null;
 
   const entries = (await sql`
-    select id, actor_label, action, subject_type, subject_id, before, after, created_at
+    select id, actor_label, action, subject_type, subject_id, before, after, at as created_at
     from pw_audit_log
     ${where ? sql`where action like ${where.action}` : sql``}
-    order by created_at desc
+    order by at desc
     limit ${PAGE_SIZE + 1} offset ${offset}
   `) as {
     id: string;
