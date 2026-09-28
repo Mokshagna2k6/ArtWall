@@ -7,6 +7,9 @@ import { eq, and, desc } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/index";
 import { curators, curatorPicks, artworks, artistProfiles } from "@/lib/db/schema";
+import { recordAuditIn } from "@/features/physical-wall/audit";
+import { requireRole } from "@/features/physical-wall/authorize";
+import { inTransaction } from "@/features/physical-wall/actions/shared";
 
 async function getUserId() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -79,4 +82,57 @@ export async function getCuratorPicks(curatorId: string) {
     .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
     .where(eq(curatorPicks.curatorId, curatorId))
     .orderBy(desc(curatorPicks.createdAt));
+}
+
+/**
+ * Curator commission, fixed at approval time (BE-1.26). Interim policy: one
+ * platform-wide rate from CURATOR_COMMISSION_BPS (default 1000 = 10%) until a
+ * tiered commission policy exists. Stored on the curator row so a later policy
+ * change never re-prices an approved curator.
+ */
+function curatorCommissionBps(): number {
+  const raw = process.env.CURATOR_COMMISSION_BPS ?? "1000";
+  const bps = Number(raw);
+  if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) {
+    throw new Error(`CURATOR_COMMISSION_BPS must be an integer 0–10000, got "${raw}"`);
+  }
+  return bps;
+}
+
+/** Admin-only status change with an audit row, in one transaction. */
+async function moveCurator(curatorId: string, from: string, to: string, action: string, reason: string | null) {
+  const actor = await requireRole("admin");
+  const commissionBps = to === "active" ? curatorCommissionBps() : null;
+  const row = await inTransaction(async (client) => {
+    const { rows } = await client.query<{ id: string; status: string; commission_bps: number }>(
+      `update curators
+       set status = $3, commission_bps = coalesce($4, commission_bps)
+       where id = $1 and status = $2
+       returning id, status, commission_bps`,
+      [curatorId, from, to, commissionBps]
+    );
+    if (!rows[0]) throw new Error(`Curator not found or not ${from}.`);
+    await recordAuditIn(client, {
+      actor,
+      action,
+      subjectType: "curator",
+      subjectId: curatorId,
+      before: { status: from },
+      after: { status: to, commissionBps: rows[0].commission_bps, reason },
+    });
+    return rows[0];
+  });
+  revalidatePath("/discover");
+  return { id: row.id, status: row.status, commissionBps: row.commission_bps };
+}
+
+/** Admin: pending → active, commission fixed now (BE-1.24, BE-1.26). */
+export async function approveCurator(curatorId: string) {
+  return moveCurator(curatorId, "pending", "active", "curator.approved", null);
+}
+
+/** Admin: active → suspended, with a reason (BE-1.25). */
+export async function suspendCurator(curatorId: string, reason: string) {
+  if (!reason?.trim()) throw new Error("Give a reason for suspending this curator.");
+  return moveCurator(curatorId, "active", "suspended", "curator.suspended", reason.trim());
 }

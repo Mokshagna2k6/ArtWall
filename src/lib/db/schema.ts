@@ -281,6 +281,8 @@ export const pwSettings = pgTable("pw_settings", {
   groupDiscountTiers: jsonb("group_discount_tiers").notNull().default([]),
   venueOpenHour: integer("venue_open_hour").notNull().default(11),
   venueCloseHour: integer("venue_close_hour").notNull().default(22),
+  /** Concurrent install windows the venue team can run (BE-1.15). */
+  installCapacity: integer("install_capacity").notNull().default(2),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -351,6 +353,22 @@ export const pwPayments = pgTable("pw_payments", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+});
+
+/** Refunds owed/sent. Written before Razorpay is called — see 0022_be_refunds.sql. */
+export const pwRefunds = pgTable("pw_refunds", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  paymentId: text("payment_id"),
+  amountPaise: integer("amount_paise").notNull(),
+  status: text("status").notNull().default("pending"),
+  providerRefundId: text("provider_refund_id").unique(),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  reason: text("reason"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
 /**
@@ -618,6 +636,8 @@ export const pwNotifications = pgTable("pw_notifications", {
   attempts: integer("attempts").notNull().default(0),
   lastError: text("last_error"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
+  /** Scheduled sends go out once per key (0026). */
+  dedupeKey: text("dedupe_key"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -636,6 +656,8 @@ export const pwConditionPhotos = pgTable("pw_condition_photos", {
   itemKey: text("item_key").notNull(),
   cloudinaryId: text("cloudinary_id").notNull(),
   url: text("url").notNull(),
+  /** 'install' | 'deinstall' (0025). */
+  stage: text("stage").notNull().default("install"),
   uploadedBy: text("uploaded_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -648,6 +670,7 @@ export const pwDamageRecords = pgTable("pw_damage_records", {
   description: text("description").notNull(),
   severity: text("severity").notNull().default("minor"),
   photoId: text("photo_id"),
+  artworkId: text("artwork_id"),
   recordedBy: text("recorded_by"),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

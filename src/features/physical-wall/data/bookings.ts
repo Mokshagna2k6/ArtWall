@@ -1,6 +1,7 @@
 import "server-only";
 
 import type {
+  ConditionReport,
   Booking,
   BookingDetail,
   BookingStatus,
@@ -89,9 +90,10 @@ export async function listAllBookings(
 
     // Slots and add-ons for all of them in two more queries rather than N+1.
     const ids = rows.map((row) => String(row.id));
-    const [slotsByBooking, addonsByBooking] = await Promise.all([
+    const [slotsByBooking, addonsByBooking, conditionByBooking] = await Promise.all([
       loadSlots(ids),
       loadAddons(ids),
+      loadCondition(ids),
     ]);
 
     return rows.map((row) => ({
@@ -102,6 +104,7 @@ export async function listAllBookings(
       artworkImageUrl: (row.artwork_image_url as string) ?? null,
       slots: slotsByBooking.get(String(row.id)) ?? [],
       addons: addonsByBooking.get(String(row.id)) ?? [],
+      condition: conditionByBooking.get(String(row.id)) ?? { photos: [], damage: [] },
     }));
   } catch (error) {
     console.error("[physical-wall] Could not read bookings", error);
@@ -175,6 +178,56 @@ async function loadSlots(bookingIds: string[]) {
       quotedPricePaise: Number(row.quoted_price_paise),
     });
     map.set(key, list);
+  }
+  return map;
+}
+
+/** Condition photos and damage records per booking (BE-1.36/1.37), two queries. */
+async function loadCondition(bookingIds: string[]) {
+  const map = new Map<string, ConditionReport>();
+  if (bookingIds.length === 0) return map;
+  const entry = (id: string) => {
+    let report = map.get(id);
+    if (!report) map.set(id, (report = { photos: [], damage: [] }));
+    return report;
+  };
+
+  const sql = getSql();
+  const [photos, damage] = (await Promise.all([
+    sql.query(
+      `select booking_id, id, stage, item_key, url, created_at
+       from pw_condition_photos where booking_id = any($1::text[])
+       order by stage, item_key, created_at`,
+      [bookingIds]
+    ),
+    sql.query(
+      `select booking_id, id, item_key, description, severity, artwork_id, photo_id, resolved_at, created_at
+       from pw_damage_records where booking_id = any($1::text[])
+       order by created_at`,
+      [bookingIds]
+    ),
+  ])) as Record<string, unknown>[][];
+
+  for (const row of photos) {
+    entry(String(row.booking_id)).photos.push({
+      id: String(row.id),
+      stage: row.stage as "install" | "deinstall",
+      itemKey: String(row.item_key),
+      url: String(row.url),
+      createdAt: String(row.created_at),
+    });
+  }
+  for (const row of damage) {
+    entry(String(row.booking_id)).damage.push({
+      id: String(row.id),
+      itemKey: String(row.item_key),
+      description: String(row.description),
+      severity: row.severity as "minor" | "major",
+      artworkId: (row.artwork_id as string) ?? null,
+      photoId: (row.photo_id as string) ?? null,
+      resolvedAt: row.resolved_at ? String(row.resolved_at) : null,
+      createdAt: String(row.created_at),
+    });
   }
   return map;
 }

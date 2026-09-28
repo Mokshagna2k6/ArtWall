@@ -10,10 +10,11 @@ validateRazorpayConfig();
 /**
  * Razorpay webhook (F17).
  *
- * This route, and nothing else, is what makes a booking paid. A client callback
- * saying "payment succeeded" is a claim from an untrusted party; a
- * signature-verified webhook is Razorpay telling us directly. Trusting the
- * former is how a booking gets confirmed without money moving.
+ * The authoritative way a booking gets paid: Razorpay telling us directly. The
+ * client-side verifyPayment action is a fast path that also checks a signature
+ * and re-reads the payment from Razorpay; if the browser closes before it runs,
+ * this route still settles the booking. Both key the payment on its Razorpay
+ * payment id, so whichever arrives second is a no-op.
  *
  * Three properties matter and all three are here:
  *
@@ -21,7 +22,7 @@ validateRazorpayConfig();
  *    `request.json()` first and re-serialising reorders keys and changes
  *    whitespace, and the signature stops matching — so the text is read once,
  *    verified, and only then parsed.
- *  - **Idempotency.** Razorpay retries. The event id is stored on a unique
+ *  - **Idempotency.** Razorpay retries. The payment id is stored on a unique
  *    column, so a redelivery is a no-op rather than a second ledger entry.
  *  - **Always 200 on a handled event.** A non-2xx makes Razorpay retry, which
  *    is right for a transient failure and wrong for "we already have this" or
@@ -67,9 +68,10 @@ export async function POST(request: Request) {
   }
 
   const payment = event.payload?.payment?.entity;
-  const bookingId = payment?.notes?.bookingId;
+  // Notes are optional on a payment; settleFromWebhook falls back to our order row.
+  const bookingId = payment?.notes?.bookingId ?? null;
 
-  if (!bookingId || !payment?.id) {
+  if (!payment?.id || (!bookingId && !payment.order_id)) {
     console.error("[physical-wall] Webhook had no booking reference", event.event);
     return NextResponse.json({ error: "no booking reference" }, { status: 400 });
   }
@@ -98,6 +100,10 @@ export async function POST(request: Request) {
       amountPaise: paidAmountPaise,
     });
 
+    if (result === "unknown-order") {
+      // Not ours to settle, and retrying won't change that. Logged for reconciliation.
+      console.error("[physical-wall] Captured payment for an unknown order", payment.id, payment.order_id);
+    }
     return NextResponse.json({ status: result });
   } catch (error) {
     // A 500 here is deliberate: it asks Razorpay to retry, which is what we
