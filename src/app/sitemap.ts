@@ -11,6 +11,9 @@ import { features, siteConfig } from "@/config/site";
 import { db } from "@/lib/db/index";
 import { artistProfiles, artworks } from "@/lib/db/schema";
 
+// Regenerate hourly; otherwise the build-time snapshot never lists new work.
+export const revalidate = 3600;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const routes = Array.from(
     new Set(
