@@ -43,17 +43,17 @@ export async function generateInvoice(
     if (existing.length > 0) return fail("An invoice already exists for this booking.");
 
     const bookings = (await sql`
-      select b.id, b.total_paise, b.gst_paise, b.artist_id,
+      select b.id, b.total_amount_paise, b.gst_amount_paise, b.artist_id,
              u.name as artist_name, ap.location as artist_city
       from pw_bookings b
       join "user" u on u.id = b.artist_id
       left join artist_profiles ap on ap."userId" = b.artist_id
-      where b.id = ${bookingId} and b.status in ('paid', 'completed', 'live')
+      where b.id = ${bookingId} and b.status in ('paid', 'completed')
       limit 1
     `) as {
       id: string;
-      total_paise: number;
-      gst_paise: number;
+      total_amount_paise: number;
+      gst_amount_paise: number;
       artist_name: string;
       artist_city: string | null;
     }[];
@@ -61,10 +61,14 @@ export async function generateInvoice(
     if (bookings.length === 0) return fail("No paid booking found with that id.");
 
     const booking = bookings[0];
-    const netPaise = booking.total_paise - booking.gst_paise;
+    const totalPaise = booking.total_amount_paise;
+    const gstPaise = booking.gst_amount_paise;
+    const netPaise = totalPaise - gstPaise;
     const isIntraState = (booking.artist_city ?? "").toLowerCase().includes("rajasthan");
-    const cgstPaise = isIntraState ? Math.round(booking.gst_paise / 2) : 0;
-    const sgstPaise = isIntraState ? booking.gst_paise - cgstPaise : 0;
+    // Intra-state: CGST + SGST. Inter-state: IGST. Never both (DB CHECK, 0016).
+    const cgstPaise = isIntraState ? Math.round(gstPaise / 2) : 0;
+    const sgstPaise = isIntraState ? gstPaise - cgstPaise : 0;
+    const igstPaise = isIntraState ? 0 : gstPaise;
 
     const countRows = (await sql`
       select count(*)::int as n from pw_invoices
@@ -79,8 +83,8 @@ export async function generateInvoice(
         net_paise: netPaise,
         cgst_paise: cgstPaise,
         sgst_paise: sgstPaise,
-        igst_paise: isIntraState ? 0 : booking.gst_paise,
-        total_paise: booking.total_paise,
+        igst_paise: igstPaise,
+        total_paise: totalPaise,
       },
     ];
 
@@ -88,13 +92,13 @@ export async function generateInvoice(
     await sql`
       insert into pw_invoices
         (id, booking_id, number, issue_date, place_of_supply, hsn_sac,
-         gstin_supplier, net_paise, cgst_paise, sgst_paise, total_paise,
+         gstin_supplier, net_paise, cgst_paise, sgst_paise, igst_paise, total_paise,
          line_items, created_by)
       values (
         ${id}, ${bookingId}, ${invoiceNumber}, ${new Date().toISOString().slice(0, 10)},
         ${isIntraState ? "Rajasthan" : booking.artist_city ?? "Other"},
         ${HSN_WALL_RENTAL}, ${GSTIN_SUPPLIER},
-        ${netPaise}, ${cgstPaise}, ${sgstPaise}, ${booking.total_paise},
+        ${netPaise}, ${cgstPaise}, ${sgstPaise}, ${igstPaise}, ${totalPaise},
         ${JSON.stringify(lineItems)}::jsonb, ${actor.id}
       )
     `;
@@ -104,10 +108,10 @@ export async function generateInvoice(
       action: "invoice.generated",
       subjectType: "invoice",
       subjectId: id,
-      after: { number: invoiceNumber, totalPaise: booking.total_paise },
+      after: { number: invoiceNumber, totalPaise },
     });
 
-    return ok(`Invoice ${invoiceNumber} generated — ${formatINR(booking.total_paise)}.`);
+    return ok(`Invoice ${invoiceNumber} generated — ${formatINR(totalPaise)}.`);
   } catch (error) {
     return toActionError("generateInvoice", error);
   }

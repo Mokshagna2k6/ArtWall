@@ -642,6 +642,9 @@ export const pwInvoices = pgTable("pw_invoices", {
   netPaise: integer("net_paise").notNull(),
   cgstPaise: integer("cgst_paise").notNull(),
   sgstPaise: integer("sgst_paise").notNull(),
+  /** Inter-state tax (0016). CHECK: igst > 0 only when cgst = sgst = 0. */
+  igstPaise: integer("igst_paise").notNull().default(0),
+  /** CHECK: total = net + cgst + sgst + igst. */
   totalPaise: integer("total_paise").notNull(),
   lineItems: jsonb("line_items").notNull(),
   status: text("status").notNull().default("issued"),

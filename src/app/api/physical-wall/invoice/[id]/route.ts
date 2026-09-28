@@ -41,7 +41,7 @@ export async function GET(
     <thead><tr>
       <th>Description</th><th>HSN/SAC</th>
       <th class="right">Net</th><th class="right">CGST</th>
-      <th class="right">SGST</th><th class="right">Total</th>
+      <th class="right">SGST</th><th class="right">IGST</th><th class="right">Total</th>
     </tr></thead>
     <tbody>
       ${lines
@@ -53,12 +53,13 @@ export async function GET(
               <td class="right">${formatINR(Number(l.net_paise ?? 0))}</td>
               <td class="right">${formatINR(Number(l.cgst_paise ?? 0))}</td>
               <td class="right">${formatINR(Number(l.sgst_paise ?? 0))}</td>
+              <td class="right">${formatINR(Number(l.igst_paise ?? 0))}</td>
               <td class="right">${formatINR(Number(l.total_paise ?? 0))}</td>
             </tr>`
         )
         .join("")}
       <tr>
-        <td colspan="5" class="right total">Grand Total</td>
+        <td colspan="6" class="right total">Grand Total</td>
         <td class="right total">${formatINR(Number(invoice.total_paise))}</td>
       </tr>
     </tbody>
