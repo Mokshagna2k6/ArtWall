@@ -23,6 +23,8 @@ export const user = pgTable("user", {
   /** Identity verification. Required before a first payout, not before exhibiting. */
   verifiedAt: timestamp("verifiedAt", { withTimezone: true }),
   verificationMethod: text("verificationMethod"),
+  /** Set when a pw_identity_verifications review is approved (0009). Payout gate. */
+  identityVerified: boolean("identity_verified").notNull().default(false),
   /** Self-declared 18+. Null means not yet asked (DPDP §5.4). */
   ageDeclaredAdult: boolean("ageDeclaredAdult"),
   onboardedAt: timestamp("onboardedAt", { withTimezone: true }),
@@ -105,6 +107,8 @@ export const artworks = pgTable("artworks", {
   category: text("category"),
   pricePaise: integer("price_paise"),
   tags: text("tags").array(),
+  // search_tsv: generated tsvector owned by Postgres (0018), deliberately not
+  // modelled so select() on artworks doesn't ship it. Query it in raw SQL.
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
