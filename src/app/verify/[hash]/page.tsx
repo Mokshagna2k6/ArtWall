@@ -29,7 +29,7 @@ const TONE = {
 };
 
 export const metadata: Metadata = {
-  title: "Verify Certificate | ArtWall",
+  title: "Verify Certificate",
   description: "Verify an ArtWall Certificate of Authenticity",
 };
 

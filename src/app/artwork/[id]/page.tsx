@@ -17,7 +17,7 @@ export async function generateMetadata({
   const artwork = await getArtworkDetail(id);
   if (!artwork) return { title: "Artwork not found" };
   return {
-    title: `${artwork.title} by ${artwork.artistName} | ArtWall`,
+    title: `${artwork.title} by ${artwork.artistName}`,
     description:
       artwork.description?.slice(0, 160) ??
       `${artwork.title} — ${artwork.medium ?? "artwork"}`,

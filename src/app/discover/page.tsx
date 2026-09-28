@@ -10,7 +10,7 @@ import {
 import { formatINR } from "@/features/physical-wall/money";
 
 export const metadata: Metadata = {
-  title: "Discover Art | ArtWall",
+  title: "Discover Art",
   description:
     "Explore original artworks from India's finest contemporary artists.",
 };

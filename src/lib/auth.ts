@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { Pool } from "pg";
+import { pool } from "@/lib/db/index";
 
 const baseUrl =
   process.env.BETTER_AUTH_URL ??
@@ -32,7 +32,8 @@ const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
 export const auth = betterAuth({
-  database: new Pool({ connectionString: process.env.DATABASE_URL }),
+  // Shared pool: one set of connections and one place that handles dropped ones.
+  database: pool,
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: baseUrl,
   trustedOrigins,
