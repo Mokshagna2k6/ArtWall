@@ -114,8 +114,11 @@ describe("DPDP erasure (BE-1.28 – 1.33)", () => {
     actAs(u);
     const f = new FormData();
     f.set("confirm", "DELETE");
-    const res = await eraseMyData({ status: "idle" } as never, f);
-    expect(res.status).toBe("ok");
+    // Success redirects to the confirmation page (sessions are gone, so the
+    // account page itself would bounce to sign-in); redirect() throws.
+    await expect(eraseMyData({ status: "idle" } as never, f)).rejects.toThrow(
+      "redirect:/physical-wall/account/erased"
+    );
 
     // Gone
     for (const [sql, label] of [

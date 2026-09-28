@@ -1,6 +1,7 @@
 "use server";
 
 import { updateTag } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
@@ -277,12 +278,13 @@ export async function eraseMyData(
     await processAssetDeletions();
 
     updateTag(WALL_TAG);
-    return ok(
-      "Done. Your account, profile, artworks and uploads are deleted and you have been signed out everywhere. Bookings, payments, invoices and signed agreements are kept in pseudonymised form because tax and contract law require it."
-    );
   } catch (error) {
     return toActionError("eraseMyData", error);
   }
+  // The sessions are gone, so re-rendering the account page would bounce to
+  // sign-in and the result would never be seen. Land on the confirmation instead.
+  // Outside the try: redirect() works by throwing.
+  redirect("/physical-wall/account/erased");
 }
 
 const grievanceSchema = z.object({
