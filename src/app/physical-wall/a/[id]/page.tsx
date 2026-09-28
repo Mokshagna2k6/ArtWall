@@ -10,6 +10,7 @@ import {
   getPublicArtwork,
   getReactionCounts,
 } from "@/features/physical-wall/data/wall";
+import { JsonLd } from "@/components/seo/json-ld";
 
 export const revalidate = 60;
 
@@ -78,12 +79,7 @@ export default async function ArtworkPage({
 
   return (
     <main className="pt-20">
-      <script
-        type="application/ld+json"
-        // Values come from our own database and are serialised by JSON.stringify,
-        // which escapes the characters that could break out of a script tag.
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
 
       <article className="mx-auto max-w-5xl px-5 py-12 sm:px-8 md:py-16">
         <div className="grid gap-10 md:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
