@@ -80,6 +80,19 @@ export async function createArtwork(input: unknown) {
   revalidatePath("/studio");
   revalidatePath("/studio/artworks");
 }
+export async function setArtworkPublic(id: string, isPublic: boolean) {
+  const userId = await getUserId();
+  const [row] = await db
+    .update(artworks)
+    .set({ isPublic: Boolean(isPublic), updatedAt: new Date() })
+    .where(and(eq(artworks.id, id), eq(artworks.userId, userId)))
+    .returning({ id: artworks.id, isPublic: artworks.isPublic });
+  if (!row) throw new Error("Artwork not found");
+  revalidatePath("/studio/artworks");
+  revalidatePath("/studio/tags");
+  revalidatePath(`/artwork/${id}`);
+  return row;
+}
 export async function deleteArtwork(id: string) {
   const userId = await getUserId();
   await db
