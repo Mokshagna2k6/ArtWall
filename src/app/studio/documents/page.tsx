@@ -1,7 +1,5 @@
-import { FileText } from "lucide-react";
 import { getDocuments } from "@/app/actions/workspaces";
 import {
-  StudioButton,
   StudioEmptyState,
   StudioPageHeader,
 } from "@/components/dashboard/studio-shell";
@@ -21,12 +19,6 @@ export default async function DocumentsPage() {
           <StudioEmptyState
             title="No documents yet"
             description="Documents added to this workspace will be organized and permissioned here."
-            action={
-              <StudioButton>
-                <FileText data-icon="inline-start" />
-                Add first document
-              </StudioButton>
-            }
           />
         </div>
       ) : (
