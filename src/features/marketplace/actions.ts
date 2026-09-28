@@ -36,12 +36,12 @@ export async function discoverArtworks(filters: MarketplaceFilters = {}) {
 
   const orderBy =
     filters.sort === "price_asc"
-      ? sql`price_paise asc nulls last`
+      ? sql`"artworks"."price_paise" asc nulls last`
       : filters.sort === "price_desc"
-        ? sql`price_paise desc nulls last`
+        ? sql`"artworks"."price_paise" desc nulls last`
         : filters.sort === "title"
-          ? sql`title asc`
-          : sql`created_at desc`;
+          ? sql`"artworks"."title" asc`
+          : sql`"artworks"."createdAt" desc`;
 
   return db
     .select({
