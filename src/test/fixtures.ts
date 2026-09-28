@@ -133,6 +133,7 @@ export async function purgeTestData() {
     await client.query(`delete from pw_invoices where booking_id like $1`, [like]);
     await client.query(`delete from pw_ledger where booking_id like $1 or source_ref like '%betest\\_%'`, [like]);
     await client.query(`delete from pw_refunds where booking_id like $1`, [like]);
+    await client.query(`delete from pw_asset_deletions where public_id like '%betest%'`);
     await client.query(`delete from pw_payments where booking_id like $1`, [like]);
     await client.query(`delete from pw_condition_photos where booking_id like $1`, [like]);
     await client.query(`delete from pw_damage_records where booking_id like $1`, [like]);
