@@ -35,7 +35,8 @@ export async function ensureArtistProfile(user: AuthUser) {
     .where(eq(artistProfiles.handle, baseHandle))
     .limit(1);
   const handle = collision[0]
-    ? `${baseHandle}-${user.id.slice(0, 8)}`
+    ? // better-auth ids are mixed-case base62; the handle CHECK is ^[a-z0-9-]+$.
+      `${baseHandle}-${user.id.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8)}`
     : baseHandle;
 
   await db
