@@ -737,11 +737,31 @@ export const coaCertificates = pgTable("coa_certificates", {
   metadataHash: text("metadata_hash").notNull(),
   version: integer("version").notNull().default(1),
   pdfUrl: text("pdf_url"),
+  /**
+   * CHECK (0015): draft | issued | revoked            (off-chain COA)
+   *               metadata_pinned | minting | minted | failed  (NFT mint flow)
+   */
   status: text("status").notNull().default("draft"),
   issuedAt: timestamp("issued_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   revokeReason: text("revoke_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // NFT/mint fields (migration 0014). camelCase columns, unlike the rest of this table.
+  imageCid: text("imageCid"),
+  metadataCid: text("metadataCid"),
+  metadataUri: text("metadataUri"),
+  metadataSha256: text("metadataSha256"),
+  mintNonce: text("mintNonce"),
+  txHash: text("txHash"),
+  chainId: integer("chainId"),
+  contractAddr: text("contractAddr"),
+  tokenId: text("tokenId"),
+  mintedAt: timestamp("mintedAt", { withTimezone: true }),
+  mintRequestedAt: timestamp("mintRequestedAt", { withTimezone: true }),
+  mintError: text("mintError"),
+  creatorName: text("creatorName"),
+  objectType: text("objectType"),
+  privacy: text("privacy").default("public"),
 });
 
 export const provenanceEvents = pgTable("provenance_events", {
