@@ -8,6 +8,8 @@ import {
   visibleChildren,
 } from "@/config/nav";
 import { features, siteConfig } from "@/config/site";
+import { db } from "@/lib/db/index";
+import { artistProfiles, artworks } from "@/lib/db/schema";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const routes = Array.from(
@@ -24,8 +26,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         ),
         ...secondaryNavItems.map((item) => item.href),
         primaryCta.href,
-      ]
-        .map((href) => href.split("#")[0] || "/")
+      ].map((href) => href.split("#")[0] || "/")
     )
   );
 
@@ -36,47 +37,51 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: route === "/" ? 1 : 0.8,
   }));
 
-  // Dynamic artwork pages
-  let artworkEntries: MetadataRoute.Sitemap = [];
+  // A swallowed DB error here used to ship a sitemap with every artist and
+  // artwork silently missing. Log it and fail the request/build instead.
+  let rows: {
+    artworks: { id: string; updatedAt: Date }[];
+    artists: { handle: string; updatedAt: Date }[];
+  };
   try {
-    const { db } = await import("@/lib/db/index");
-    const { artworks } = await import("@/lib/db/schema");
-    const rows = await db
-      .select({ id: artworks.id, updatedAt: artworks.updatedAt })
-      .from(artworks)
-      .where(and(eq(artworks.isPublic, true), eq(artworks.status, "available")))
-      .limit(500);
+    rows = {
+      // Only works that are public AND whose artist has published their profile;
+      // /artwork/[id] 404s for anything else.
+      artworks: await db
+        .select({ id: artworks.id, updatedAt: artworks.updatedAt })
+        .from(artworks)
+        .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
+        .where(
+          and(eq(artworks.isPublic, true), eq(artistProfiles.published, true))
+        )
+        .limit(5000),
+      artists: await db
+        .select({
+          handle: artistProfiles.handle,
+          updatedAt: artistProfiles.updatedAt,
+        })
+        .from(artistProfiles)
+        .where(eq(artistProfiles.published, true))
+        .limit(5000),
+    };
+  } catch (error) {
+    console.error("[sitemap] could not load artworks/artists", error);
+    throw error;
+  }
 
-    artworkEntries = rows.map((r) => ({
+  return [
+    ...staticEntries,
+    ...rows.artworks.map((r) => ({
       url: new URL(`/artwork/${r.id}`, siteConfig.url).toString(),
       lastModified: r.updatedAt,
       changeFrequency: "monthly" as const,
       priority: 0.6,
-    }));
-  } catch {
-    // DB may not be available at build time
-  }
-
-  // Dynamic artist profile pages
-  let artistEntries: MetadataRoute.Sitemap = [];
-  try {
-    const { db } = await import("@/lib/db/index");
-    const { artistProfiles } = await import("@/lib/db/schema");
-    const rows = await db
-      .select({ handle: artistProfiles.handle, updatedAt: artistProfiles.updatedAt })
-      .from(artistProfiles)
-      .where(eq(artistProfiles.published, true))
-      .limit(500);
-
-    artistEntries = rows.map((r) => ({
+    })),
+    ...rows.artists.map((r) => ({
       url: new URL(`/artist/${r.handle}`, siteConfig.url).toString(),
       lastModified: r.updatedAt,
       changeFrequency: "weekly" as const,
       priority: 0.7,
-    }));
-  } catch {
-    // DB may not be available at build time
-  }
-
-  return [...staticEntries, ...artworkEntries, ...artistEntries];
+    })),
+  ];
 }
