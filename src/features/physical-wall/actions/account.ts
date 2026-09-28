@@ -3,7 +3,8 @@
 import { updateTag } from "next/cache";
 import { z } from "zod";
 
-import { recordAudit } from "@/features/physical-wall/audit";
+import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
+import { eraseUserIn, exportUserData, processAssetDeletions } from "@/features/physical-wall/data-rights";
 import { getActor, requireRole } from "@/features/physical-wall/authorize";
 import {
   GRIEVANCE_RESPONSE_DAYS,
@@ -15,6 +16,7 @@ import { mintQrToken } from "@/features/physical-wall/qr";
 import {
   fail,
   firstIssue,
+  inTransaction,
   newId,
   ok,
   toActionError,
@@ -226,44 +228,7 @@ export async function exportMyData(): Promise<
 > {
   try {
     const actor = await requireRole("artist");
-    const sql = getSql();
-
-    const [account, profile, consents, bookings, agreements, feedback, grievances] =
-      await Promise.all([
-        sql`select id, name, email, role, "foundingMember", "verifiedAt",
-                   "ageDeclaredAdult", "onboardedAt", "nomineeName", "nomineeContact",
-                   "createdAt"
-            from "user" where id = ${actor.id}`,
-        sql`select handle, "displayName", discipline, location, bio, website,
-                   instagram, published, "createdAt"
-            from artist_profiles where "userId" = ${actor.id}`,
-        sql`select purpose, granted, notice_version, granted_at, withdrawn_at
-            from pw_consents where user_id = ${actor.id} order by granted_at`,
-        sql`select id, status, start_date::text as start_date, end_date::text as end_date,
-                   duration_days, total_amount_paise, refund_policy_version, created_at
-            from pw_bookings where artist_id = ${actor.id} order by created_at`,
-        sql`select id, booking_id, terms_version, terms_hash, total_amount_paise,
-                   signed_name, signed_at
-            from pw_agreements where artist_id = ${actor.id} order by signed_at`,
-        sql`select booking_id, rating, nps, note, created_at
-            from pw_feedback where artist_id = ${actor.id}`,
-        sql`select id, subject, status, created_at, responded_at
-            from pw_grievances where user_id = ${actor.id}`,
-      ]);
-
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      notice:
-        "Everything ArtWall holds that identifies you. Amounts are in paise. " +
-        "Aggregate signals such as scan and reaction counts are not listed because they are not linked to you.",
-      account,
-      artistProfile: profile,
-      consents,
-      physicalWallBookings: bookings,
-      agreements,
-      feedback,
-      grievances,
-    };
+    const payload = await exportUserData(actor.id);
 
     return {
       ok: true,
@@ -277,15 +242,11 @@ export async function exportMyData(): Promise<
 }
 
 /**
- * Erasure (§5.3).
+ * Erasure (§5.3). What is deleted, what is kept and why: data-rights.ts.
  *
- * "Erase or irreversibly anonymise, **except records law requires we keep**" —
- * so this anonymises rather than deletes, and says so before it runs. Bookings,
- * payments and signed agreements are contract and tax records; destroying them
- * would breach a different obligation than the one being honoured.
- *
- * What actually goes: the name, the email, the profile, the consent contact
- * trail. What stays is a booking row whose artist is a tombstone.
+ * One transaction for every DB change (BE-1.28), including sign-in sessions
+ * and OAuth links (BE-1.29/1.30). Cloudinary files are deleted after commit
+ * from a durable queue that the data-retention cron retries (BE-1.31/1.32).
  */
 export async function eraseMyData(
   _previous: ActionState,
@@ -298,56 +259,26 @@ export async function eraseMyData(
       return fail("Type DELETE to confirm.");
     }
 
-    const sql = getSql();
-    const tombstone = `deleted-${newId("u")}@removed.artwalllabs.com`;
-
-    // Live holds are released first: an anonymised account cannot be chased for
-    // payment, and leaving slots held by a ghost blocks the wall.
-    await sql`
-      update pw_bookings set status = 'cancelled', hold_expires_at = null
-      where artist_id = ${actor.id} and status = 'held'
-    `;
-    await sql`
-      update pw_slots set state = 'available', version = version + 1
-      where state = 'reserved' and id in (
-        select bs.slot_id from pw_booking_slots bs
-        join pw_bookings b on b.id = bs.booking_id
-        where b.artist_id = ${actor.id} and b.status = 'cancelled'
-      )
-    `;
-
-    await sql`delete from artist_profiles where "userId" = ${actor.id}`;
-    await sql`update pw_qr_tokens set revoked_at = now()
-              where subject_type = 'artist' and subject_id = ${actor.id}`;
-    await sql`update pw_consents set withdrawn_at = now()
-              where user_id = ${actor.id} and withdrawn_at is null`;
-    await sql`update pw_feedback set note = null where artist_id = ${actor.id}`;
-
-    await sql`
-      update "user"
-      set name = 'Deleted account',
-          email = ${tombstone},
-          image = null,
-          "nomineeName" = null,
-          "nomineeContact" = null,
-          role = 'visitor'
-      where id = ${actor.id}
-    `;
-
-    await recordAudit({
-      actor: null,
-      action: "account.erased",
-      subjectType: "user",
-      subjectId: actor.id,
-      after: {
-        method: "anonymised",
-        retained: "bookings, payments and signed agreements (tax and contract law)",
-      },
+    await inTransaction(async (client) => {
+      const { assetsQueued } = await eraseUserIn(client, actor.id);
+      await recordAuditIn(client, {
+        actor: null,
+        action: "account.erased",
+        subjectType: "user",
+        subjectId: actor.id,
+        after: {
+          method: "deleted + pseudonymised",
+          assetsQueued,
+          retained: "bookings, payments, refunds, invoices, ledger (tax law); agreements (contract law); withdrawn consents, grievances, audit log (accountability), all pseudonymised",
+        },
+      });
     });
+
+    await processAssetDeletions();
 
     updateTag(WALL_TAG);
     return ok(
-      "Done. Your name, email and profile are gone. Bookings, payments and signed agreements are kept in anonymised form because tax and contract law require it. Sign out to finish."
+      "Done. Your account, profile, artworks and uploads are deleted and you have been signed out everywhere. Bookings, payments, invoices and signed agreements are kept in pseudonymised form because tax and contract law require it."
     );
   } catch (error) {
     return toActionError("eraseMyData", error);
