@@ -14,12 +14,23 @@ export const metadata: Metadata = {
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; medium?: string; sort?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    medium?: string;
+    category?: string;
+    /** Rupees in the URL; the query works in paise. */
+    min?: string;
+    max?: string;
+    sort?: string;
+  }>;
 }) {
   const params = await searchParams;
   const items = await discoverArtworks({
     q: params.q,
     medium: params.medium,
+    category: params.category || undefined,
+    minPrice: params.min ? Number(params.min) * 100 : undefined,
+    maxPrice: params.max ? Number(params.max) * 100 : undefined,
     sort: (params.sort as "recent" | "price_asc" | "price_desc" | "title") ?? "recent",
   });
 
