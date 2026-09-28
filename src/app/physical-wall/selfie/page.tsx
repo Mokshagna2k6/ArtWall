@@ -8,14 +8,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function SelfiePage({
+export default async function SelfiePage({
   searchParams,
 }: {
   searchParams: Promise<{ visitId?: string }>;
 }) {
+  const { visitId } = await searchParams;
   return (
     <div className="mx-auto max-w-lg px-4 py-16">
-      <SelfieBooth />
+      <SelfieBooth visitId={visitId} />
     </div>
   );
 }
