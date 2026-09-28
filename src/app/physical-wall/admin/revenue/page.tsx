@@ -21,7 +21,32 @@ export default async function RevenuePage({
   const range = params.range ?? "month";
 
   const trunc = range === "day" ? "day" : range === "week" ? "week" : "month";
-  const report = await getRevenueReport(trunc);
+  let report: Awaited<ReturnType<typeof getRevenueReport>>;
+  try {
+    report = await getRevenueReport(trunc);
+  } catch (error) {
+    // Show a failure as a failure: an empty table or ₹0 would read as "no revenue".
+    console.error("[admin/revenue] report query failed", error);
+    return (
+      <div className="flex flex-col gap-6">
+        <h1 className="font-heading text-display">Revenue</h1>
+        <div
+          role="alert"
+          className="border-destructive/40 text-destructive rounded-md border p-5 text-sm leading-6"
+        >
+          <p className="font-medium">The revenue report could not be loaded.</p>
+          <p className="mt-1">
+            The ledger query failed, so no figures are shown rather than wrong
+            ones. The error has been logged.{" "}
+            <a href={`?range=${trunc}`} className="underline underline-offset-4">
+              Try again
+            </a>
+            .
+          </p>
+        </div>
+      </div>
+    );
+  }
   const { rows, totals, awaitingInvoice, unreconciled } = report;
 
   return (
