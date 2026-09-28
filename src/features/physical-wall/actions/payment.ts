@@ -85,7 +85,10 @@ export async function startPayment(
     return ok("Order created.", {
       orderId: order.id,
       amount: order.amount,
-      keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "",
+      // The key id is public by design (Checkout needs it); the secret never leaves the server.
+      keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? process.env.RAZORPAY_KEY_ID ?? "",
+      currency: order.currency,
+      bookingId,
     });
   } catch (error) {
     return toActionError("startPayment", error);
