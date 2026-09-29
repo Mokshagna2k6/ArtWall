@@ -15,14 +15,15 @@ import {
 } from "@/features/physical-wall/consent";
 import { mintQrToken } from "@/features/physical-wall/qr";
 import {
+  type ActionState,
   fail,
   firstIssue,
+  formInput,
   inTransaction,
   newId,
   ok,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { notify } from "@/features/physical-wall/notifications";
 import { getSql } from "@/lib/db";
@@ -159,13 +160,13 @@ export async function setConsent(
   try {
     const actor = await requireRole("artist");
 
-    const purpose = String(formData.get("purpose") ?? "");
-    const next = String(formData.get("next") ?? "");
-
-    if (!PURPOSE_IDS.includes(purpose as ConsentPurpose)) {
-      return fail("Unknown purpose.");
-    }
-    if (next !== "grant" && next !== "withdraw") return fail("Unknown action.");
+    const { purpose, next } = formInput(
+      z.object({
+        purpose: z.enum(PURPOSE_IDS, { error: "Unknown purpose." }),
+        next: z.enum(["grant", "withdraw"], { error: "Unknown action." }),
+      }),
+      formData
+    );
     if (purpose === "account" && next === "withdraw") {
       return fail(
         "Withdrawing account consent closes the account — use 'Delete my data' below, which explains what happens to your bookings."
@@ -256,9 +257,7 @@ export async function eraseMyData(
   try {
     const actor = await requireRole("artist");
 
-    if (String(formData.get("confirm") ?? "") !== "DELETE") {
-      return fail("Type DELETE to confirm.");
-    }
+    formInput(z.object({ confirm: z.literal("DELETE", { error: "Type DELETE to confirm." }) }), formData);
 
     await inTransaction(async (client) => {
       const { assetsQueued } = await eraseUserIn(client, actor.id);
@@ -288,9 +287,9 @@ export async function eraseMyData(
 }
 
 const grievanceSchema = z.object({
-  subject: z.string().trim().min(3, "Give it a short subject.").max(140),
-  body: z.string().trim().min(10, "Tell us what happened.").max(4000),
-  contact: z.string().trim().min(3, "How should we reply?").max(140),
+  subject: z.string({ error: "Give it a short subject." }).trim().min(3, "Give it a short subject.").max(140),
+  body: z.string({ error: "Tell us what happened." }).trim().min(10, "Tell us what happened.").max(4000),
+  contact: z.string({ error: "How should we reply?" }).trim().min(3, "How should we reply?").max(140),
 });
 
 /**
@@ -359,11 +358,15 @@ export async function setNominee(
   try {
     const actor = await requireRole("artist");
 
-    const name = String(formData.get("nomineeName") ?? "").trim();
-    const contact = String(formData.get("nomineeContact") ?? "").trim();
-
-    if (name && !contact) return fail("Add a way to reach your nominee.");
-    if (name.length > 120 || contact.length > 160) return fail("That's too long.");
+    const { nomineeName: name, nomineeContact: contact } = formInput(
+      z
+        .object({
+          nomineeName: z.string().trim().max(120, "That's too long.").default(""),
+          nomineeContact: z.string().trim().max(160, "That's too long.").default(""),
+        })
+        .refine((n) => !n.nomineeName || n.nomineeContact, { message: "Add a way to reach your nominee." }),
+      formData
+    );
 
     const sql = getSql();
     await sql`

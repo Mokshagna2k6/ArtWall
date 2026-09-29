@@ -16,14 +16,16 @@ import {
 } from "@/features/physical-wall/gst";
 import { allocateInvoiceNumber } from "@/features/physical-wall/invoice-number";
 import {
+  type ActionState,
   fail,
   firstIssue,
   inTransaction,
   newId,
   ok,
+  parseInput,
   PreconditionError,
+  readSafely,
   toActionError,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { getSql } from "@/lib/db";
 
@@ -35,7 +37,7 @@ function istDate(): string {
 }
 
 const generateInvoiceSchema = z.object({
-  bookingId: z.string().trim().min(1, "Which booking?").max(64),
+  bookingId: z.string({ error: "Which booking?" }).trim().min(1, "Which booking?").max(64),
   customerGstin: z.string().trim().max(20, "That GSTIN is not valid.").optional(),
 });
 
@@ -176,6 +178,10 @@ export interface InvoiceRow {
  * same answer as "no such invoice", so ids cannot be probed.
  */
 export async function getInvoice(invoiceId: string): Promise<InvoiceRow | null> {
+  return readSafely("getInvoice", null, () => loadInvoice(parseInput(z.string().min(1).max(64), invoiceId)));
+}
+
+async function loadInvoice(invoiceId: string): Promise<InvoiceRow | null> {
   const actor = await getActor();
   if (!actor) return null;
 

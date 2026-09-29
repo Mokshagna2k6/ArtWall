@@ -2,13 +2,14 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
+import type { z } from "zod";
 
 import { NotAuthorisedError } from "@/features/physical-wall/authorize";
 import {
   ForbiddenTransitionError,
   IllegalTransitionError,
 } from "@/features/physical-wall/state-machine";
-import type { ActionState } from "@/features/physical-wall/action-state";
+import type { ActionState, Result } from "@/features/physical-wall/action-state";
 import { pool } from "@/lib/db/index";
 
 /**
@@ -19,7 +20,7 @@ import { pool } from "@/lib/db/index";
  * `useActionState` without a per-feature adapter.
  */
 
-export type { ActionState } from "@/features/physical-wall/action-state";
+export type { ActionState, Result } from "@/features/physical-wall/action-state";
 
 export function ok(message: string, data?: unknown): ActionState {
   return { status: "ok", message, data };
@@ -129,4 +130,48 @@ export function firstIssue(
   fallback = "Check the form and try again."
 ): string {
   return error.issues[0]?.message ?? fallback;
+}
+
+/**
+ * Validate a server action's input (BE-2.14). Call it first, before any
+ * session or database read; a bad input throws a PreconditionError whose
+ * message is the first zod issue, which `attempt` turns into a result.
+ */
+export function parseInput<S extends z.ZodType>(schema: S, raw: unknown): z.infer<S> {
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) throw new PreconditionError(firstIssue(parsed.error));
+  return parsed.data;
+}
+
+/** parseInput over a form's fields (single-valued; use getAll for lists). */
+export function formInput<S extends z.ZodType>(schema: S, formData: FormData): z.infer<S> {
+  return parseInput(schema, Object.fromEntries(formData));
+}
+
+/**
+ * Run a server action body and return a typed result (BE-2.15). Domain errors
+ * (PreconditionError, NotAuthorisedError, …) keep their message; anything else
+ * — a database error, a bug — is logged and replaced by a flat message, so no
+ * SQL text reaches the browser.
+ */
+export async function attempt<T>(scope: string, fn: () => Promise<T>): Promise<Result<T>> {
+  try {
+    return { ok: true, data: await fn() };
+  } catch (error) {
+    const state = toActionError(scope, error);
+    return { ok: false, error: state.status === "error" ? state.message : "That didn't work." };
+  }
+}
+
+/**
+ * For read-only actions that render pages: invalid input or a failure gives
+ * the fallback (empty list / not found) and a server log, never a thrown error.
+ */
+export async function readSafely<T>(scope: string, fallback: T, fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (!(error instanceof PreconditionError)) console.error(`[read] ${scope}`, error);
+    return fallback;
+  }
 }

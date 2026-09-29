@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { requireRole } from "@/features/physical-wall/authorize";
 import {
   createOrder,
@@ -10,11 +12,13 @@ import {
 } from "@/features/physical-wall/razorpay";
 import { settleAndRefund } from "@/features/physical-wall/settlement";
 import {
+  type ActionState,
   fail,
+  formInput,
   newId,
   ok,
+  parseInput,
   toActionError,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { getSql } from "@/lib/db";
 
@@ -34,8 +38,7 @@ export async function startPayment(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("artist");
-    const bookingId = String(formData.get("bookingId") ?? "");
-    if (!bookingId) return fail("Which booking?");
+    const { bookingId } = formInput(z.object({ bookingId: z.string({ error: "Which booking?" }).min(1, "Which booking?").max(64) }), formData);
 
     if (!isRazorpayConfigured()) {
       return fail(
@@ -87,7 +90,7 @@ export async function startPayment(
   }
 }
 
-const OFFLINE_METHODS = ["cash", "bank_transfer", "upi", "cheque"];
+const OFFLINE_METHODS = ["cash", "bank_transfer", "upi", "cheque"] as const;
 
 /**
  * Admin: record a payment that arrived OUTSIDE Razorpay (BE-1.13).
@@ -105,16 +108,14 @@ export async function markBookingPaid(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("admin");
-    const bookingId = String(formData.get("bookingId") ?? "");
-    const method = String(formData.get("method") ?? "");
-    const note = String(formData.get("note") ?? "").trim();
-    if (!bookingId) return fail("Which booking?");
-    if (!OFFLINE_METHODS.includes(method)) {
-      return fail("Choose how the money arrived: cash, bank transfer, UPI or cheque.");
-    }
-    if (note.length < 3) {
-      return fail("Add the payment reference. This is audited.");
-    }
+    const { bookingId, method, note } = formInput(
+      z.object({
+        bookingId: z.string({ error: "Which booking?" }).min(1, "Which booking?").max(64),
+        method: z.enum(OFFLINE_METHODS, { error: "Choose how the money arrived: cash, bank transfer, UPI or cheque." }),
+        note: z.string({ error: "Add the payment reference. This is audited." }).trim().min(3, "Add the payment reference. This is audited.").max(500),
+      }),
+      formData
+    );
 
     if (isRazorpayConfigured()) {
       const orders = (await getSql()`
@@ -169,9 +170,15 @@ export async function verifyPayment(input: {
 }): Promise<ActionState> {
   try {
     const actor = await requireRole("artist");
-    const orderId = String(input?.razorpay_order_id ?? "");
-    const paymentId = String(input?.razorpay_payment_id ?? "");
-    if (!verifyPaymentSignature(orderId, paymentId, String(input?.razorpay_signature ?? ""))) {
+    const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } = parseInput(
+      z.object({
+        razorpay_order_id: z.string().min(1).max(64),
+        razorpay_payment_id: z.string().min(1).max(64),
+        razorpay_signature: z.string().min(1).max(256),
+      }),
+      input
+    );
+    if (!verifyPaymentSignature(orderId, paymentId, signature)) {
       return fail(
         "We couldn't verify that payment. If money left your account, it will be confirmed or refunded automatically."
       );

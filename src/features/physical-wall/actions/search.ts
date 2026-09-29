@@ -1,19 +1,29 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 
 import { getSql } from "@/lib/db";
-import { fail, newId, ok, WALL_TAG, type ActionState } from "@/features/physical-wall/actions/shared";
+import {
+  type ActionState,
+  fail,
+  firstIssue,
+  newId,
+  ok,
+  WALL_TAG,
+} from "@/features/physical-wall/actions/shared";
 
 export async function searchArtworks(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState & { results?: unknown[] }> {
   try {
-    const query = String(formData.get("q") ?? "").trim();
-    if (!query || query.length < 2) {
-      return fail("Type at least 2 characters to search.");
-    }
+    const parsed = z
+      .object({ q: z.string({ error: "Type at least 2 characters to search." }).trim().min(2, "Type at least 2 characters to search.").max(200) })
+      .safeParse({ q: formData.get("q") ?? "" });
+    if (!parsed.success) return fail(firstIssue(parsed.error));
+    const query = parsed.data.q;
 
     const sql = getSql();
 

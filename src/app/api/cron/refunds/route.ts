@@ -8,6 +8,6 @@ export const maxDuration = 60;
 export async function GET(request: Request) {
   return runCron("refunds", request, async () => {
     const r = await processOpenRefunds();
-    return { processed: r.scanned, errors: r.failed, ...r };
+    return { ...r, refunded: r.processed, processed: r.scanned, errors: r.failed };
   });
 }

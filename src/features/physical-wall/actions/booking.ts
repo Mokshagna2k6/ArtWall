@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -20,9 +22,11 @@ import {
   reserveSchema,
 } from "@/features/physical-wall/schema";
 import {
+  type ActionState,
   addDays,
   fail,
   firstIssue,
+  formInput,
   inTransaction,
   LEDGER_TAG,
   newId,
@@ -30,7 +34,6 @@ import {
   PreconditionError,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { releaseLapsedHoldsIn } from "@/features/physical-wall/expiry";
 import { getSql } from "@/lib/db";
@@ -365,9 +368,13 @@ export async function attachArtwork(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("artist");
-    const bookingId = String(formData.get("bookingId") ?? "");
-    const artworkId = String(formData.get("artworkId") ?? "");
-    if (!bookingId || !artworkId) return fail("Choose an artwork.");
+    const { bookingId, artworkId } = formInput(
+      z.object({
+        bookingId: z.string({ error: "Choose an artwork." }).min(1, "Choose an artwork.").max(64),
+        artworkId: z.string({ error: "Choose an artwork." }).min(1, "Choose an artwork.").max(64),
+      }),
+      formData
+    );
 
     const sql = getSql();
 
