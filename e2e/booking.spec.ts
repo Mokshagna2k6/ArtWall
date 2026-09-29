@@ -92,18 +92,78 @@ test("book a slot, agree, pay in Razorpay test mode, see it paid", async ({ page
  * Razorpay TEST-mode Checkout via netbanking: the mock bank page (a popup)
  * has Success / Failure buttons, which is the most deterministic test path.
  */
+/**
+ * Razorpay's own Checkout widget re-shows the "Contact details" dialog at
+ * more than one point in this flow (at least once before the payment
+ * method list, and it can reappear after picking netbanking) — this isn't
+ * app code we control, and no `prefill.contact` reaches it today (the app
+ * only prefills name/email; see razorpay-pay-button.tsx), so a real payer
+ * hits this same dialog. Rather than assume it only ever shows once, treat
+ * it as something that can appear before any step and clear it every time.
+ */
+async function clearContactDialogIfShown(checkout: ReturnType<Page["frameLocator"]>) {
+  const contact = checkout.locator('input[name="contact"]');
+  if (!(await contact.isVisible({ timeout: 3_000 }).catch(() => false))) return;
+
+  // A plain .fill() can land before the widget's own handlers are attached,
+  // so the value never sticks and Continue re-shows the same empty dialog.
+  // Click first to focus/hydrate it, type character-by-character, and
+  // confirm the value stuck before submitting.
+  await contact.click();
+  await contact.pressSequentially("9999999999", { delay: 20 });
+  await expect(contact).toHaveValue("9999999999");
+  await checkout.getByRole("button", { name: /continue|proceed/i }).first().click();
+  // The dialog's own backdrop (#overlay-backdrop) stays in the DOM above
+  // the payment list until the close transition finishes. Wait for both
+  // the input and its backdrop to actually leave the DOM before the caller
+  // tries to click anything the dialog was covering.
+  const contactGone = await contact
+    .waitFor({ state: "detached", timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const backdropGone = await checkout
+    .locator("#overlay-backdrop")
+    .waitFor({ state: "detached", timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!contactGone || !backdropGone) {
+    console.log(
+      `[e2e] contact dialog did not fully detach: contactGone=${contactGone} backdropGone=${backdropGone}`
+    );
+  }
+}
+
+/**
+ * Click something in the checkout iframe, tolerating the contact dialog
+ * popping back in front of it right as the click lands (observed: it can
+ * reappear after `clearContactDialogIfShown` has already reported it gone,
+ * so a one-shot clear-then-click isn't enough — retry the whole
+ * clear-and-click cycle a few times).
+ */
+async function clickThroughContactDialog(
+  checkout: ReturnType<Page["frameLocator"]>,
+  locator: ReturnType<ReturnType<Page["frameLocator"]>["getByText"]>
+) {
+  for (let attempt = 1; attempt <= 4; attempt++) {
+    await clearContactDialogIfShown(checkout);
+    try {
+      await locator.click({ timeout: 5_000 });
+      return;
+    } catch (error) {
+      if (attempt === 4) throw error;
+    }
+  }
+}
+
 async function payInTestMode(page: Page, checkout: ReturnType<Page["frameLocator"]>) {
   await checkout.locator("body").waitFor();
-  // Checkout asks for a phone number first when none is prefilled.
-  const contact = checkout.locator('input[name="contact"]');
-  if (await contact.isVisible({ timeout: 10_000 }).catch(() => false)) {
-    await contact.fill("9999999999");
-    await checkout.getByRole("button", { name: /continue|proceed/i }).first().click();
-  }
-  await checkout.getByText(/netbanking/i).first().click();
-  await checkout.getByText(/SBI|State Bank/i).first().click();
+  await clearContactDialogIfShown(checkout);
+
+  await clickThroughContactDialog(checkout, checkout.getByText(/netbanking/i).first());
+  await clickThroughContactDialog(checkout, checkout.getByText(/SBI|State Bank/i).first());
+
   const popup = page.waitForEvent("popup");
-  await checkout.getByRole("button", { name: /^pay/i }).first().click();
+  await clickThroughContactDialog(checkout, checkout.getByRole("button", { name: /^pay/i }).first());
   const bank = await popup;
   await bank.getByRole("button", { name: /success/i }).click();
 }
