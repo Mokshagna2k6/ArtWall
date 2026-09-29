@@ -100,7 +100,12 @@ vi.mock("@/features/physical-wall/authorize", () => {
 });
 vi.mock("@/lib/auth", () => ({ auth: { api: { getSession: async () => ({ user: { id: "u1" } }) } } }));
 vi.mock("next/headers", () => ({ headers: async () => new Headers(), cookies: async () => ({ get: () => undefined }) }));
-vi.mock("next/cache", () => ({ updateTag: vi.fn(), revalidateTag: vi.fn(), revalidatePath: vi.fn() }));
+vi.mock("next/cache", () => ({
+  updateTag: vi.fn(),
+  revalidateTag: vi.fn(),
+  revalidatePath: vi.fn(),
+  unstable_cache: <T>(fn: T) => fn,
+}));
 
 const form = (fields: Record<string, string>) => {
   const f = new FormData();
