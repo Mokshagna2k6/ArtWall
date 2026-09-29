@@ -33,8 +33,7 @@ vi.mock("@/features/physical-wall/razorpay", async (orig) => {
         throw new Error("Razorpay 502");
       }
       // Unique across runs: pw_refunds.provider_refund_id is unique in the shared database.
-      const id = `rfnd_${rp.refunds.length}_${Math.random().toString(36).slice(2)}`;
-      const refund = { id, payment_id: paymentId, amount, status: "processed", notes: refs };
+      const refund = { id: `rfnd_${rp.refunds.length}_${crypto.randomUUID().slice(0, 8)}`, payment_id: paymentId, amount, status: "processed", notes: refs };
       rp.refunds.push(refund);
       return refund;
     }),
@@ -42,7 +41,8 @@ vi.mock("@/features/physical-wall/razorpay", async (orig) => {
 });
 
 import { cancelBooking } from "@/features/physical-wall/actions/booking";
-import { markBookingPaid, settleFromWebhook, verifyPayment } from "@/features/physical-wall/actions/payment";
+import { markBookingPaid, verifyPayment } from "@/features/physical-wall/actions/payment";
+import { settleFromWebhook } from "@/features/physical-wall/settlement";
 import { processOpenRefunds, processRefund } from "@/features/physical-wall/refunds";
 
 const sign = (orderId: string, paymentId: string) =>
@@ -248,13 +248,12 @@ describe("durable refunds (BE-1.14)", () => {
     const [{ id }] = await q<{ id: string }>(`select id from pw_refunds where booking_id = $1`, [booking]);
 
     // Simulate: a worker claimed it, Razorpay created the refund, then the process died.
-    const rfnd = `rfnd_crash_${id}`;
-    rp.refunds.push({ id: rfnd, payment_id: paymentId, amount: 5900, notes: { refundId: id } });
+    rp.refunds.push({ id: `rfnd_crash_${id}`, payment_id: paymentId, amount: 5900, notes: { refundId: id } });
     await q(`update pw_refunds set status = 'processing', updated_at = now() - interval '11 minutes' where id = $1`, [id]);
 
     expect(await processRefund(id)).toBe("processed");
     const [r] = await q<{ provider_refund_id: string }>(`select provider_refund_id from pw_refunds where id = $1`, [id]);
-    expect(r.provider_refund_id).toBe(rfnd);
+    expect(r.provider_refund_id).toBe(`rfnd_crash_${id}`);
     expect(rp.refunds.filter((x) => x.notes.refundId === id)).toHaveLength(1);
     expect(rp.createRefundCalls).toBe(1); // only the failed in-request attempt
   });
@@ -283,6 +282,35 @@ describe("durable refunds (BE-1.14)", () => {
     await cancelBooking({ status: "idle" } as never, cancelForm(booking));
     const [r] = await q<{ status: string }>(`select status from pw_refunds where booking_id = $1`, [booking]);
     expect(r.status).toBe("manual");
+    expect(rp.createRefundCalls).toBe(0);
+  });
+
+  it("reconciliation alerts the admins once when a refund keeps failing (BE-2.11)", async () => {
+    const artist = await makeUser();
+    const booking = await makeBooking(artist.id, await makeSlots(1), { status: "paid" });
+    const id = tid("rf");
+    // Out of automatic attempts: the sweep won't call Razorpay, it has to raise it.
+    await q(
+      `insert into pw_refunds (id, booking_id, payment_id, amount_paise, status, attempts, last_error)
+       values ($1, $2, $3, 5900, 'failed', 8, 'Razorpay 502')`,
+      [id, booking, tid("rzpay")]
+    );
+    const adminEmail = `${tid("admin")}@example.test`;
+    process.env.ADMIN_EMAILS = adminEmail;
+    try {
+      const first = await processOpenRefunds();
+      await processOpenRefunds(); // the next cron run must not alert again
+      expect(first.stuck).toBeGreaterThanOrEqual(1);
+    } finally {
+      delete process.env.ADMIN_EMAILS;
+    }
+    const alerts = await q<{ subject: string; body: string }>(
+      `select subject, body from pw_notifications where recipient = $1 and kind = 'system.notice'`,
+      [adminEmail]
+    );
+    const mine = alerts.filter((a) => a.subject.includes(id));
+    expect(mine).toHaveLength(1);
+    expect(mine[0].body).toContain("will not be retried automatically");
     expect(rp.createRefundCalls).toBe(0);
   });
 });

@@ -1,17 +1,22 @@
 "use server";
 
+import { z } from "zod";
+
 import { recordAuditIn } from "@/features/physical-wall/audit";
 import { requireRole } from "@/features/physical-wall/authorize";
 import {
+  type ActionState,
+  attempt,
   fail,
+  formInput,
   inTransaction,
   newId,
   ok,
   PreconditionError,
+  type Result,
   toActionError,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
-import { createUploadSignature, isOwnAsset } from "@/lib/cloudinary";
+import { createUploadSignature, isOwnAsset, type UploadSignature } from "@/lib/cloudinary";
 
 /**
  * Condition reports (BE-1.36, BE-1.37). Staff/admin only.
@@ -24,9 +29,11 @@ import { createUploadSignature, isOwnAsset } from "@/lib/cloudinary";
 const CONDITION_FOLDER = "artwall/condition";
 
 /** Staff: a signed direct-upload for a condition photo (folder artwall/condition). */
-export async function requestConditionUploadSignature() {
-  await requireRole("staff");
-  return createUploadSignature(CONDITION_FOLDER);
+export async function requestConditionUploadSignature(): Promise<Result<UploadSignature>> {
+  return attempt("requestConditionUploadSignature", async () => {
+    await requireRole("staff");
+    return createUploadSignature(CONDITION_FOLDER);
+  });
 }
 
 /**
@@ -36,15 +43,19 @@ export async function requestConditionUploadSignature() {
 export async function addConditionPhoto(_previous: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const actor = await requireRole("staff");
-    const bookingId = String(formData.get("bookingId") ?? "");
-    const stage = String(formData.get("stage") ?? "");
-    const itemKey = String(formData.get("itemKey") ?? "").trim();
-    const cloudinaryId = String(formData.get("cloudinaryId") ?? "").trim();
-    const url = String(formData.get("url") ?? "").trim();
-    const slotId = String(formData.get("slotId") ?? "") || null;
-
-    if (!bookingId || !itemKey) return fail("Which booking and checklist item?");
-    if (stage !== "install" && stage !== "deinstall") return fail("Stage must be install or de-install.");
+    const input = formInput(
+      z.object({
+        bookingId: z.string({ error: "Which booking and checklist item?" }).min(1, "Which booking and checklist item?").max(64),
+        itemKey: z.string({ error: "Which booking and checklist item?" }).trim().min(1, "Which booking and checklist item?").max(100),
+        stage: z.enum(["install", "deinstall"], { error: "Stage must be install or de-install." }),
+        cloudinaryId: z.string().trim().max(300).default(""),
+        url: z.string().trim().max(1000).default(""),
+        slotId: z.string().max(64).optional(),
+      }),
+      formData
+    );
+    const { bookingId, itemKey, stage, cloudinaryId, url } = input;
+    const slotId = input.slotId || null;
     if (!cloudinaryId.startsWith(`${CONDITION_FOLDER}/`) || !isOwnAsset(url, CONDITION_FOLDER) || !url.includes(`/${cloudinaryId}`)) {
       return fail("That photo isn't a condition-report upload.");
     }
@@ -85,16 +96,20 @@ export async function addConditionPhoto(_previous: ActionState, formData: FormDa
 export async function recordDamage(_previous: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const actor = await requireRole("staff");
-    const bookingId = String(formData.get("bookingId") ?? "");
-    const itemKey = String(formData.get("itemKey") ?? "").trim();
-    const description = String(formData.get("description") ?? "").trim();
-    const severity = String(formData.get("severity") ?? "minor");
-    const photoId = String(formData.get("photoId") ?? "") || null;
-    const slotId = String(formData.get("slotId") ?? "") || null;
-
-    if (!bookingId || !itemKey) return fail("Which booking and checklist item?");
-    if (description.length < 5) return fail("Describe the damage.");
-    if (severity !== "minor" && severity !== "major") return fail("Severity must be minor or major.");
+    const input = formInput(
+      z.object({
+        bookingId: z.string({ error: "Which booking and checklist item?" }).min(1, "Which booking and checklist item?").max(64),
+        itemKey: z.string({ error: "Which booking and checklist item?" }).trim().min(1, "Which booking and checklist item?").max(100),
+        description: z.string({ error: "Describe the damage." }).trim().min(5, "Describe the damage.").max(2000),
+        severity: z.enum(["minor", "major"], { error: "Severity must be minor or major." }).default("minor"),
+        photoId: z.string().max(64).optional(),
+        slotId: z.string().max(64).optional(),
+      }),
+      formData
+    );
+    const { bookingId, itemKey, description, severity } = input;
+    const photoId = input.photoId || null;
+    const slotId = input.slotId || null;
 
     const id = await inTransaction(async (client) => {
       const booking = await client.query<{ artwork_id: string | null }>(

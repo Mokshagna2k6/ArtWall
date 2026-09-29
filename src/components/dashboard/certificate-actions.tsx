@@ -22,7 +22,8 @@ export function IssueCertificateForm({
         setError(null);
         start(async () => {
           try {
-            await issueCertificate(artworkId);
+            const result = await issueCertificate(artworkId);
+            if (!result.ok) return setError(result.error);
             setArtworkId("");
           } catch {
             setError("Could not issue this certificate. Try again.");
@@ -73,7 +74,8 @@ export function RevokeCertificateButton({ certId }: { certId: string }) {
           setError(null);
           start(async () => {
             try {
-              await revokeCertificate(certId, reason.trim());
+              const result = await revokeCertificate(certId, reason.trim());
+              if (!result.ok) setError(result.error);
             } catch {
               setError("Could not revoke. Try again.");
             }

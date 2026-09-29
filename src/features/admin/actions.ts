@@ -3,6 +3,7 @@
 import { updateTag } from "next/cache";
 import { headers } from "next/headers";
 import { timingSafeEqual } from "node:crypto";
+import { z } from "zod";
 
 import { ROSTER_TAG } from "@/features/waitlist/roster";
 import { getSql } from "@/lib/db";
@@ -66,15 +67,16 @@ export async function setTileStatus(
     return { status: "error", message: "Wrong password." };
   }
 
-  const founderNumber = Number(formData.get("founderNumber"));
-  const next = String(formData.get("next"));
-
-  if (!Number.isInteger(founderNumber) || founderNumber < 1) {
-    return { status: "error", message: "Enter a valid founder number." };
+  const parsed = z
+    .object({
+      founderNumber: z.coerce.number({ error: "Enter a valid founder number." }).int("Enter a valid founder number.").min(1, "Enter a valid founder number."),
+      next: z.enum(["visible", "hidden"], { error: "Unknown action." }),
+    })
+    .safeParse({ founderNumber: formData.get("founderNumber"), next: formData.get("next") });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? "Check the form." };
   }
-  if (next !== "visible" && next !== "hidden") {
-    return { status: "error", message: "Unknown action." };
-  }
+  const { founderNumber, next } = parsed.data;
 
   try {
     const sql = getSql();

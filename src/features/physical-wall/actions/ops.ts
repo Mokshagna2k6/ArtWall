@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 
 import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
@@ -21,15 +23,16 @@ import {
   installWindowSchema,
 } from "@/features/physical-wall/schema";
 import {
+  type ActionState,
   fail,
   firstIssue,
+  formInput,
   inTransaction,
   newId,
   ok,
   PreconditionError,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { notify } from "@/features/physical-wall/notifications";
 import { getSql } from "@/lib/db";
@@ -160,8 +163,7 @@ export async function receiveArtwork(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("staff");
-    const bookingId = String(formData.get("bookingId") ?? "");
-    if (!bookingId) return fail("Which booking?");
+    const { bookingId } = formInput(z.object({ bookingId: z.string({ error: "Which booking?" }).min(1, "Which booking?").max(64) }), formData);
 
     const created = await inTransaction(async (client) => {
       const slots = await client.query<{
@@ -481,8 +483,7 @@ export async function issueBookingToken(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("artist");
-    const bookingId = String(formData.get("bookingId") ?? "");
-    if (!bookingId) return fail("Which booking?");
+    const { bookingId } = formInput(z.object({ bookingId: z.string({ error: "Which booking?" }).min(1, "Which booking?").max(64) }), formData);
 
     const sql = getSql();
     const owned = (await sql`

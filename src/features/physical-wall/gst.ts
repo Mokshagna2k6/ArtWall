@@ -91,7 +91,31 @@ export function normaliseCustomerGstin(gstin: string | null | undefined): string
   return trimmed;
 }
 
+/** Indian financial year (April–March) of a YYYY-MM-DD date, e.g. "2026-27". */
+export function fiscalYear(isoDate: string): string {
+  const [y, m] = isoDate.split("-").map(Number);
+  const year = m >= 4 ? y : y - 1;
+  return `${year}-${String(year + 1).slice(2)}`;
+}
+
+/** "AW/2026-27/0042". */
+export function formatInvoiceNumber(fy: string, n: number): string {
+  return `AW/${fy}/${String(n).padStart(4, "0")}`;
+}
+
+/**
+ * Every amount printed on an invoice, from the booking's two stored integers.
+ * Integer paise in, integer paise out; lines always add up to the total.
+ */
+export function invoiceAmounts(totalPaise: number, gstPaise: number, supplierState: string, placeOfSupply: string) {
+  if (!Number.isSafeInteger(totalPaise) || !Number.isSafeInteger(gstPaise) || gstPaise < 0 || gstPaise > totalPaise) {
+    throw new Error(`Inconsistent invoice amounts: total ${totalPaise}, GST ${gstPaise}`);
+  }
+  return { netPaise: totalPaise - gstPaise, totalPaise, ...splitGst(gstPaise, supplierState, placeOfSupply) };
+}
+
 export function splitGst(gstPaise: number, supplierState: string, placeOfSupply: string) {
+  if (!Number.isSafeInteger(gstPaise)) throw new Error(`GST must be integer paise, got ${gstPaise}`);
   if (supplierState === placeOfSupply) {
     const cgst = Math.round(gstPaise / 2);
     return { cgstPaise: cgst, sgstPaise: gstPaise - cgst, igstPaise: 0, intraState: true };

@@ -12,7 +12,7 @@
  *
  * Usage:  node --env-file=.env scripts/seed-physical-wall.mjs
  */
-import { neon } from "@neondatabase/serverless";
+import pg from "pg";
 
 if (!process.env.DATABASE_URL) {
   console.error(
@@ -21,7 +21,10 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-const sql = neon(process.env.DATABASE_URL);
+// Plain TCP (pg), so the same script seeds Neon and a CI Postgres container.
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+const sql = async (strings, ...values) =>
+  (await pool.query(strings.reduce((text, part, i) => text + part + (i < values.length ? `$${i + 1}` : ""), ""), values)).rows;
 
 /** Rupees to paise, so the table below reads in the units a human quotes. */
 const rs = (rupees) => Math.round(rupees * 100);
@@ -225,6 +228,7 @@ await seedAddons();
 await seedRefundPolicy();
 await seedSettings();
 await seedGrid();
+await pool.end();
 console.log("\nDone.");
 console.log(
   "\nTwo numbers in here are placeholders and need a decision before launch:\n" +

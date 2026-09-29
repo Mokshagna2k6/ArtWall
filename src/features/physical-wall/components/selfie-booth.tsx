@@ -41,7 +41,8 @@ export function SelfieBooth({ visitId }: { visitId?: string }) {
         throw new Error(sigData.error || "Could not get upload signature.");
       }
 
-      const { signature, timestamp, apiKey, cloudName, folder } = sigData.signature;
+      const { signature, timestamp, apiKey, cloudName, folder, allowedFormats, moderation } =
+        sigData.signature;
 
       const form = new FormData();
       form.append("file", file);
@@ -49,6 +50,9 @@ export function SelfieBooth({ visitId }: { visitId?: string }) {
       form.append("timestamp", String(timestamp));
       form.append("folder", folder);
       form.append("signature", signature);
+      // Signed params: each one the server signed must be sent back verbatim.
+      if (allowedFormats) form.append("allowed_formats", allowedFormats);
+      if (moderation) form.append("moderation", moderation);
 
       const result = await new Promise<{ secure_url: string; public_id: string }>((resolve, reject) => {
         const request = new XMLHttpRequest();

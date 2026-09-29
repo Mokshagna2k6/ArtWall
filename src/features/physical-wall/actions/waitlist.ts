@@ -6,15 +6,16 @@ import { z } from "zod";
 import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
 import { getActor, requireRole } from "@/features/physical-wall/authorize";
 import {
+  type ActionState,
   fail,
   firstIssue,
+  formInput,
   inTransaction,
   newId,
   ok,
   PreconditionError,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { notify, notifyUser } from "@/features/physical-wall/notifications";
 import { getSql } from "@/lib/db";
@@ -36,8 +37,8 @@ import { getSql } from "@/lib/db";
 const TIER_ORDER = ["founding", "repeat", "referred", "new"] as const;
 
 const joinSchema = z.object({
-  name: z.string().trim().min(1, "Tell us your name.").max(80),
-  contact: z.string().trim().min(3, "How should we reach you?").max(120),
+  name: z.string({ error: "Tell us your name." }).trim().min(1, "Tell us your name.").max(80),
+  contact: z.string({ error: "How should we reach you?" }).trim().min(3, "How should we reach you?").max(120),
   city: z.string().trim().max(60).optional(),
   medium: z.string().trim().max(60).optional(),
   sizePref: z.string().trim().max(60).optional(),
@@ -141,8 +142,7 @@ export async function leaveWaitlist(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("artist");
-    const id = String(formData.get("waitlistId") ?? "");
-    if (!id) return fail("Which entry?");
+    const { waitlistId: id } = formInput(z.object({ waitlistId: z.string({ error: "Which entry?" }).min(1, "Which entry?").max(64) }), formData);
 
     const sql = getSql();
     const rows = (await sql`
@@ -185,14 +185,14 @@ export async function adjustQueue(
   try {
     const actor = await requireRole("admin");
 
-    const id = String(formData.get("waitlistId") ?? "");
-    const move = String(formData.get("move") ?? "");
-    const note = String(formData.get("note") ?? "").trim();
-
-    if (!id) return fail("Which entry?");
-    if (!MOVES.includes(move as (typeof MOVES)[number])) {
-      return fail("Unknown action.");
-    }
+    const { waitlistId: id, move, note } = formInput(
+      z.object({
+        waitlistId: z.string({ error: "Which entry?" }).min(1, "Which entry?").max(64),
+        move: z.enum(MOVES, { error: "Unknown action." }),
+        note: z.string().trim().max(1000).default(""),
+      }),
+      formData
+    );
     if (move === "remove" && note.length < 3) {
       return fail("Say why you're removing them — this is logged.");
     }
@@ -275,9 +275,10 @@ export async function forceMatch(
   try {
     const actor = await requireRole("admin");
 
-    const id = String(formData.get("waitlistId") ?? "");
-    const slotId = String(formData.get("slotId") ?? "");
-    if (!id || !slotId) return fail("Choose an entry and a slot.");
+    const { waitlistId: id, slotId } = formInput(
+      z.object({ waitlistId: z.string({ error: "Choose an entry and a slot." }).min(1, "Choose an entry and a slot.").max(64), slotId: z.string({ error: "Choose an entry and a slot." }).min(1, "Choose an entry and a slot.").max(64) }),
+      formData
+    );
 
     const matched = await inTransaction(async (client) => {
       const slot = await client.query<{ state: string; label: string }>(
@@ -365,8 +366,7 @@ export async function acceptOffer(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("artist");
-    const id = String(formData.get("waitlistId") ?? "");
-    if (!id) return fail("Which offer?");
+    const { waitlistId: id } = formInput(z.object({ waitlistId: z.string({ error: "Which offer?" }).min(1, "Which offer?").max(64) }), formData);
 
     const sql = getSql();
     const rows = (await sql`
@@ -449,8 +449,7 @@ export async function declineOffer(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("artist");
-    const id = String(formData.get("waitlistId") ?? "");
-    if (!id) return fail("Which offer?");
+    const { waitlistId: id } = formInput(z.object({ waitlistId: z.string({ error: "Which offer?" }).min(1, "Which offer?").max(64) }), formData);
 
     await inTransaction(async (client) => {
       const entry = await client.query<{ matched_slot_id: string | null }>(

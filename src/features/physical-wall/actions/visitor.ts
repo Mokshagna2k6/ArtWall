@@ -1,18 +1,21 @@
 "use server";
 
+import { z } from "zod";
+
 import { cookies, headers } from "next/headers";
 import { createHash } from "node:crypto";
 
 import { mintQrToken } from "@/features/physical-wall/qr";
 import { visitorRegisterSchema } from "@/features/physical-wall/schema";
 import {
+  type ActionState,
   fail,
   firstIssue,
+  formInput,
   inTransaction,
   newId,
   ok,
   toActionError,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getSql } from "@/lib/db";
@@ -152,6 +155,8 @@ export async function recordScan(
   visitId: string | null
 ): Promise<void> {
   try {
+    const ids = z.object({ artworkId: z.string().min(1).max(64), visitId: z.string().min(1).max(64).nullable() });
+    if (!ids.safeParse({ artworkId, visitId }).success) return;
     const limit = checkRateLimit(await rotatingKey(`pw-scan:${artworkId}`), {
       limit: 30,
       windowMs: 60 * 1000,
@@ -188,8 +193,10 @@ export async function withdrawVisitorConsent(
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const token = String(formData.get("token") ?? "");
-    if (!token) return fail("We need your code to find the record.");
+    const { token } = formInput(
+      z.object({ token: z.string({ error: "We need your code to find the record." }).trim().min(1, "We need your code to find the record.").max(200) }),
+      formData
+    );
 
     const { resolveToken } = await import("@/features/physical-wall/data/tokens");
     const resolved = await resolveToken(token);

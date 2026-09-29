@@ -233,7 +233,7 @@ export const feedbackSchema = z.object({
 /* ── UGC (F25, F30) ───────────────────────────────────────────────────────── */
 
 export const ugcSubmitSchema = z.object({
-  caption: z.string().trim().max(500).default(""),
+  caption: z.string().trim().max(500, "Keep the caption under 500 characters.").default(""),
   imageUrl: z.string().trim().url("Enter a valid image URL."),
   cloudinaryId: z.string().trim().min(1, "Upload a photo first."),
   visitId: z.string().trim().max(64).optional(),

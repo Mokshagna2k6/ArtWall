@@ -13,11 +13,12 @@ function useAction() {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const run = (fn: () => Promise<unknown>, fallback: string) => {
+  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, fallback: string) => {
     setError(null);
     start(async () => {
       try {
-        await fn();
+        const result = await fn();
+        if (!result.ok) return setError(result.error || fallback);
         router.refresh();
       } catch (e) {
         setError(e instanceof Error && e.message ? e.message : fallback);
@@ -37,13 +38,14 @@ export function CreateExhibitionForm() {
         const f = new FormData(e.currentTarget);
         const form = e.currentTarget;
         run(async () => {
-          await createExhibition({
+          const result = await createExhibition({
             title: String(f.get("title")),
             venue: String(f.get("venue") || "") || undefined,
             startDate: String(f.get("startDate") || "") || undefined,
             endDate: String(f.get("endDate") || "") || undefined,
           });
-          form.reset();
+          if (result.ok) form.reset();
+          return result;
         }, "Could not create the exhibition.");
       }}
     >
@@ -110,8 +112,9 @@ export function ExhibitionControls({
             disabled={pending || !artworkId}
             onClick={() =>
               run(async () => {
-                await addArtworkToExhibition(exhibitionId, artworkId);
-                setArtworkId("");
+                const result = await addArtworkToExhibition(exhibitionId, artworkId);
+                if (result.ok) setArtworkId("");
+                return result;
               }, "Could not add that artwork.")
             }
           >

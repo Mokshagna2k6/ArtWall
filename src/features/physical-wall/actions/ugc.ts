@@ -4,7 +4,7 @@ import { updateTag } from "next/cache";
 import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 
-import { requireRole } from "@/features/physical-wall/authorize";
+import { getActor, hasRole, requireRole } from "@/features/physical-wall/authorize";
 import { recordAuditIn } from "@/features/physical-wall/audit";
 import {
   fail,
@@ -12,7 +12,6 @@ import {
   inTransaction,
   newId,
   ok,
-  toActionError,
   WALL_TAG,
   type ActionState,
 } from "@/features/physical-wall/actions/shared";
@@ -21,8 +20,8 @@ import { getSql } from "@/lib/db";
 import { notifyUser } from "@/features/physical-wall/notifications";
 import { isOwnAsset } from "@/lib/cloudinary";
 import { getSessionUser } from "@/lib/session";
-import { UGC_UPLOAD_FOLDER } from "@/features/physical-wall/image-validation";
-import { ugcSubmitSchema, ugcModerateSchema } from "@/features/physical-wall/schema";
+import { currentUgcFolder, UGC_FORMATS } from "@/features/physical-wall/image-validation";
+import { ugcSubmitSchema, ugcModerateSchema, ugcWithdrawSchema } from "@/features/physical-wall/schema";
 
 async function rotatingKey(prefix: string): Promise<string> {
   const headerList = await headers();
@@ -58,14 +57,22 @@ export async function submitUgc(
     const { caption, imageUrl, cloudinaryId, visitId } = parsed.data;
 
     // The browser uploads straight to Cloudinary and reports back the URL and
-    // public id, so both are untrusted: the URL must be one of our own assets
-    // in the UGC folder, and must actually be the asset the id names.
+    // public id, so both are untrusted. BE-2.08: the id must sit in THIS
+    // uploader's folder (an HMAC of their user id or guest cookie, which only
+    // our signature route hands out), so nobody can claim someone else's
+    // upload. The URL must be our own asset and the very one the id names.
+    const folder = await currentUgcFolder(false);
     if (
-      !isOwnAsset(imageUrl, UGC_UPLOAD_FOLDER) ||
-      !cloudinaryId.startsWith(`${UGC_UPLOAD_FOLDER}/`) ||
-      !imageUrl.includes(`/${cloudinaryId}`)
+      !folder ||
+      !cloudinaryId.startsWith(`${folder}/`) ||
+      !isOwnAsset(imageUrl, folder) ||
+      !new URL(imageUrl).pathname.includes(`/${cloudinaryId}.`)
     ) {
       return fail("That photo did not come from our uploader. Please upload it again.");
+    }
+    const format = new URL(imageUrl).pathname.split(".").pop()?.toLowerCase() ?? "";
+    if (!(UGC_FORMATS as readonly string[]).includes(format)) {
+      return fail("That file type isn't supported. Upload a JPEG, PNG, WebP, HEIC or GIF photo.");
     }
 
     // Signed-in submitters are linked so their UGC shows up in a DPDP export
@@ -74,7 +81,13 @@ export async function submitUgc(
     const user = await getSessionUser();
     const id = newId("ugc");
 
-    await inTransaction(async (client) => {
+    const duplicate = await inTransaction(async (client) => {
+      // One submission per photo (0029). Checked under an advisory lock on the
+      // asset so a double-submit gets a clear answer rather than a 23505.
+      await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`ugc:${cloudinaryId}`]);
+      const seen = await client.query(`select 1 from pw_ugc_submissions where cloudinary_id = $1`, [cloudinaryId]);
+      if (seen.rowCount) return true;
+
       let visitorId: string | null = null;
       if (!user && visitId) {
         const visit = await client.query<{ visitor_id: string }>(
@@ -120,7 +133,9 @@ export async function submitUgc(
         subjectId: id,
         after: { hasVisit: Boolean(visitId), captionLength: caption.length },
       });
+      return false;
     });
+    if (duplicate) return fail("That photo has already been submitted.");
 
     updateTag(WALL_TAG);
     return ok("Submitted for moderation. We'll let you know when it's live.");
@@ -297,18 +312,29 @@ export async function withdrawUgc(
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const submissionId = String(formData.get("submissionId") ?? "");
-    if (!submissionId) return fail("Which submission?");
+    const parsed = ugcWithdrawSchema.safeParse({ submissionId: formData.get("submissionId") });
+    if (!parsed.success) return fail("Which submission?");
+    const { submissionId } = parsed.data;
 
     const sql = getSql();
     const rows = (await sql`
-      select id, status, cloudinary_id, url
+      select id, status, cloudinary_id, url, user_id
       from pw_ugc_submissions
       where id = ${submissionId}
       limit 1
-    `) as { id: string; status: string; cloudinary_id: string; url: string }[];
+    `) as { id: string; status: string; cloudinary_id: string; url: string; user_id: string | null }[];
 
-    if (rows.length === 0) return fail("No such submission.");
+    // Only the submitter (their account, or the guest cookie whose folder the
+    // photo was uploaded into) or staff may withdraw. Gallery rows expose the
+    // submission id publicly, so an id alone must not be enough.
+    const actor = await getActor();
+    const folder = await currentUgcFolder(false);
+    const mine =
+      rows[0] &&
+      (hasRole(actor, "staff") ||
+        (actor && rows[0].user_id === actor.id) ||
+        (folder && rows[0].cloudinary_id.startsWith(`${folder}/`)));
+    if (!mine) return fail("No such submission.");
 
     await inTransaction(async (client) => {
       await client.query(

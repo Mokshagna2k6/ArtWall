@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 .gstack/
 .scratch/
+
+# vitest blob reports (CI merges them for coverage)
+/.vitest-reports

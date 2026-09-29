@@ -1,9 +1,11 @@
 "use server";
 
 import { eq, and, gte, ilike, lte, sql, or } from "drizzle-orm";
+import { z } from "zod";
 
 import { db } from "@/lib/db/index";
 import { artworks, artistProfiles, coaCertificates } from "@/lib/db/schema";
+import { parseInput, readSafely } from "@/features/physical-wall/actions/shared";
 
 export interface MarketplaceFilters {
   q?: string;
@@ -15,7 +17,21 @@ export interface MarketplaceFilters {
   sort?: "recent" | "price_asc" | "price_desc" | "title";
 }
 
+const filtersSchema = z.object({
+  q: z.string().trim().max(200).optional(),
+  medium: z.string().trim().max(100).optional(),
+  category: z.string().trim().max(100).optional(),
+  minPrice: z.number().optional(),
+  maxPrice: z.number().optional(),
+  sort: z.enum(["recent", "price_asc", "price_desc", "title"]).optional(),
+});
+const id = z.string().trim().min(1).max(64);
+
 export async function discoverArtworks(filters: MarketplaceFilters = {}) {
+  return readSafely("discoverArtworks", [], () => discover(parseInput(filtersSchema, filters)));
+}
+
+async function discover(filters: MarketplaceFilters) {
   const conditions = [
     eq(artworks.isPublic, true),
     eq(artworks.status, "available"),
@@ -73,7 +89,11 @@ export async function discoverArtworks(filters: MarketplaceFilters = {}) {
     .limit(48);
 }
 
-export async function getArtworkDetail(id: string) {
+export async function getArtworkDetail(artworkId: string) {
+  return readSafely("getArtworkDetail", null, () => artworkDetail(parseInput(id, artworkId)));
+}
+
+async function artworkDetail(id: string) {
   const [artwork] = await db
     .select({
       id: artworks.id,
@@ -112,6 +132,10 @@ export async function getArtworkDetail(id: string) {
 }
 
 export async function getDistinctMediums(): Promise<string[]> {
+  return readSafely("getDistinctMediums", [], distinctMediums);
+}
+
+async function distinctMediums(): Promise<string[]> {
   const rows = await db
     .selectDistinct({ medium: artworks.medium })
     .from(artworks)

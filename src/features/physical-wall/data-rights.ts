@@ -49,6 +49,42 @@ import { pool } from "@/lib/db/index";
  * leaf hashes) cannot be erased; it is hashes, not personal data.
  */
 
+/**
+ * Where an erased user's id may still appear, and why (BE-2.20). Everything
+ * else that referenced them is deleted by eraseUserIn; dpdp-coverage.db.test
+ * scans every column of every table to hold this list to account.
+ */
+export const RETAINED_USER_REFERENCES = {
+  '"user".id': "the tombstone row itself (name 'Deleted account', email removed)",
+  "pw_bookings.artist_id": "tax record (CGST Act s.36)",
+  "pw_agreements.artist_id": "signed contract, signed_name pseudonymised",
+  "pw_consents.user_id": "withdrawn consents: proof past processing was lawful (DPDP s.6(10))",
+  "pw_grievances.user_id": "accountability; contact and body redacted",
+  "pw_feedback.artist_id": "rating on a retained booking; note cleared",
+  "pw_audit_log.actor_id": "security/accountability; actor_label pseudonymised",
+  "pw_audit_log.subject_id": "the account.erased entry itself",
+  "pw_data_rights_requests.user_id": "the DPDP request log (BE-2.22)",
+} as const;
+
+export type DataRightsKind = "export" | "erasure";
+
+/**
+ * Append to the DPDP request log (BE-2.22, migration 0053). Pass the erasure
+ * transaction's client to make "completed" commit with the erasure itself.
+ */
+export async function logDataRightsRequest(
+  db: { query: (text: string, params: unknown[]) => Promise<unknown> },
+  userId: string,
+  kind: DataRightsKind,
+  event: "requested" | "completed" | "failed",
+  detail?: Record<string, unknown>
+): Promise<void> {
+  await db.query(
+    `insert into pw_data_rights_requests (id, user_id, kind, event, detail) values ($1, $2, $3, $4, $5::jsonb)`,
+    [newId("dsr"), userId, kind, event, detail ? JSON.stringify(detail) : null]
+  );
+}
+
 export async function exportUserData(userId: string) {
   const one = async (text: string) => (await pool.query(text, [userId])).rows;
   const [

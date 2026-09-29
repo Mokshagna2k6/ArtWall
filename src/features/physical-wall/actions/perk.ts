@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -54,9 +56,11 @@ export async function previewPerk(
   token: string
 ): Promise<{ ok: true; preview: PerkPreview } | { ok: false; message: string }> {
   try {
+    const parsed = z.string().trim().min(1).max(200).safeParse(token);
+    if (!parsed.success) return { ok: false, message: "That code isn't valid." };
     await requireRole("staff");
 
-    const resolved = await resolveToken(token);
+    const resolved = await resolveToken(parsed.data);
     if (!resolved.ok) {
       return {
         ok: false,

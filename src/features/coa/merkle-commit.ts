@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 
-import { buildMerkleTree } from "@/features/coa/merkle";
+import { buildMerkleTree, verifyMerkleProof } from "@/features/coa/merkle";
 import { pool } from "@/lib/db/index";
 
 /**
@@ -12,9 +12,14 @@ import { pool } from "@/lib/db/index";
  * proof, commit together — a crash can never leave commitments pointing at a
  * root that does not exist, or a root whose proofs were lost. `skip locked`
  * lets two overlapping cron runs split the work instead of double-batching.
+ *
+ * Idempotent per batch (BE-2.16): a root is identified by its hash, and the
+ * same leaves always give the same hash (buildMerkleTree sorts them). If a
+ * re-run meets leaves already rooted (e.g. commitments reset to pending after a
+ * failed submission), it re-uses that root row instead of creating a second.
  */
 export async function commitPendingMerkleRoot(): Promise<
-  { rootId: string; root: string; leafCount: number } | null
+  { rootId: string; root: string; leafCount: number; reused: boolean } | null
 > {
   const client = await pool.connect();
   try {
@@ -30,12 +35,15 @@ export async function commitPendingMerkleRoot(): Promise<
     }
 
     const { root, proofs } = buildMerkleTree(pending.map((p) => p.leaf_hash));
-    const rootId = `mr_${randomBytes(9).toString("base64url")}`;
-
-    await client.query(
-      `insert into merkle_roots (id, root_hash, leaf_count, status) values ($1, $2, $3, 'pending')`,
-      [rootId, root, pending.length]
+    const inserted = await client.query<{ id: string }>(
+      `insert into merkle_roots (id, root_hash, leaf_count, status) values ($1, $2, $3, 'pending')
+       on conflict (root_hash) do nothing returning id`,
+      [`mr_${randomBytes(9).toString("base64url")}`, root, pending.length]
     );
+    const reused = inserted.rowCount === 0;
+    const rootId = reused
+      ? (await client.query<{ id: string }>(`select id from merkle_roots where root_hash = $1`, [root])).rows[0].id
+      : inserted.rows[0].id;
 
     for (const p of pending) {
       const proof = proofs.get(p.leaf_hash.toLowerCase() as `0x${string}`);
@@ -49,7 +57,7 @@ export async function commitPendingMerkleRoot(): Promise<
     }
 
     await client.query("commit");
-    return { rootId, root, leafCount: pending.length };
+    return { rootId, root, leafCount: pending.length, reused };
   } catch (error) {
     await client.query("rollback").catch(() => {});
     throw error;
@@ -78,5 +86,42 @@ export async function getMintProof(commitmentId: string) {
     proof: row.merkle_proof,
     root: row.root_hash,
     rootStatus: row.root_status,
+  };
+}
+
+/**
+ * The Merkle proof for a certificate (BE-2.17): the certificate's mint
+ * commitment (same artwork and edition), its leaf, sibling path and root.
+ * `verified` re-checks the path against the stored root, as the contract will.
+ * Null until the commitment has been batched into a root.
+ */
+export async function getCertificateProof(certificateId: string) {
+  const { rows } = await pool.query<{
+    commitment_id: string;
+    leaf_hash: string;
+    merkle_proof: string[];
+    root_hash: string;
+    root_status: string;
+    tx_hash: string | null;
+  }>(
+    `select c.id as commitment_id, c.leaf_hash, c.merkle_proof, r.root_hash, r.status as root_status, r.tx_hash
+     from coa_certificates cert
+     join mint_commitments c on c.artwork_id = cert.artwork_id and c.edition_id is not distinct from cert.edition_id
+     join merkle_roots r on r.id = c.merkle_root_id
+     where cert.id = $1 and c.merkle_proof is not null
+     order by c.created_at desc limit 1`,
+    [certificateId]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    certificateId,
+    commitmentId: row.commitment_id,
+    leaf: row.leaf_hash,
+    proof: row.merkle_proof,
+    root: row.root_hash,
+    rootStatus: row.root_status,
+    rootTxHash: row.tx_hash,
+    verified: verifyMerkleProof(row.leaf_hash, row.merkle_proof, row.root_hash),
   };
 }

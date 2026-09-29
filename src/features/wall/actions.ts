@@ -2,6 +2,7 @@
 
 import { updateTag } from "next/cache";
 import { headers } from "next/headers";
+import { z } from "zod";
 
 import { WALL_TAG } from "@/features/wall/data";
 import {
@@ -223,10 +224,16 @@ export async function publishToWall(
 export async function searchWall(
   query: string
 ): Promise<{ tiles: WallTile[]; limited: boolean }> {
-  if (query.trim().length < 2) return { tiles: [], limited: false };
+  const parsed = z.string().trim().min(2).max(200).safeParse(query);
+  if (!parsed.success) return { tiles: [], limited: false };
 
   const limit = checkRateLimit(`wallsearch:${await clientKey()}`, SEARCH_LIMIT);
   if (!limit.ok) return { tiles: [], limited: true };
 
-  return { tiles: await searchWallTiles(query), limited: false };
+  try {
+    return { tiles: await searchWallTiles(parsed.data), limited: false };
+  } catch (error) {
+    console.error("[wall] search failed", error);
+    return { tiles: [], limited: false };
+  }
 }

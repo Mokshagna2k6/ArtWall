@@ -34,6 +34,11 @@ export interface UploadSignature {
   folder: string;
   /** Present only when moderation is enabled; must be sent with the upload. */
   moderation?: string;
+  /**
+   * Present only when the signer restricted file types; must be sent with the
+   * upload as `allowed_formats`. Cloudinary rejects any other format.
+   */
+  allowedFormats?: string;
 }
 
 interface CloudinaryCredentials {
@@ -114,16 +119,21 @@ function sign(params: Record<string, string>, apiSecret: string): string {
   return createHash("sha1").update(`${toSign}${apiSecret}`).digest("hex");
 }
 
-export function createUploadSignature(folder: string): UploadSignature {
+export function createUploadSignature(
+  folder: string,
+  options: { allowedFormats?: readonly string[] } = {}
+): UploadSignature {
   const { cloudName, apiKey, apiSecret } = readCredentials();
   const timestamp = Math.floor(Date.now() / 1000);
   const moderation = moderationKind();
+  const allowedFormats = options.allowedFormats?.join(",");
 
   const params: Record<string, string> = {
     folder,
     timestamp: String(timestamp),
   };
   if (moderation) params.moderation = moderation;
+  if (allowedFormats) params.allowed_formats = allowedFormats;
 
   return {
     signature: sign(params, apiSecret),
@@ -132,6 +142,7 @@ export function createUploadSignature(folder: string): UploadSignature {
     cloudName,
     folder,
     moderation,
+    allowedFormats,
   };
 }
 

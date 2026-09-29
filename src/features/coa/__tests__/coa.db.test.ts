@@ -26,8 +26,11 @@ describe("COA / provenance (BE-1.17 – 1.20)", () => {
     actAs(artist);
 
     const edition = await createEdition({ artworkId: art, editionType: "limited", totalEditions: 5 });
-    const { hash } = await issueCertificate(art, edition);
-    await addProvenanceEvent({ artworkId: art, eventType: "exhibited", label: "Shown at the wall" });
+    if (!edition.ok) throw new Error(edition.error);
+    const issued = await issueCertificate(art, edition.data);
+    if (!issued.ok) throw new Error(issued.error);
+    const { hash } = issued.data;
+    expect((await addProvenanceEvent({ artworkId: art, eventType: "exhibited", label: "Shown at the wall" })).ok).toBe(true);
 
     actAs(null); // /verify is public
     const cert = await verifyCertificateByHash(hash);
@@ -41,8 +44,9 @@ describe("COA / provenance (BE-1.17 – 1.20)", () => {
     const owner = await makeUser();
     const art = await makeArtwork(owner.id);
     actAs(await makeUser());
-    await expect(issueCertificate(art)).rejects.toThrow();
-    await expect(addProvenanceEvent({ artworkId: art, eventType: "x", label: "x" })).rejects.toThrow();
+    expect(await issueCertificate(art)).toEqual({ ok: false, error: "Artwork not found" });
+    expect(await addProvenanceEvent({ artworkId: art, eventType: "exhibited", label: "x" })).toEqual({ ok: false, error: "Artwork not found" });
+    expect((await addProvenanceEvent({ artworkId: art, eventType: "x" as never, label: "x" })).ok).toBe(false);
   });
 
   it("mint commitment reads royalty bps from MINT_ROYALTY_BPS and refuses a missing/zero wallet", async () => {
@@ -51,14 +55,14 @@ describe("COA / provenance (BE-1.17 – 1.20)", () => {
     const art1 = await makeArtwork(noWallet.id);
     actAs(noWallet);
     await issueCertificate(art1);
-    await expect(createMintCommitment(art1)).rejects.toThrow(/wallet/i);
+    expect(await createMintCommitment(art1)).toMatchObject({ ok: false, error: expect.stringMatching(/wallet/i) });
 
     const zero = await makeUser();
     await makeProfile(zero.id, { wallet: "0x0000000000000000000000000000000000000000" });
     const art2 = await makeArtwork(zero.id);
     actAs(zero);
     await issueCertificate(art2);
-    await expect(createMintCommitment(art2)).rejects.toThrow(/wallet/i);
+    expect(await createMintCommitment(art2)).toMatchObject({ ok: false, error: expect.stringMatching(/wallet/i) });
 
     const ok = await makeUser();
     await makeProfile(ok.id, { wallet: WALLET });
@@ -66,7 +70,9 @@ describe("COA / provenance (BE-1.17 – 1.20)", () => {
     actAs(ok);
     await issueCertificate(art3);
     process.env.MINT_ROYALTY_BPS = "750";
-    const { id } = await createMintCommitment(art3);
+    const created = await createMintCommitment(art3);
+    if (!created.ok) throw new Error(created.error);
+    const { id } = created.data;
     const [row] = await q<{ erc2981_royalty_bps: number; wallet_address: string }>(
       `select erc2981_royalty_bps, wallet_address from mint_commitments where id = $1`,
       [id]
@@ -74,6 +80,6 @@ describe("COA / provenance (BE-1.17 – 1.20)", () => {
     expect(row).toEqual({ erc2981_royalty_bps: 750, wallet_address: WALLET });
 
     process.env.MINT_ROYALTY_BPS = "20000";
-    await expect(createMintCommitment(art3)).rejects.toThrow(/MINT_ROYALTY_BPS/);
+    expect(await createMintCommitment(art3)).toMatchObject({ ok: false, error: expect.stringMatching(/MINT_ROYALTY_BPS/) });
   });
 });
