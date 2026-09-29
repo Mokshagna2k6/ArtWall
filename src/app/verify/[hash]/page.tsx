@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 
 import { CertificateMintPanel } from "@/components/blockchain/certificate-mint-panel";
 import { WalletProviders } from "@/components/blockchain/wallet-providers";

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 import Link from "next/link";
 import { AtSign, Globe2, MapPin } from "lucide-react";
 import { notFound } from "next/navigation";
