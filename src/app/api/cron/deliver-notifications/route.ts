@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { isCronAuthorized } from "@/lib/cron";
+import { deadline, isCronAuthorized } from "@/lib/cron";
 import { deliverPendingNotifications, queueScheduledNotifications } from "@/features/physical-wall/notifications";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const until = deadline(maxDuration);
   const scheduled = await queueScheduledNotifications();
-  const result = await deliverPendingNotifications(50);
+  const result = await deliverPendingNotifications(50, undefined, until);
   return NextResponse.json({ scheduled, ...result });
 }
