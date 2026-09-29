@@ -9,7 +9,13 @@ import type { TestUser } from "@/test/db-setup";
  * owns is ever touched.
  */
 
-export const tid = (prefix = "x") => `betest_${prefix}_${randomBytes(6).toString("hex")}`;
+/**
+ * Per-process run tag. Several agents/CI jobs share one dev database; purging
+ * only this run's rows keeps one run's cleanup from deleting another's fixtures
+ * mid-test (which showed up as FK violations and hook timeouts on lock waits).
+ */
+export const RUN = randomBytes(3).toString("hex");
+export const tid = (prefix = "x") => `betest_${RUN}_${prefix}_${randomBytes(6).toString("hex")}`;
 
 export async function q<T = Record<string, unknown>>(text: string, params: unknown[] = []) {
   return (await pool.query(text, params)).rows as T[];
@@ -116,7 +122,7 @@ export async function makeBooking(
  * explicitly (not discovered) so a typo cannot widen the blast radius.
  */
 export async function purgeTestData() {
-  const like = "betest\\_%";
+  const like = `betest\\_${RUN}\\_%`;
   const client = await pool.connect();
   try {
     await client.query("begin");
@@ -131,7 +137,7 @@ export async function purgeTestData() {
     );
     await client.query(`delete from pw_ugc_submissions where id in (${ugc})`, [like]);
     await client.query(`delete from pw_invoices where booking_id like $1`, [like]);
-    await client.query(`delete from pw_ledger where booking_id like $1 or source_ref like '%betest\\_%'`, [like]);
+    await client.query(`delete from pw_ledger where booking_id like $1 or source_ref like '%' || $1`, [like]);
     await client.query(`delete from pw_refunds where booking_id like $1`, [like]);
     await client.query(`delete from pw_asset_deletions where public_id like '%betest%'`);
     await client.query(`delete from pw_payments where booking_id like $1`, [like]);

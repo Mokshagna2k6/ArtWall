@@ -12,11 +12,35 @@ export interface TestUser {
   email: string;
 }
 
-const state = vi.hoisted(() => ({ user: null as TestUser | null }));
+const state = vi.hoisted(() => ({ user: null as TestUser | null, cookies: new Map<string, string>() }));
 
 export function actAs(user: TestUser | null) {
   state.user = user;
 }
+
+/** The request cookies the next action sees (e.g. the UGC guest cookie). */
+export function setTestCookie(name: string, value: string | null) {
+  if (value === null) state.cookies.delete(name);
+  else state.cookies.set(name, value);
+}
+
+/**
+ * getSql() over the pg pool instead of Neon's HTTP driver. Same call shapes
+ * (tagged template, `.query(text, params)`, rows back), but it speaks plain
+ * TCP, so the suite runs against any Postgres: Neon locally, a service
+ * container in CI.
+ */
+vi.mock("@/lib/db", async () => {
+  const { pool } = await import("@/lib/db/index");
+  const tagged = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.reduce((acc, part, i) => acc + part + (i < values.length ? `$${i + 1}` : ""), "");
+    return (await pool.query(text, values)).rows;
+  };
+  const sql = Object.assign(tagged, {
+    query: async (text: string, params: unknown[] = []) => (await pool.query(text, params)).rows,
+  });
+  return { getSql: () => sql, DatabaseNotConfiguredError: class extends Error {} };
+});
 
 vi.mock("@/lib/session", () => ({
   getSessionUser: vi.fn(async () => state.user),
@@ -38,7 +62,11 @@ vi.mock("@/lib/auth", () => ({
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => new Headers({ "x-forwarded-for": `10.0.0.${Math.floor(Math.random() * 250)}` })),
-  cookies: vi.fn(async () => ({ get: () => undefined, set: () => {}, delete: () => {} })),
+  cookies: vi.fn(async () => ({
+    get: (name: string) => (state.cookies.has(name) ? { name, value: state.cookies.get(name)! } : undefined),
+    set: (name: string, value: string) => void state.cookies.set(name, value),
+    delete: (name: string) => void state.cookies.delete(name),
+  })),
 }));
 
 vi.mock("next/cache", () => ({

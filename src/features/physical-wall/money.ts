@@ -24,7 +24,19 @@ export const BP = 10_000;
  * total.
  */
 export function applyBp(amountPaise: number, bp: number): number {
-  return Math.round((amountPaise * bp) / BP);
+  assertPaise(amountPaise);
+  if (!Number.isSafeInteger(bp)) throw new TypeError(`Basis points must be an integer, got ${bp}`);
+  // Integer-only (BigInt): round half-up = floor((2·a·bp + BP) / 2·BP). No
+  // float ever holds an intermediate amount, however large the product.
+  const num = 2n * BigInt(amountPaise) * BigInt(bp) + BigInt(BP);
+  const den = 2n * BigInt(BP);
+  const q = num / den;
+  return Number(num % den < 0n ? q - 1n : q);
+}
+
+/** Throws unless `value` is a whole number of paise. Guards every money path. */
+export function assertPaise(value: number): asserts value is number {
+  if (!Number.isSafeInteger(value)) throw new TypeError(`Money must be integer paise, got ${value}`);
 }
 
 /** Rupees (as typed by a human) to paise. Returns null if it isn't a number. */

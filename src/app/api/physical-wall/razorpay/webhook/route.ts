@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { settleFromWebhook } from "@/features/physical-wall/actions/payment";
+import { settleFromWebhook } from "@/features/physical-wall/settlement";
 import { validateRazorpayConfig, verifyWebhookSignature } from "@/features/physical-wall/razorpay";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +22,11 @@ validateRazorpayConfig();
  *    `request.json()` first and re-serialising reorders keys and changes
  *    whitespace, and the signature stops matching — so the text is read once,
  *    verified, and only then parsed.
- *  - **Idempotency.** Razorpay retries. The payment id is stored on a unique
- *    column, so a redelivery is a no-op rather than a second ledger entry.
+ *  - **Idempotency.** Razorpay retries, re-sending the same
+ *    `x-razorpay-event-id`. That id goes on pw_payments.event_id (unique) and
+ *    the payment id on pw_payments.payment_id (unique); both are checked under
+ *    the booking's row lock, so a redelivery — sequential or concurrent — is a
+ *    no-op rather than a second payment or ledger entry.
  *  - **Always 200 on a handled event.** A non-2xx makes Razorpay retry, which
  *    is right for a transient failure and wrong for "we already have this" or
  *    "this event isn't one we care about".
@@ -92,9 +95,9 @@ export async function POST(request: Request) {
   try {
     const result = await settleFromWebhook({
       bookingId,
-      // Razorpay's payment id is unique per payment and is what a redelivery
-      // repeats, so it is the natural idempotency key.
-      eventId: payment.id,
+      // Razorpay repeats x-razorpay-event-id on every redelivery of one event.
+      // Fall back to the payment id (also unique) if the header is missing.
+      eventId: request.headers.get("x-razorpay-event-id") || payment.id,
       paymentId: payment.id,
       orderId: payment.order_id ?? null,
       amountPaise: paidAmountPaise,

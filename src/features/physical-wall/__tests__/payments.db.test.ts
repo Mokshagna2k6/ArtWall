@@ -40,7 +40,8 @@ vi.mock("@/features/physical-wall/razorpay", async (orig) => {
 });
 
 import { cancelBooking } from "@/features/physical-wall/actions/booking";
-import { markBookingPaid, settleFromWebhook, verifyPayment } from "@/features/physical-wall/actions/payment";
+import { markBookingPaid, verifyPayment } from "@/features/physical-wall/actions/payment";
+import { settleFromWebhook } from "@/features/physical-wall/settlement";
 import { processOpenRefunds, processRefund } from "@/features/physical-wall/refunds";
 
 const sign = (orderId: string, paymentId: string) =>
