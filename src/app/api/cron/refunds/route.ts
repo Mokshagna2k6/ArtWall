@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { processOpenRefunds } from "@/features/physical-wall/refunds";
-import { isCronAuthorized } from "@/lib/cron";
+import { deadline, isCronAuthorized } from "@/lib/cron";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -11,5 +11,5 @@ export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  return NextResponse.json(await processOpenRefunds());
+  return NextResponse.json(await processOpenRefunds(20, deadline(maxDuration)));
 }

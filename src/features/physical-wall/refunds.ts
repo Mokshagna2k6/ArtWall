@@ -94,7 +94,7 @@ export async function processRefund(refundId: string): Promise<RefundOutcome> {
 }
 
 /** The retry sweep behind /api/cron/refunds. */
-export async function processOpenRefunds(limit = 20) {
+export async function processOpenRefunds(limit = 20, until = Infinity) {
   const { rows } = await pool.query<{ id: string }>(
     `select id from pw_refunds
      where attempts < $1
@@ -104,6 +104,9 @@ export async function processOpenRefunds(limit = 20) {
     [MAX_ATTEMPTS, STALE, limit]
   );
   const results: Record<RefundOutcome, number> = { processed: 0, failed: 0, skipped: 0 };
-  for (const { id } of rows) results[await processRefund(id)] += 1;
+  for (const { id } of rows) {
+    if (Date.now() > until) break; // still open, retried next run
+    results[await processRefund(id)] += 1;
+  }
   return { scanned: rows.length, ...results };
 }

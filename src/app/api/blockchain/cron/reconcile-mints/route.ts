@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Hex } from "viem";
 import { eq, and, lt, isNotNull } from "drizzle-orm";
 
+import { expireCatalog } from "@/lib/catalog-cache";
+import { deadline } from "@/lib/cron";
 import { db } from "@/lib/db/index";
 import { coaCertificates } from "@/lib/db/schema";
 import { verifyMintTx } from "@/lib/blockchain/chain";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -27,11 +30,13 @@ export async function GET(req: NextRequest) {
     )
     .limit(50);
 
+  const until = deadline(maxDuration);
   let minted = 0;
   let failed = 0;
   let pending = 0;
 
   for (const cert of stale) {
+    if (Date.now() > until) break; // still "minting", reconciled next run
     try {
       const verdict = await verifyMintTx(
         cert.txHash as Hex,
@@ -65,5 +70,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Status shows on /verify and /artwork (catalogue cache, PERF-2.07).
+  if (minted + failed > 0) expireCatalog();
   return NextResponse.json({ scanned: stale.length, minted, failed, pending });
 }

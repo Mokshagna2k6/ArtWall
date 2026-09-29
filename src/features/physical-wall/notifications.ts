@@ -207,7 +207,9 @@ function isResendConfigured(): boolean {
 export async function deliverPendingNotifications(
   limit = 25,
   /** Restrict to these rows (tests; admin "send this one"). */
-  onlyIds?: string[]
+  onlyIds?: string[],
+  /** Epoch ms after which no new row is started (lib/cron.ts deadline). */
+  until = Infinity
 ): Promise<{
   sent: number;
   failed: number;
@@ -237,6 +239,7 @@ export async function deliverPendingNotifications(
   let failed = 0;
 
   for (const row of pending) {
+    if (Date.now() > until) break; // left pending for the next run
     try {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",

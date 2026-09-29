@@ -214,7 +214,7 @@ export async function eraseUserIn(client: PoolClient, userId: string): Promise<{
  * Delete queued Cloudinary assets. Never throws. Failures stay 'pending' with
  * the error; after 10 attempts a row is 'failed' for a human to look at.
  */
-export async function processAssetDeletions(limit = 50) {
+export async function processAssetDeletions(limit = 50, until = Infinity) {
   const { rows } = await pool.query<{ id: string; public_id: string }>(
     `select id, public_id from pw_asset_deletions where status = 'pending' order by created_at limit $1`,
     [limit]
@@ -222,6 +222,7 @@ export async function processAssetDeletions(limit = 50) {
   let done = 0;
   let failed = 0;
   for (const row of rows) {
+    if (Date.now() > until) break; // still pending, retried next run
     try {
       await destroyAsset(row.public_id);
       await pool.query(`update pw_asset_deletions set status = 'done', done_at = now(), last_error = null where id = $1`, [row.id]);
