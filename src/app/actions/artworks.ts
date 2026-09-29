@@ -7,6 +7,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
+import { expireCatalog } from "@/lib/catalog-cache";
 import { isOwnAsset } from "@/lib/cloudinary";
 import { db } from "@/lib/db/index";
 import { artworks } from "@/lib/db/schema";
@@ -77,6 +78,7 @@ export async function createArtwork(input: unknown) {
   await db
     .insert(artworks)
     .values({ id: randomUUID(), userId, ...data, pricePaise: price });
+  expireCatalog();
   revalidatePath("/studio");
   revalidatePath("/studio/artworks");
 }
@@ -88,6 +90,7 @@ export async function setArtworkPublic(id: string, isPublic: boolean) {
     .where(and(eq(artworks.id, id), eq(artworks.userId, userId)))
     .returning({ id: artworks.id, isPublic: artworks.isPublic });
   if (!row) throw new Error("Artwork not found");
+  expireCatalog();
   revalidatePath("/studio/artworks");
   revalidatePath("/studio/tags");
   revalidatePath(`/artwork/${id}`);
@@ -98,5 +101,6 @@ export async function deleteArtwork(id: string) {
   await db
     .delete(artworks)
     .where(and(eq(artworks.id, id), eq(artworks.userId, userId)));
+  expireCatalog();
   revalidatePath("/studio/artworks");
 }

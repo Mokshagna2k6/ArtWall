@@ -1,6 +1,7 @@
 "use server";
 
 import { updateTag } from "next/cache";
+import { expireCatalog } from "@/lib/catalog-cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -213,6 +214,8 @@ export async function setConsent(
     });
 
     updateTag(WALL_TAG);
+    // Withdrawing profile_publication unpublishes the artist from the catalogue.
+    if (next === "withdraw" && purpose === "profile_publication") expireCatalog();
     return ok(
       next === "withdraw"
         ? "Withdrawn. We've stopped processing for that purpose."
@@ -300,6 +303,7 @@ export async function eraseMyData(
     await processAssetDeletions();
 
     updateTag(WALL_TAG);
+    expireCatalog(); // their artworks, profile and certificates are gone
   } catch (error) {
     if (pending) await logDataRightsRequest(pool, pending, "erasure", "failed").catch(() => {});
     return toActionError("eraseMyData", error);

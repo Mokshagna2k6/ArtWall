@@ -1,8 +1,6 @@
 "use server";
 
 import { updateTag } from "next/cache";
-import { createHash } from "node:crypto";
-import { headers } from "next/headers";
 
 import { getActor, hasRole, requireRole } from "@/features/physical-wall/authorize";
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -15,7 +13,7 @@ import {
   WALL_TAG,
   type ActionState,
 } from "@/features/physical-wall/actions/shared";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { limitRequest, retryIn } from "@/lib/rate-limit";
 import { getSql } from "@/lib/db";
 import { notifyUser } from "@/features/physical-wall/notifications";
 import { isOwnAsset } from "@/lib/cloudinary";
@@ -23,26 +21,16 @@ import { getSessionUser } from "@/lib/session";
 import { currentUgcFolder, UGC_FORMATS } from "@/features/physical-wall/image-validation";
 import { ugcSubmitSchema, ugcModerateSchema, ugcWithdrawSchema } from "@/features/physical-wall/schema";
 
-async function rotatingKey(prefix: string): Promise<string> {
-  const headerList = await headers();
-  const ip =
-    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headerList.get("x-real-ip") ||
-    "unknown";
-  const hour = Math.floor(Date.now() / 3_600_000);
-  return `${prefix}:${createHash("sha256").update(`${ip}:${hour}`).digest("hex").slice(0, 16)}`;
-}
-
 export async function submitUgc(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const limit = checkRateLimit(await rotatingKey("pw-ugc"), {
-      limit: 5,
-      windowMs: 15 * 60 * 1000,
-    });
-    if (!limit.ok) return fail("Too many submissions. Try again shortly.");
+    // 5 per 15 minutes per visitor (user id when signed in, else IP): a selfie
+    // plus a couple of retakes. Moderation is manual, so the queue is the cost.
+    const user = await getSessionUser();
+    const limit = await limitRequest("pw-ugc", { limit: 5, windowMs: 15 * 60 * 1000 }, user?.id);
+    if (!limit.ok) return fail(`Too many submissions. Try again in ${retryIn(limit)}.`);
 
     const parsed = ugcSubmitSchema.safeParse({
       caption: formData.get("caption"),
@@ -78,7 +66,6 @@ export async function submitUgc(
     // Signed-in submitters are linked so their UGC shows up in a DPDP export
     // and is erased with their account. A registered visitor is linked through
     // their visit; anyone else is an anonymous guest.
-    const user = await getSessionUser();
     const id = newId("ugc");
 
     const duplicate = await inTransaction(async (client) => {

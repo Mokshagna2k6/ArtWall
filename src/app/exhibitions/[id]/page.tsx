@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { cache } from "react";
-
 import { getPublicExhibition } from "@/features/exhibitions/actions";
+import { cachedCatalog } from "@/lib/catalog-cache";
 
 // Keyed by id: exhibitions have no slug column. Only published ones resolve.
-const load = cache((id: string) => getPublicExhibition(id));
+// Catalogue cache (PERF-2.06); also dedupes generateMetadata + the page.
+const load = cachedCatalog(getPublicExhibition, "exhibition", 3600);
 
 export async function generateMetadata({
   params,

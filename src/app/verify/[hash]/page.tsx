@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 
 import { CertificateMintPanel } from "@/components/blockchain/certificate-mint-panel";
 import { WalletProviders } from "@/components/blockchain/wallet-providers";
@@ -8,6 +8,11 @@ import {
   verifyCertificateByHash,
   getProvenanceTimeline,
 } from "@/features/coa/actions";
+import { cachedCatalog } from "@/lib/catalog-cache";
+
+// The certificate is cached inside verifyCertificateByHash (PERF-2.07); its
+// provenance is too. Both are expired by every issue/revoke/mint write.
+const loadTimeline = cachedCatalog(getProvenanceTimeline, "provenance", 3600);
 
 /**
  * coa_certificates.status (CHECK 0015) → what a stranger checking the work
@@ -53,7 +58,7 @@ export default async function VerifyPage({
     );
   }
 
-  const timeline = await getProvenanceTimeline(cert.artworkId);
+  const timeline = await loadTimeline(cert.artworkId);
   const status = STATUS[cert.status] ?? {
     label: `Unknown status (${cert.status})`,
     tone: "warn" as const,

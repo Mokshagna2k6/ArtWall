@@ -224,7 +224,9 @@ type Claimed = { id: string; recipient: string; subject: string; body: string; a
 export async function deliverPendingNotifications(
   limit = 25,
   /** Restrict to these rows (tests; admin "send this one"). */
-  onlyIds?: string[]
+  onlyIds?: string[],
+  /** Epoch ms after which no new row is started (lib/cron.ts deadline). */
+  until = Infinity
 ): Promise<{ sent: number; failed: number; dead: number; skipped: number }> {
   const sql = getSql();
   const ids = onlyIds ?? null;
@@ -251,6 +253,7 @@ export async function deliverPendingNotifications(
   let dead = 0;
 
   for (const row of claimed) {
+    if (Date.now() > until) break; // left pending for the next run
     try {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",

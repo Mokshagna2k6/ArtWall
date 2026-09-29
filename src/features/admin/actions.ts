@@ -7,7 +7,7 @@ import { z } from "zod";
 
 import { ROSTER_TAG } from "@/features/waitlist/roster";
 import { getSql } from "@/lib/db";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, clientIp, mostRestrictive, retryIn } from "@/lib/rate-limit";
 
 export type AdminState =
   | { status: "idle" }
@@ -30,14 +30,15 @@ function passwordMatches(supplied: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-async function clientKey(): Promise<string> {
-  const headerList = await headers();
-  return (
-    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headerList.get("x-real-ip") ||
-    "unknown"
-  );
-}
+/**
+ * Admin password attempts: 5 per 15 minutes per IP, and 30 per 15 minutes
+ * across ALL IPs. The per-IP bucket stops one machine guessing; the global one
+ * caps a distributed guesser at ~2,900 tries a day instead of unbounded. The
+ * cost is that an attacker can lock the (single) admin out for 15 minutes,
+ * which is the right trade for a password-only endpoint.
+ */
+const ADMIN_PER_IP = { limit: 5, windowMs: 15 * 60 * 1000 };
+const ADMIN_GLOBAL = { limit: 30, windowMs: 15 * 60 * 1000 };
 
 /**
  * Hide or restore a tile.
@@ -54,12 +55,20 @@ export async function setTileStatus(
   _previous: AdminState,
   formData: FormData
 ): Promise<AdminState> {
-  const limit = checkRateLimit(`admin:${await clientKey()}`, {
-    limit: 8,
-    windowMs: 15 * 60 * 1000,
-  });
+  // Password-guarded: fails CLOSED if the limiter store is down (PERF-2.03).
+  const limit = mostRestrictive(
+    await Promise.all([
+      checkRateLimit(`admin:ip:${clientIp(await headers())}`, ADMIN_PER_IP),
+      checkRateLimit("admin:global", ADMIN_GLOBAL),
+    ])
+  );
   if (!limit.ok) {
-    return { status: "error", message: "Too many attempts. Wait a while." };
+    return {
+      status: "error",
+      message: limit.unavailable
+        ? "Temporarily unavailable. Try again shortly."
+        : `Too many attempts. Try again in ${retryIn(limit)}.`,
+    };
   }
 
   const password = String(formData.get("password") ?? "");

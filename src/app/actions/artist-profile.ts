@@ -7,6 +7,7 @@ import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { ensureArtistProfile } from "@/lib/artist-profiles";
+import { expireCatalog } from "@/lib/catalog-cache";
 import { isOwnAsset } from "@/lib/cloudinary";
 import { db } from "@/lib/db/index";
 import { artistProfiles } from "@/lib/db/schema";
@@ -102,6 +103,7 @@ export async function saveArtistProfile(input: unknown) {
 
   revalidatePath("/studio");
   revalidatePath("/studio/settings");
+  expireCatalog();
   revalidatePath("/artists");
   revalidatePath(`/artist/${current.handle}`);
   revalidatePath(`/artist/${data.handle}`);
@@ -128,6 +130,7 @@ export async function publishArtistProfile() {
 
   revalidatePath("/studio");
   revalidatePath("/studio/settings");
+  expireCatalog();
   revalidatePath("/artists");
   revalidatePath(`/artist/${profile.handle}`);
 }
@@ -141,6 +144,7 @@ export async function unpublishArtistProfile() {
     .where(eq(artistProfiles.userId, user.id));
   revalidatePath("/studio");
   revalidatePath("/studio/settings");
+  expireCatalog();
   revalidatePath("/artists");
   revalidatePath(`/artist/${profile.handle}`);
 }

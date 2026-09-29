@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -7,6 +7,11 @@ import { getArtworkDetail } from "@/features/marketplace/actions";
 import { getProvenanceTimeline } from "@/features/coa/actions";
 import { formatINR } from "@/features/physical-wall/money";
 import { JsonLd } from "@/components/seo/json-ld";
+import { cachedCatalog } from "@/lib/catalog-cache";
+
+// Same for every visitor: served from the catalogue cache (PERF-2.06).
+const loadArtwork = cachedCatalog(getArtworkDetail, "artwork-detail", 3600);
+const loadTimeline = cachedCatalog(getProvenanceTimeline, "provenance", 3600);
 
 export async function generateMetadata({
   params,
@@ -14,7 +19,7 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const artwork = await getArtworkDetail(id);
+  const artwork = await loadArtwork(id);
   if (!artwork) return { title: "Artwork not found" };
   return {
     title: `${artwork.title} by ${artwork.artistName}`,
@@ -30,10 +35,10 @@ export default async function ArtworkDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const artwork = await getArtworkDetail(id);
+  const artwork = await loadArtwork(id);
   if (!artwork) notFound();
 
-  const timeline = await getProvenanceTimeline(id);
+  const timeline = await loadTimeline(id);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">

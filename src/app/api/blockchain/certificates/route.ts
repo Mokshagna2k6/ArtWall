@@ -5,10 +5,12 @@ import { z } from "zod";
 
 import { siteConfig } from "@/config/site";
 import { db } from "@/lib/db/index";
+import { expireCatalog } from "@/lib/catalog-cache";
 import { coaCertificates, artworks } from "@/lib/db/schema";
 import { pinata, type NftMetadata } from "@/lib/blockchain/pinata";
 import { getApiUser } from "@/lib/blockchain/auth";
-import { apiError, handleRouteError, requestId, checkRateLimit } from "@/lib/blockchain/http";
+import { apiError, handleRouteError, requestId } from "@/lib/blockchain/http";
+import { limitRequest, tooManyRequests } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -29,8 +31,10 @@ export async function POST(req: NextRequest) {
     const user = await getApiUser();
     if (!user) return apiError("unauthenticated", { reqId });
 
-    const rl = await checkRateLimit(`cert-create:${user.id}`, { limit: 60, windowSec: 3600 });
-    if (!rl.ok) return apiError("rate_limited", { reqId });
+    // 60/hour per user: a studio certifying its catalogue in one sitting fits;
+    // each call pins metadata to paid IPFS storage, so a runaway script does not.
+    const rl = await limitRequest("cert-create", { limit: 60, windowMs: 60 * 60 * 1000 }, user.id);
+    if (!rl.ok) return tooManyRequests(rl, { error: { code: "rate_limited", reqId } });
 
     const input = bodySchema.parse(await req.json());
 
@@ -76,6 +80,7 @@ export async function POST(req: NextRequest) {
       objectType: input.objectType,
       privacy: input.privacy,
     });
+    expireCatalog();
 
     return NextResponse.json({ id: certId, metadataUri: `ipfs://${pinned.cid}` });
   } catch (err) {

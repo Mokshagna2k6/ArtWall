@@ -50,3 +50,13 @@ export async function runCron<T extends { processed: number }>(
     return Response.json({ error: "Cron job failed. See logs." }, { status: 500 });
   }
 }
+
+/**
+ * When a cron's work loop must stop picking up new items (PERF-2.09): the
+ * route's `maxDuration` minus headroom for the item in flight (each has its own
+ * <=15s network timeout) and the response. Whatever is left over stays queued
+ * and is picked up by the next run - every batch here is resumable.
+ */
+export function deadline(maxDurationS: number, headroomS = 20): number {
+  return Date.now() + (maxDurationS - headroomS) * 1000;
+}
