@@ -1,0 +1,359 @@
+
+> artwall@0.1.0 test:db E:\Internship-Work\ArtWall\.claude\worktrees\agent-a760c1b9dd906427c
+> vitest run --config vitest.db.config.ts
+
+[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - ESM syntax in a file loaded as CommonJS (vitest.db.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+  - ESM syntax in a file loaded as CommonJS (vitest.config.ts:1:1). Use a `.mjs` extension or set `"type": "module"` in the closest package.json
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
+
+ RUN  v4.1.11 E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c
+
+(node:17876) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/features/physical-wall/__tests__/payments.db.test.ts > payments (BE-1.11 / 1.12 / 1.13) > a capture for an expired booking whose slot was re-taken is recorded and fully refunded
+[physical-wall] refund rf_TA6G-L7Ieny2 failed error: duplicate key value violates unique constraint "pw_refunds_provider_refund_id_key"
+    at E:\Internship-Work\ArtWall\.claude\worktrees\agent-a760c1b9dd906427c\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.0\node_modules\pg-pool\index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at processRefund (E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/refunds.ts:76:5)
+    at settleAndRefund (E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/actions/payment.ts:287:43)
+    at Module.settleFromWebhook (E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/actions/payment.ts:456:19)
+    at E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/__tests__/payments.db.test.ts:132:12
+    at file:///E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+  length: 252,
+  severity: 'ERROR',
+  code: '23505',
+  detail: 'Key (provider_refund_id)=(rfnd_0) already exists.',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'pw_refunds',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'pw_refunds_provider_refund_id_key',
+  file: 'nbtinsert.c',
+  line: '667',
+  routine: '_bt_check_unique'
+}
+
+stderr | src/features/physical-wall/__tests__/payments.db.test.ts > durable refunds (BE-1.14) > a Razorpay failure leaves the cancel committed and the refund 'failed'; the cron retries it
+[physical-wall] refund rf_fN1j9wDZaDiL failed Error: Razorpay 502
+    at E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/__tests__/payments.db.test.ts:33:15
+    at Mock (file:///E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/node_modules/.pnpm/@vitest+spy@4.1.11/node_modules/@vitest/spy/dist/index.js:332:34)
+    at processRefund (E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/refunds.ts:75:14)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at Module.cancelBooking (E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/actions/booking.ts:557:27)
+    at E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/__tests__/payments.db.test.ts:227:13
+    at file:///E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20
+
+stderr | src/features/physical-wall/__tests__/payments.db.test.ts > durable refunds (BE-1.14) > a Razorpay failure leaves the cancel committed and the refund 'failed'; the cron retries it
+[physical-wall] refund rf_vPEGD-w4HotS failed error: duplicate key value violates unique constraint "pw_refunds_provider_refund_id_key"
+    at E:\Internship-Work\ArtWall\.claude\worktrees\agent-a760c1b9dd906427c\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.0\node_modules\pg-pool\index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at processRefund (E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/refunds.ts:76:5)
+    at Module.cancelBooking (E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/actions/booking.ts:557:27)
+    at E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/__tests__/payments.db.test.ts:212:13
+    at file:///E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+  length: 252,
+  severity: 'ERROR',
+  code: '23505',
+  detail: 'Key (provider_refund_id)=(rfnd_2) already exists.',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'pw_refunds',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'pw_refunds_provider_refund_id_key',
+  file: 'nbtinsert.c',
+  line: '667',
+  routine: '_bt_check_unique'
+}
+
+stderr | src/features/physical-wall/__tests__/payments.db.test.ts > durable refunds (BE-1.14) > a Razorpay failure leaves the cancel committed and the refund 'failed'; the cron retries it
+[physical-wall] refund rf_TA6G-L7Ieny2 failed error: duplicate key value violates unique constraint "pw_refunds_provider_refund_id_key"
+    at E:\Internship-Work\ArtWall\.claude\worktrees\agent-a760c1b9dd906427c\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.0\node_modules\pg-pool\index.js:45:11
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at processRefund (E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/refunds.ts:76:5)
+    at Module.processOpenRefunds (E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/refunds.ts:107:38)
+    at E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/__tests__/payments.db.test.ts:236:5
+    at file:///E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+  length: 252,
+  severity: 'ERROR',
+  code: '23505',
+  detail: 'Key (provider_refund_id)=(rfnd_0) already exists.',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'pw_refunds',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'pw_refunds_provider_refund_id_key',
+  file: 'nbtinsert.c',
+  line: '667',
+  routine: '_bt_check_unique'
+}
+
+ ❯ src/features/physical-wall/__tests__/payments.db.test.ts (12 tests | 3 failed) 227937ms
+     × a capture for an expired booking whose slot was re-taken is recorded and fully refunded 60007ms
+     × cancel commits a pending refund, then Razorpay is called and it is processed 60016ms
+     × a Razorpay failure leaves the cancel committed and the refund 'failed'; the cron retries it 27346ms
+(node:17760) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/features/physical-wall/__tests__/dpdp.db.test.ts (4 tests | 1 failed) 60986ms
+     × is one transaction: a failure after eraseUserIn changes nothing 3645ms
+(node:13308) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:16992) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ❯ src/features/physical-wall/__tests__/invoices.db.test.ts (4 tests | 2 failed) 53726ms
+     × paid booking → intra-state CGST+SGST at the venue, odd paisa split, sequential number 6915ms
+     × rejects a malformed GSTIN, a non-admin, and a refunded booking 11204ms
+(node:18268) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | src/features/physical-wall/__tests__/install.db.test.ts > install scheduling (BE-1.15 / 1.16) > rejects a clash on the same wall slot, allows other slots up to capacity, then rejects
+[physical-wall] chooseInstallWindow error: insert or update on table "pw_install_windows" violates foreign key constraint "pw_install_windows_booking_id_fkey"
+    at E:\Internship-Work\ArtWall\.claude\worktrees\agent-a760c1b9dd906427c\node_modules\.pnpm\pg@8.23.0\node_modules\pg\lib\client.js:694:17
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/actions/ops.ts:133:7
+    at inTransaction (E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/actions/shared.ts:52:20)
+    at chooseInstallWindow (E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/actions/ops.ts:89:5)
+    at E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/src/features/physical-wall/__tests__/install.db.test.ts:60:13
+    at file:///E:/Internship-Work/ArtWall/.claude/worktrees/agent-a760c1b9dd906427c/node_modules/.pnpm/@vitest+runner@4.1.11/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:20 {
+  length: 330,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (booking_id)=(betest_bk_02ce0a80b386) is not present in table "pw_bookings".',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'pw_install_windows',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'pw_install_windows_booking_id_fkey',
+  file: 'ri_triggers.c',
+  line: '2599',
+  routine: 'ri_ReportViolation'
+}
+
+ ❯ src/features/physical-wall/__tests__/install.db.test.ts (2 tests | 1 failed) 38609ms
+     × rejects a clash on the same wall slot, allows other slots up to capacity, then rejects 22368ms
+(node:11932) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:8904) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:17272) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:1792) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:4456) Warning: SECURITY WARNING: The SSL modes 'prefer', 'require', and 'verify-ca' are treated as aliases for 'verify-full'.
+In the next major version (pg-connection-string v3.0.0 and pg v9.0.0), these modes will adopt standard libpq semantics, which have weaker security guarantees.
+
+To prepare for this change:
+- If you want the current behavior, explicitly use 'sslmode=verify-full'
+- If you want libpq compatibility now, use 'uselibpqcompat=true&sslmode=require'
+
+See https://www.postgresql.org/docs/current/libpq-ssl.html for libpq SSL mode definitions.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯ Failed Suites 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/features/physical-wall/__tests__/payments.db.test.ts [ src/features/physical-wall/__tests__/payments.db.test.ts ]
+error: update or delete on table "pw_bookings" violates foreign key constraint "pw_ledger_booking_id_fkey" on table "pw_ledger"
+ ❯ node_modules/.pnpm/pg@8.23.0/node_modules/pg/lib/client.js:694:17
+ ❯ purgeTestData src/test/fixtures.ts:143:5
+    141|     await client.query(`delete from pw_booking_slots where booking_id …
+    142|     await client.query(`delete from pw_agreements where booking_id lik…
+    143|     await client.query(`delete from pw_bookings where id like $1`, [li…
+       |     ^
+    144|     await client.query(`delete from pw_slots where id like $1`, [like]…
+    145|     await client.query(`delete from pw_grid_config where id like $1`, …
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 7 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/features/physical-wall/__tests__/dpdp.db.test.ts > DPDP erasure (BE-1.28 – 1.33) > is one transaction: a failure after eraseUserIn changes nothing
+error: insert or update on table "pw_consents" violates foreign key constraint "pw_consents_user_id_fkey"
+ ❯ node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modules/pg-pool/index.js:45:11
+ ❯ q src/test/fixtures.ts:15:11
+     13|
+     14| export async function q<T = Record<string, unknown>>(text: string, par…
+     15|   return (await pool.query(text, params)).rows as T[];
+       |           ^
+     16| }
+     17|
+ ❯ richUser src/features/physical-wall/__tests__/dpdp.db.test.ts:43:3
+ ❯ src/features/physical-wall/__tests__/dpdp.db.test.ts:99:22
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯
+
+ FAIL  src/features/physical-wall/__tests__/install.db.test.ts > install scheduling (BE-1.15 / 1.16) > rejects a clash on the same wall slot, allows other slots up to capacity, then rejects
+AssertionError: expected 'error' to be 'ok' // Object.is equality
+
+Expected: "ok"
+Received: "error"
+
+ ❯ src/features/physical-wall/__tests__/install.db.test.ts:60:51
+     58|
+     59|     // Re-choosing replaces your own window rather than counting again…
+     60|     expect((await choose(a.artist, a.bk)).status).toBe("ok");
+       |                                                   ^
+     61|     expect(await q(`select 1 from pw_install_windows where booking_id …
+     62|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯
+
+ FAIL  src/features/physical-wall/__tests__/invoices.db.test.ts > GST invoices (BE-1.06 / 1.07) > paid booking → intra-state CGST+SGST at the venue, odd paisa split, sequential number
+error: insert or update on table "pw_booking_slots" violates foreign key constraint "pw_booking_slots_booking_id_fkey"
+ ❯ node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modules/pg-pool/index.js:45:11
+ ❯ q src/test/fixtures.ts:15:11
+     13|
+     14| export async function q<T = Record<string, unknown>>(text: string, par…
+     15|   return (await pool.query(text, params)).rows as T[];
+       |           ^
+     16| }
+     17|
+ ❯ Module.makeBooking src/test/fixtures.ts:101:5
+ ❯ paid src/features/physical-wall/__tests__/invoices.db.test.ts:27:14
+ ❯ src/features/physical-wall/__tests__/invoices.db.test.ts:39:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯
+
+ FAIL  src/features/physical-wall/__tests__/invoices.db.test.ts > GST invoices (BE-1.06 / 1.07) > rejects a malformed GSTIN, a non-admin, and a refunded booking
+AssertionError: expected 'error' to be 'ok' // Object.is equality
+
+Expected: "ok"
+Received: "error"
+
+ ❯ src/features/physical-wall/__tests__/invoices.db.test.ts:78:74
+     76|     const f = new FormData();
+     77|     f.set("bookingId", bk);
+     78|     expect((await cancelBooking({ status: "idle" } as never, f)).statu…
+       |                                                                          ^
+     79|     actAs(admin);
+     80|     expect((await generateInvoice({ status: "idle" } as never, invoice…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯
+
+ FAIL  src/features/physical-wall/__tests__/payments.db.test.ts > payments (BE-1.11 / 1.12 / 1.13) > a capture for an expired booking whose slot was re-taken is recorded and fully refunded
+Error: Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/features/physical-wall/__tests__/payments.db.test.ts:123:3
+    121|   });
+    122|
+    123|   it("a capture for an expired booking whose slot was re-taken is reco…
+       |   ^
+    124|     const [slot] = await makeSlots(1);
+    125|     const a = await makeUser();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯
+
+ FAIL  src/features/physical-wall/__tests__/payments.db.test.ts > durable refunds (BE-1.14) > cancel commits a pending refund, then Razorpay is called and it is processed
+Error: Test timed out in 60000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ src/features/physical-wall/__tests__/payments.db.test.ts:209:3
+    207|   }
+    208|
+    209|   it("cancel commits a pending refund, then Razorpay is called and it …
+       |   ^
+    210|     const { artist, booking, paymentId } = await paidBooking();
+    211|     actAs(artist);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯
+
+ FAIL  src/features/physical-wall/__tests__/payments.db.test.ts > durable refunds (BE-1.14) > a Razorpay failure leaves the cancel committed and the refund 'failed'; the cron retries it
+TypeError: Cannot read properties of undefined (reading 'status')
+ ❯ src/features/physical-wall/__tests__/payments.db.test.ts:238:14
+    236|     await processOpenRefunds();
+    237|     [r] = await q(`select id, status, last_error from pw_refunds where…
+    238|     expect(r.status).toBe("processed");
+       |              ^
+    239|   });
+    240|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯
+
+
+ Test Files  4 failed | 6 passed (10)
+      Tests  7 failed | 30 passed (37)
+   Start at  14:37:48
+   Duration  515.69s (transform 945ms, setup 139ms, import 5.08s, tests 508.68s, environment 1ms)
+
+ ELIFECYCLE  Command failed with exit code 1.

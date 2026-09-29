@@ -20,19 +20,26 @@ create index if not exists pw_ledger_booking_idx
   on pw_ledger (booking_id)
   where booking_id is not null;
 
--- Backfill from the system-written source_refs.
-update pw_ledger l
-set booking_id = b.id
-from pw_bookings b
-where l.booking_id is null
-  and b.id = substring(l.source_ref from '^(?:booking|refund):(.+)$');
+-- Backfill from the system-written source_refs. Guarded (DB-2.13): 0028 makes
+-- pw_ledger append-only and revokes UPDATE, so on a re-run this is skipped.
+do $$
+begin
+  if has_table_privilege('pw_ledger', 'UPDATE') then
+    update pw_ledger l
+    set booking_id = b.id
+    from pw_bookings b
+    where l.booking_id is null
+      and b.id = substring(l.source_ref from '^(?:booking|refund):(.+)$');
 
-update pw_ledger l
-set booking_id = r.booking_ref
-from pw_perk_redemptions r
-where l.booking_id is null
-  and l.source_ref = 'perk:' || r.id
-  and r.booking_ref is not null;
+    update pw_ledger l
+    set booking_id = r.booking_ref
+    from pw_perk_redemptions r
+    where l.booking_id is null
+      and l.source_ref = 'perk:' || r.id
+      and r.booking_ref is not null;
+  end if;
+end $$;
 
 -- Amounts are magnitudes; direction is carried by type (revenue | expense).
+alter table pw_ledger drop constraint if exists pw_ledger_amount_check;
 alter table pw_ledger add constraint pw_ledger_amount_check check (amount_paise >= 0);

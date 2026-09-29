@@ -112,6 +112,17 @@ export async function makeBooking(
 }
 
 /**
+ * Append-only tables (0028/0029): their triggers refuse DELETE, and DELETE is
+ * revoked from the app role on the first four. The purge is privileged
+ * maintenance, so it does what only the table owner can: disable the guard
+ * triggers and grant itself DELETE, inside its own transaction. Both are
+ * transactional, so a failed purge rolls them back; a successful one restores
+ * them before COMMIT. No other session ever sees the guard down.
+ */
+const DELETE_REVOKED = ["pw_ledger", "pw_audit_log", "pw_condition_photos", "pw_damage_records"];
+const GUARDED = [...DELETE_REVOKED, "provenance_events", "coa_certificates"];
+
+/**
  * Delete every row a test run created, children first. Tables are listed
  * explicitly (not discovered) so a typo cannot widen the blast radius.
  */
@@ -120,6 +131,8 @@ export async function purgeTestData() {
   const client = await pool.connect();
   try {
     await client.query("begin");
+    for (const t of GUARDED) await client.query(`alter table ${t} disable trigger user`);
+    for (const t of DELETE_REVOKED) await client.query(`grant delete on ${t} to current_user`);
     await client.query(`delete from pw_audit_log where subject_id like $1 or actor_id like $1`, [like]);
     await client.query(`delete from pw_notifications where user_id like $1 or recipient like '%@example.test'`, [like]);
     const ugc = `select id from pw_ugc_submissions where user_id like $1 or caption like 'betest%'`;
@@ -131,12 +144,15 @@ export async function purgeTestData() {
     );
     await client.query(`delete from pw_ugc_submissions where id in (${ugc})`, [like]);
     await client.query(`delete from pw_invoices where booking_id like $1`, [like]);
-    await client.query(`delete from pw_ledger where booking_id like $1 or source_ref like '%betest\\_%'`, [like]);
+    await client.query(
+      `delete from pw_ledger where booking_id like $1 or created_by like $1 or source_ref like '%betest\\_%'`,
+      [like]
+    );
     await client.query(`delete from pw_refunds where booking_id like $1`, [like]);
     await client.query(`delete from pw_asset_deletions where public_id like '%betest%'`);
     await client.query(`delete from pw_payments where booking_id like $1`, [like]);
-    await client.query(`delete from pw_condition_photos where booking_id like $1`, [like]);
     await client.query(`delete from pw_damage_records where booking_id like $1`, [like]);
+    await client.query(`delete from pw_condition_photos where booking_id like $1`, [like]);
     await client.query(`delete from pw_install_windows where booking_id like $1`, [like]);
     await client.query(`delete from pw_booking_slots where booking_id like $1`, [like]);
     await client.query(`delete from pw_agreements where booking_id like $1`, [like]);
@@ -144,10 +160,14 @@ export async function purgeTestData() {
     await client.query(`delete from pw_slots where id like $1`, [like]);
     await client.query(`delete from pw_grid_config where id like $1`, [like]);
     await client.query(`delete from pw_identity_verifications where user_id like $1`, [like]);
-    await client.query(`delete from provenance_events where artwork_id like $1`, [like]);
-    await client.query(`delete from mint_commitments where artwork_id like $1`, [like]);
-    await client.query(`delete from coa_certificates where artwork_id like $1`, [like]);
-    await client.query(`delete from editions where artwork_id like $1`, [like]);
+    // Artworks created through app code get UUID ids; they belong to betest_ users.
+    const arts = `select id from artworks where id like $1 or "userId" like $1`;
+    await client.query(`update art_tags set artwork_id = null, bound_at = null where artwork_id in (${arts})`, [like]);
+    await client.query(`delete from art_tags where id like $1 or tag_uid ilike 'betest%'`, [like]);
+    await client.query(`delete from provenance_events where artwork_id in (${arts})`, [like]);
+    await client.query(`delete from mint_commitments where artwork_id in (${arts}) or user_id like $1`, [like]);
+    await client.query(`delete from coa_certificates where artwork_id in (${arts}) or user_id like $1`, [like]);
+    await client.query(`delete from editions where artwork_id in (${arts}) or user_id like $1`, [like]);
     await client.query(`delete from exhibition_artworks where exhibition_id like $1`, [like]);
     await client.query(`delete from exhibitions where id like $1 or user_id like $1`, [like]);
     await client.query(`delete from curators where id like $1 or user_id like $1`, [like]);
@@ -156,6 +176,8 @@ export async function purgeTestData() {
     await client.query(`delete from session where "userId" like $1`, [like]);
     await client.query(`delete from account where "userId" like $1`, [like]);
     await client.query(`delete from "user" where id like $1`, [like]);
+    for (const t of DELETE_REVOKED) await client.query(`revoke delete on ${t} from current_user`);
+    for (const t of GUARDED) await client.query(`alter table ${t} enable trigger user`);
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");

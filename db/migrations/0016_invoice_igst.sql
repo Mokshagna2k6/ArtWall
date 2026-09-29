@@ -17,6 +17,7 @@ alter table pw_invoices add constraint pw_invoice_split_check
 
 -- One regime per invoice: IGST, or CGST+SGST, never both. The halves of an
 -- intra-state split may differ by one paisa from rounding an odd total.
+alter table pw_invoices drop constraint if exists pw_invoice_tax_regime_check;
 alter table pw_invoices add constraint pw_invoice_tax_regime_check check (
   (igst_paise = 0 or (cgst_paise = 0 and sgst_paise = 0))
   and abs(cgst_paise - sgst_paise) <= 1
