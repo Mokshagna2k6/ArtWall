@@ -153,6 +153,7 @@ export async function purgeTestData() {
     await client.query(`delete from pw_install_windows where booking_id in (${bks})`, [like]);
     await client.query(`delete from pw_booking_addons where booking_id in (${bks})`, [like]);
     await client.query(`delete from pw_booking_slots where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_feedback where booking_id in (${bks})`, [like]);
     await client.query(`delete from pw_agreements where booking_id in (${bks})`, [like]);
     await client.query(`delete from pw_bookings where id in (${bks})`, [like]);
     await client.query(`delete from pw_slots where id like $1`, [like]);

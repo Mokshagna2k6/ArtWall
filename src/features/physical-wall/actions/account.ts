@@ -5,7 +5,13 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
-import { eraseUserIn, exportUserData, processAssetDeletions } from "@/features/physical-wall/data-rights";
+import {
+  eraseUserIn,
+  exportUserData,
+  logDataRightsRequest,
+  processAssetDeletions,
+} from "@/features/physical-wall/data-rights";
+import { pool } from "@/lib/db/index";
 import { getActor, requireRole } from "@/features/physical-wall/authorize";
 import {
   GRIEVANCE_RESPONSE_DAYS,
@@ -230,7 +236,17 @@ export async function exportMyData(): Promise<
 > {
   try {
     const actor = await requireRole("artist");
-    const payload = await exportUserData(actor.id);
+    await logDataRightsRequest(pool, actor.id, "export", "requested");
+    let payload: Awaited<ReturnType<typeof exportUserData>>;
+    try {
+      payload = await exportUserData(actor.id);
+    } catch (error) {
+      await logDataRightsRequest(pool, actor.id, "export", "failed").catch(() => {});
+      throw error;
+    }
+    await logDataRightsRequest(pool, actor.id, "export", "completed", {
+      categories: Object.keys(payload).filter((k) => Array.isArray(payload[k as keyof typeof payload])),
+    });
 
     return {
       ok: true,
@@ -254,13 +270,19 @@ export async function eraseMyData(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  let pending: string | null = null; // user id once "requested" is logged, until "completed" commits
   try {
     const actor = await requireRole("artist");
 
     formInput(z.object({ confirm: z.literal("DELETE", { error: "Type DELETE to confirm." }) }), formData);
 
+    // Requested is logged on its own, before the erasure: a failed erasure
+    // still leaves a record that it was asked for (BE-2.22).
+    await logDataRightsRequest(pool, actor.id, "erasure", "requested");
+    pending = actor.id;
     await inTransaction(async (client) => {
       const { assetsQueued } = await eraseUserIn(client, actor.id);
+      await logDataRightsRequest(client, actor.id, "erasure", "completed", { assetsQueued });
       await recordAuditIn(client, {
         actor: null,
         action: "account.erased",
@@ -273,11 +295,13 @@ export async function eraseMyData(
         },
       });
     });
+    pending = null;
 
     await processAssetDeletions();
 
     updateTag(WALL_TAG);
   } catch (error) {
+    if (pending) await logDataRightsRequest(pool, pending, "erasure", "failed").catch(() => {});
     return toActionError("eraseMyData", error);
   }
   // The sessions are gone, so re-rendering the account page would bounce to
