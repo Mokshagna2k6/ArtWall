@@ -137,8 +137,9 @@ alter table curator_picks add constraint curator_picks_artwork_id_fkey
 
 -- ── Tags ────────────────────────────────────────────────────────────────────
 -- artwork_id RESTRICT, not SET NULL: unbinding must clear bound_at too
--- (art_tags_binding_check, 0033), which a SET NULL cannot do. Erasure and
--- deleteArtwork unbind first.
+-- (art_tags_binding_check, 0033), which a SET NULL cannot do. Erasure unbinds
+-- first. deleteArtwork does not, so deleting a tagged (or certified) artwork is
+-- refused, exactly as under the implicit NO ACTION these keys had before.
 alter table art_tags drop constraint if exists art_tags_artwork_id_fkey;
 alter table art_tags add constraint art_tags_artwork_id_fkey
   foreign key (artwork_id) references artworks(id) on delete restrict;
