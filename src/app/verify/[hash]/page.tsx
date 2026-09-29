@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { notFound } from "next/navigation";
+import { cache } from "react";
 
 import { CertificateMintPanel } from "@/components/blockchain/certificate-mint-panel";
 import { WalletProviders } from "@/components/blockchain/wallet-providers";
@@ -28,10 +30,25 @@ const TONE = {
   bad: "text-red-700 bg-red-500",
 };
 
-export const metadata: Metadata = {
-  title: "Verify Certificate",
-  description: "Verify an ArtWall Certificate of Authenticity",
-};
+// Hashes are hex digests and ids are short tokens; anything else is not worth a query.
+const load = cache((hash: string) =>
+  /^[\w-]{1,128}$/.test(hash) ? verifyCertificateByHash(hash) : Promise.resolve(null)
+);
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ hash: string }>;
+}): Promise<Metadata> {
+  const cert = await load((await params).hash);
+  if (!cert) return { title: "Certificate not found", robots: { index: false } };
+  return {
+    title: `Verify: ${cert.artworkTitle} · ${cert.artistName}`,
+    description: `Certificate of Authenticity for ${cert.artworkTitle} by ${cert.artistName} on ArtWall.`,
+    // Only an issued certificate is worth indexing; drafts and revoked ones are not.
+    robots: { index: cert.status !== "draft" && cert.status !== "revoked" },
+  };
+}
 
 export default async function VerifyPage({
   params,
@@ -39,19 +56,9 @@ export default async function VerifyPage({
   params: Promise<{ hash: string }>;
 }) {
   const { hash } = await params;
-  const cert = await verifyCertificateByHash(hash);
-
-  if (!cert) {
-    return (
-      <main className="mx-auto max-w-2xl px-6 py-24 text-center">
-        <h1 className="text-display font-heading">Certificate not found</h1>
-        <p className="text-ink-muted mt-4">
-          No certificate matches this hash. The work may not have been certified
-          on ArtWall, or the hash may be incorrect.
-        </p>
-      </main>
-    );
-  }
+  const cert = await load(hash);
+  // A real 404 (status code too) for an unknown hash; see not-found.tsx.
+  if (!cert) notFound();
 
   const timeline = await getProvenanceTimeline(cert.artworkId);
   const status = STATUS[cert.status] ?? {
@@ -166,7 +173,10 @@ export default async function VerifyPage({
           </h2>
           <div className="mt-4">
             <WalletProviders>
-              <CertificateMintPanel certificateId={cert.id} />
+              <CertificateMintPanel
+                certificateId={cert.id}
+                initialStatus={cert.status}
+              />
             </WalletProviders>
           </div>
         </section>

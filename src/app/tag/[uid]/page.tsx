@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { resolveTagScan } from "@/features/art-tags/actions";
 
+// Scan landing pages: not for search indexes, and never prerendered (every
+// render may count a scan).
 export const metadata: Metadata = {
   title: "ArtTag",
   description: "Scan an ArtWall tag to discover the artwork",
+  robots: { index: false, follow: true },
 };
+export const dynamic = "force-dynamic";
 
 export default async function TagPage({
   params,
@@ -17,16 +22,8 @@ export default async function TagPage({
   const { uid } = await params;
   const result = await resolveTagScan(uid);
 
-  if (!result) {
-    return (
-      <main className="mx-auto max-w-lg px-6 py-24 text-center">
-        <h1 className="text-display font-heading">Tag not found</h1>
-        <p className="text-ink-muted mt-4">
-          This ArtTag is not registered on ArtWall.
-        </p>
-      </main>
-    );
-  }
+  // An unknown tag is a real 404 (status code too), not a 200 page.
+  if (!result) notFound();
 
   if (!result.artwork) {
     return (

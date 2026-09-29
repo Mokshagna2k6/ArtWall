@@ -7,6 +7,7 @@ import { eq, and, desc, sql } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/index";
 import { artTags, artTagScans, artworks, artistProfiles } from "@/lib/db/schema";
+import { clientIp, limitRequest } from "@/lib/rate-limit";
 
 async function getUserId() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -104,7 +105,14 @@ export async function unbindTag(tagId: string) {
 }
 
 /** Public: resolve a tag scan, increment count, log it */
-export async function resolveTagScan(tagUid: string, ip?: string, ua?: string) {
+/**
+ * Resolve a scanned tag for /tag/[uid]. This is a public server action, so it
+ * takes no caller-supplied ip/ua (they were spoofable) and reads the request
+ * itself. A scan is counted at most once per IP per tag per 10 minutes, so
+ * reloads, link previews and scripted calls cannot inflate scan_count.
+ */
+export async function resolveTagScan(tagUid: string) {
+  if (typeof tagUid !== "string" || tagUid.length === 0 || tagUid.length > 128) return null;
   const [tag] = await db
     .select({
       id: artTags.id,
@@ -114,17 +122,20 @@ export async function resolveTagScan(tagUid: string, ip?: string, ua?: string) {
     .where(eq(artTags.tagUid, tagUid));
   if (!tag) return null;
 
-  await db.insert(artTagScans).values({
-    id: newId("tscan"),
-    tagId: tag.id,
-    ipAddress: ip ?? null,
-    userAgent: ua ?? null,
-  });
-
-  await db
-    .update(artTags)
-    .set({ scanCount: sql`scan_count + 1` })
-    .where(eq(artTags.id, tag.id));
+  const h = await headers();
+  const fresh = await limitRequest(`tag-scan:${tag.id}`, { limit: 1, windowMs: 10 * 60 * 1000 }, null, h);
+  if (fresh.ok) {
+    await db.insert(artTagScans).values({
+      id: newId("tscan"),
+      tagId: tag.id,
+      ipAddress: clientIp(h),
+      userAgent: h.get("user-agent")?.slice(0, 512) ?? null,
+    });
+    await db
+      .update(artTags)
+      .set({ scanCount: sql`scan_count + 1` })
+      .where(eq(artTags.id, tag.id));
+  }
 
   if (!tag.artworkId) return { tagId: tag.id, artworkId: null };
 
