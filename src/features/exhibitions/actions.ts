@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
@@ -132,11 +132,12 @@ export async function publishExhibition(exhibitionId: string) {
   return { id: row.id, status: row.status };
 }
 
+/** Published and past shows are public; draft and cancelled ones 404 (FE-2.15). */
 export async function getPublicExhibition(id: string) {
   const [exh] = await db
     .select()
     .from(exhibitions)
-    .where(and(eq(exhibitions.id, id), eq(exhibitions.status, "published")));
+    .where(and(eq(exhibitions.id, id), inArray(exhibitions.status, ["published", "past"])));
   if (!exh) return null;
 
   const works = await db

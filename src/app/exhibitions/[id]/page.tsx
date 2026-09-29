@@ -6,7 +6,8 @@ import { cache } from "react";
 
 import { getPublicExhibition } from "@/features/exhibitions/actions";
 
-// Keyed by id: exhibitions have no slug column. Only published ones resolve.
+// Keyed by id: exhibitions have no slug column. Only published/past ones
+// resolve; drafts and cancelled shows 404. The OG image is opengraph-image.tsx.
 const load = cache((id: string) => getPublicExhibition(id));
 
 export async function generateMetadata({
@@ -16,9 +17,13 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const exh = await load((await params).id);
   if (!exh) return { title: "Exhibition not found" };
+  const title = `${exh.title} · ${exh.artistName}`;
+  const description = exh.description ?? `An exhibition by ${exh.artistName} on ArtWall.`;
   return {
-    title: `${exh.title} · ${exh.artistName}`,
-    description: exh.description ?? `An exhibition by ${exh.artistName} on ArtWall.`,
+    title,
+    description,
+    alternates: { canonical: `/exhibitions/${exh.id}` },
+    openGraph: { title, description, type: "article" },
   };
 }
 
