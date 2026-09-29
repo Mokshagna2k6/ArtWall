@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeAll, afterAll } from "vitest";
 
 vi.mock("server-only", () => ({}));
 
+// Server actions refuse while the wall is off (FE-2.17); this suite exercises them.
+vi.stubEnv("PHYSICAL_WALL_ENABLED", "true");
+
 // Hoisted mock objects: vi.mock factories run before any top-level code,
 // so the pool/client they close over must be created with vi.hoisted().
 const { mockPool, mockClient } = vi.hoisted(() => {

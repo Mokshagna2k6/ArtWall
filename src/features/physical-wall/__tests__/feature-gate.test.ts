@@ -40,5 +40,5 @@ describe("physical-wall feature gate (FE-2.17)", () => {
         `${file}:${name}`
       ).rejects.toThrow("The physical wall is not open yet.");
     }
-  });
+  }, 30_000); // the first dynamic import pays the cold transform of the action graph
 });
