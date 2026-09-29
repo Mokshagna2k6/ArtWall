@@ -36,7 +36,8 @@ import { pool } from "@/lib/db/index";
  *   pw_consents — withdrawn, kept as proof that past processing was lawful
  *       (DPDP s.6(10) puts that burden on us).
  *   pw_grievances — kept for accountability; contact and body redacted.
- *   pw_audit_log — kept (security/accountability); actor_label pseudonymised.
+ *   pw_audit_log — kept (security/accountability); actor_label pseudonymised
+ *       (the only UPDATE its append-only trigger allows, and only while erasing).
  *   pw_condition_photos / pw_damage_records — evidence on retained bookings
  *       (damage disputes); photos of the artwork, not of the person.
  *   pw_feedback — ratings kept, free-text note cleared.
@@ -118,6 +119,10 @@ export async function exportUserData(userId: string) {
 /** Everything in one transaction. Returns how many Cloudinary assets were queued. */
 export async function eraseUserIn(client: PoolClient, userId: string): Promise<{ assetsQueued: number }> {
   const run = (text: string, params: unknown[] = [userId]) => client.query(text, params);
+  // The append-only triggers (0028, 0029) let provenance and certificates be
+  // deleted, and audit rows pseudonymised, only for the user named here, and
+  // only in this transaction (is_local = true).
+  await run(`select set_config('artwall.erasing_user', $1, true)`);
   const [{ email }] = (await run(`select email from "user" where id = $1 for update`)).rows as { email: string }[];
 
   // 1. Live holds released, only the ones cancelled here (not older bookings
