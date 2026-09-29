@@ -4,6 +4,7 @@ import {
   StudioPageHeader,
 } from "@/components/dashboard/studio-shell";
 import { WorkspaceCreateForm } from "@/components/dashboard/workspace-create-form";
+import { formatINR } from "@/features/physical-wall/money";
 export default async function SalesPage() {
   const opportunities = await getSales();
   return (
@@ -27,8 +28,8 @@ export default async function SalesPage() {
             <article key={item.id} className="studio-card p-5">
               <p className="studio-eyebrow">{item.status}</p>
               <p className="text-studio-ink text-card mt-4">
-                {item.amount
-                  ? `₹${item.amount.toLocaleString()}`
+                {item.amountPaise
+                  ? formatINR(item.amountPaise)
                   : "Amount pending"}
               </p>
             </article>

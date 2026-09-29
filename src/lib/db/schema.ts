@@ -141,7 +141,8 @@ export const sales = pgTable("sales", {
   contactId: text("contactId"),
   artworkId: text("artworkId"),
   status: text("status").notNull().default("lead"),
-  amount: integer("amount"),
+  /** Deal value in paise (was whole rupees in "amount" until 0033). */
+  amountPaise: integer("amountPaise"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
 export const documents = pgTable("documents", {

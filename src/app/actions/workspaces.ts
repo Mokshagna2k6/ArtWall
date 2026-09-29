@@ -49,13 +49,19 @@ export async function createRoom(input: unknown) {
 }
 export async function createSale(input: unknown) {
   const id = await userId();
-  const data = z
+  const { status, amount } = z
     .object({
       status: z.enum(["lead", "proposal", "won", "lost"]).default("lead"),
-      amount: z.number().int().nonnegative().optional(),
+      /** Whole rupees, as typed. Stored as paise. */
+      amount: z.number().int().nonnegative().max(20_000_000).optional(),
     })
     .parse(input);
-  await db.insert(sales).values({ id: randomUUID(), userId: id, ...data });
+  await db.insert(sales).values({
+    id: randomUUID(),
+    userId: id,
+    status,
+    amountPaise: amount === undefined ? undefined : amount * 100,
+  });
   revalidatePath("/studio/sales");
 }
 export async function createDocument(input: unknown) {
