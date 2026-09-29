@@ -9,7 +9,7 @@ import { formatINR, toPaise } from "@/features/physical-wall/money";
 import { ledgerEntrySchema } from "@/features/physical-wall/schema";
 import {
   fail,
-  firstIssue,
+  invalid,
   LEDGER_TAG,
   newId,
   ok,
@@ -49,7 +49,7 @@ export async function addLedgerEntry(
       note: formData.get("note") || undefined,
       entryDate: formData.get("entryDate"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const input = parsed.data;
     const amountPaise = toPaise(input.amount);

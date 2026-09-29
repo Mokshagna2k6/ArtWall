@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { formInvalid, type FormResult } from "@/lib/form-result";
 import { db } from "@/lib/db/index";
 import { documents, rooms, sales } from "@/lib/db/schema";
 async function userId() {
@@ -36,36 +37,45 @@ export async function getRooms() {
     .where(eq(rooms.userId, id))
     .orderBy(desc(rooms.createdAt));
 }
-export async function createRoom(input: unknown) {
+export async function createRoom(input: unknown): Promise<FormResult> {
   const id = await userId();
-  const data = z
+  const parsed = z
     .object({
       name: z.string().trim().min(1).max(100),
       slug: z.string().trim().min(1).max(100),
     })
-    .parse(input);
+    .safeParse(input);
+  if (!parsed.success) return formInvalid(parsed.error);
+  const data = parsed.data;
   await db.insert(rooms).values({ id: randomUUID(), userId: id, ...data });
   revalidatePath("/studio/rooms");
+  return { ok: true };
 }
-export async function createSale(input: unknown) {
+export async function createSale(input: unknown): Promise<FormResult> {
   const id = await userId();
-  const data = z
+  const parsed = z
     .object({
       status: z.enum(["lead", "proposal", "won", "lost"]).default("lead"),
       amount: z.number().int().nonnegative().optional(),
     })
-    .parse(input);
+    .safeParse(input);
+  if (!parsed.success) return formInvalid(parsed.error);
+  const data = parsed.data;
   await db.insert(sales).values({ id: randomUUID(), userId: id, ...data });
   revalidatePath("/studio/sales");
+  return { ok: true };
 }
-export async function createDocument(input: unknown) {
+export async function createDocument(input: unknown): Promise<FormResult> {
   const id = await userId();
-  const data = z
+  const parsed = z
     .object({
       title: z.string().trim().min(1).max(160),
       kind: z.string().trim().min(1).max(60),
     })
-    .parse(input);
+    .safeParse(input);
+  if (!parsed.success) return formInvalid(parsed.error);
+  const data = parsed.data;
   await db.insert(documents).values({ id: randomUUID(), userId: id, ...data });
   revalidatePath("/studio/documents");
+  return { ok: true };
 }

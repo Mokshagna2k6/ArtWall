@@ -175,7 +175,7 @@ function ChecklistRunner({ checkin }: { checkin: Checkin }) {
 
           {!alreadyLive && (
             <>
-              <Field label="Condition notes" htmlFor={`notes-${checkin.id}`}>
+              <Field state={saveState} label="Condition notes" htmlFor={`notes-${checkin.id}`}>
                 <input
                   id={`notes-${checkin.id}`}
                   name="conditionNotes"
@@ -225,7 +225,7 @@ function ChecklistRunner({ checkin }: { checkin: Checkin }) {
             </div>
 
             <input type="hidden" name="slotId" value={checkin.slotId} />
-            <Field
+            <Field state={liveState}
               label="Artist's booking code"
               htmlFor={`token-${checkin.id}`}
               hint="Scan it with the camera, or type the code printed under the QR."

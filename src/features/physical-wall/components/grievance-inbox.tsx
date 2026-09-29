@@ -108,7 +108,7 @@ function GrievanceCard({ grievance: g }: { grievance: GrievanceRow }) {
       {g.status === "open" && (
         <form action={respondAction} className="mt-4 flex flex-col gap-3">
           <input type="hidden" name="grievanceId" value={g.id} />
-          <Field label="Reply" htmlFor={`reply-${g.id}`}>
+          <Field state={respondState} label="Reply" htmlFor={`reply-${g.id}`}>
             <textarea
               id={`reply-${g.id}`}
               name="body"

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { formInvalid, type FormResult } from "@/lib/form-result";
 import { db } from "@/lib/db/index";
 import { contacts } from "@/lib/db/schema";
 async function getUserId() {
@@ -27,9 +28,11 @@ export async function getContacts() {
     .where(eq(contacts.userId, userId))
     .orderBy(desc(contacts.createdAt));
 }
-export async function createContact(input: unknown) {
+export async function createContact(input: unknown): Promise<FormResult> {
   const userId = await getUserId();
-  const data = contactSchema.parse(input);
+  const parsed = contactSchema.safeParse(input);
+  if (!parsed.success) return formInvalid(parsed.error);
+  const data = parsed.data;
   await db.insert(contacts).values({
     id: randomUUID(),
     userId,
@@ -38,4 +41,5 @@ export async function createContact(input: unknown) {
     kind: data.kind,
   });
   revalidatePath("/studio/contacts");
+  return { ok: true };
 }

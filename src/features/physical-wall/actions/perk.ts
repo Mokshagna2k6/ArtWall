@@ -10,7 +10,7 @@ import { applyBp, formatINR, toPaise } from "@/features/physical-wall/money";
 import { perkRedeemSchema } from "@/features/physical-wall/schema";
 import {
   fail,
-  firstIssue,
+  invalid,
   inTransaction,
   LEDGER_TAG,
   newId,
@@ -161,7 +161,7 @@ export async function redeemPerk(
       token: formData.get("token"),
       billAmount: formData.get("billAmount"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const billPaise = toPaise(parsed.data.billAmount);
     if (billPaise === null || billPaise <= 0) {

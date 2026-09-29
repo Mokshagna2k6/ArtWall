@@ -134,7 +134,7 @@ export function AgreementPanel({
             </span>
           </label>
 
-          <Field
+          <Field state={state}
             label="Type your full name to sign"
             htmlFor={`sign-${bookingId}`}
             hint={`It has to match the name on your account: ${facts.artistName}.`}

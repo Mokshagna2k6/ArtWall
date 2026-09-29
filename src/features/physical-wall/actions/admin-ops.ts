@@ -8,7 +8,7 @@ import { requireRole } from "@/features/physical-wall/authorize";
 import { notify, notifyUser } from "@/features/physical-wall/notifications";
 import {
   fail,
-  firstIssue,
+  invalid,
   newId,
   ok,
   toActionError,
@@ -44,7 +44,7 @@ export async function respondToGrievance(
       grievanceId: formData.get("grievanceId"),
       body: formData.get("body"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const sql = getSql();
     const rows = (await sql`

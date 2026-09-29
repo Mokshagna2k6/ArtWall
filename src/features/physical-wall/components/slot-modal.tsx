@@ -119,7 +119,7 @@ export function SlotModal({
               <input type="hidden" name="slotId" value={slot.id} />
               <input type="hidden" name="version" value={slot.version} />
 
-              <Field label="Label" htmlFor="modal-label">
+              <Field state={editState} label="Label" htmlFor="modal-label">
                 <input
                   id="modal-label"
                   name="label"
@@ -131,7 +131,7 @@ export function SlotModal({
               </Field>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field
+                <Field state={editState}
                   label="Size class"
                   htmlFor="modal-size"
                   hint={
@@ -155,7 +155,7 @@ export function SlotModal({
                   </select>
                 </Field>
 
-                <Field label="Type" htmlFor="modal-type">
+                <Field state={editState} label="Type" htmlFor="modal-type">
                   <select
                     id="modal-type"
                     name="typeId"
@@ -258,7 +258,7 @@ export function SlotModal({
 
               <form action={releaseAction} className="mt-4 flex flex-col gap-3">
                 <input type="hidden" name="slotId" value={slot.id} />
-                <Field label="Reason (audited)" htmlFor="modal-reason">
+                <Field state={releaseState} label="Reason (audited)" htmlFor="modal-reason">
                   <input
                     id="modal-reason"
                     name="reason"
@@ -267,7 +267,7 @@ export function SlotModal({
                     className={inputClass}
                   />
                 </Field>
-                <Field
+                <Field state={releaseState}
                   label="Type 'release' to confirm"
                   htmlFor="modal-confirm"
                 >

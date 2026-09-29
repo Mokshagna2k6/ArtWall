@@ -11,6 +11,12 @@ import {
 } from "@/features/exhibitions/actions";
 
 afterAll(purgeTestData);
+
+async function newExhibition(input: { title: string }): Promise<string> {
+  const result = await createExhibition(input);
+  if (!result.ok) throw new Error(result.message);
+  return result.id;
+}
 afterEach(() => {
   delete process.env.CURATOR_COMMISSION_BPS;
 });
@@ -23,7 +29,7 @@ describe("exhibitions (BE-1.23)", () => {
     const theirs = await makeArtwork((await makeUser()).id);
 
     actAs(owner);
-    const id = await createExhibition({ title: "betest show" });
+    const id = await newExhibition({ title: "betest show" });
     await addArtworkToExhibition(id, mine);
     await expect(addArtworkToExhibition(id, theirs)).rejects.toThrow();
     expect(await getPublicExhibition(id)).toBeNull();
@@ -41,7 +47,7 @@ describe("exhibitions (BE-1.23)", () => {
   it("an admin can publish someone else's draft, and it is audited", async () => {
     const owner = await makeUser();
     actAs(owner);
-    const id = await createExhibition({ title: "betest show 2" });
+    const id = await newExhibition({ title: "betest show 2" });
     const admin = await makeUser("admin");
     actAs(admin);
     await publishExhibition(id);

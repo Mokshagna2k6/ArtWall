@@ -3,9 +3,11 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { eq, and, desc } from "drizzle-orm";
+import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/index";
+import { formInvalid, type FormResult } from "@/lib/form-result";
 import {
   exhibitions,
   exhibitionArtworks,
@@ -36,27 +38,44 @@ export async function getExhibitions() {
     .orderBy(desc(exhibitions.createdAt));
 }
 
-export async function createExhibition(input: {
-  title: string;
-  description?: string;
-  venue?: string;
-  startDate?: string;
-  endDate?: string;
-}) {
+const isoDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date.")
+  .optional();
+
+const exhibitionSchema = z
+  .object({
+    title: z.string().trim().min(1, "Give the exhibition a title.").max(160),
+    description: z.string().trim().max(2000).optional(),
+    venue: z.string().trim().max(160).optional(),
+    startDate: isoDate,
+    endDate: isoDate,
+  })
+  .refine((v) => !v.startDate || !v.endDate || v.endDate >= v.startDate, {
+    message: "The end date can't be before the start date.",
+    path: ["endDate"],
+  });
+
+export async function createExhibition(
+  input: unknown
+): Promise<FormResult<{ id: string }>> {
   const userId = await getUserId();
+  const parsed = exhibitionSchema.safeParse(input);
+  if (!parsed.success) return formInvalid(parsed.error);
+  const data = parsed.data;
   const id = newId("exh");
   await db.insert(exhibitions).values({
     id,
     userId,
-    title: input.title,
-    description: input.description ?? null,
-    venue: input.venue ?? null,
-    startDate: input.startDate ?? null,
-    endDate: input.endDate ?? null,
+    title: data.title,
+    description: data.description || null,
+    venue: data.venue || null,
+    startDate: data.startDate ?? null,
+    endDate: data.endDate ?? null,
     status: "draft",
   });
   revalidatePath("/studio/exhibitions");
-  return id;
+  return { ok: true, id };
 }
 
 export async function addArtworkToExhibition(

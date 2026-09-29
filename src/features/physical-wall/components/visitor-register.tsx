@@ -62,7 +62,7 @@ export function VisitorRegisterForm({ qrBase }: { qrBase: string }) {
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
-      <Field label="Your name" htmlFor="name">
+      <Field state={state} label="Your name" htmlFor="name">
         <input
           id="name"
           name="name"
@@ -101,7 +101,7 @@ export function VisitorRegisterForm({ qrBase }: { qrBase: string }) {
         </div>
       </fieldset>
 
-      <Field
+      <Field state={state}
         label={contactKind === "phone" ? "Mobile number" : "Email address"}
         htmlFor="contact"
       >

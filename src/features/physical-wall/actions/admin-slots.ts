@@ -16,7 +16,7 @@ import {
 import { forceReleaseSchema, transitionSchema } from "@/features/physical-wall/schema";
 import {
   fail,
-  firstIssue,
+  invalid,
   inTransaction,
   LEDGER_TAG,
   newId,
@@ -52,7 +52,7 @@ export async function transitionSlot(
       to: formData.get("to"),
       version: formData.get("version"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { slotId, to, version } = parsed.data;
 
@@ -119,7 +119,7 @@ export async function forceRelease(
       reason: formData.get("reason"),
       confirm: formData.get("confirm"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { slotId, reason } = parsed.data;
 

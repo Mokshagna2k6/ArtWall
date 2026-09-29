@@ -7,7 +7,7 @@ import { mintQrToken } from "@/features/physical-wall/qr";
 import { visitorRegisterSchema } from "@/features/physical-wall/schema";
 import {
   fail,
-  firstIssue,
+  invalid,
   inTransaction,
   newId,
   ok,
@@ -69,7 +69,7 @@ export async function registerVisitor(
       consentPurpose: formData.get("consentPurpose") === "on",
       consentMarketing: formData.get("consentMarketing") === "on",
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const input = parsed.data;
 

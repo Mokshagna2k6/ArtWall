@@ -250,7 +250,7 @@ function NomineeSection({ facts }: { facts: AccountFacts }) {
       </p>
 
       <form action={action} className="mt-5 grid max-w-xl gap-4 sm:grid-cols-2">
-        <Field label="Their name" htmlFor="nomineeName">
+        <Field state={state} label="Their name" htmlFor="nomineeName">
           <input
             id="nomineeName"
             name="nomineeName"
@@ -259,7 +259,7 @@ function NomineeSection({ facts }: { facts: AccountFacts }) {
             className={inputClass}
           />
         </Field>
-        <Field label="How to reach them" htmlFor="nomineeContact">
+        <Field state={state} label="How to reach them" htmlFor="nomineeContact">
           <input
             id="nomineeContact"
             name="nomineeContact"
@@ -293,7 +293,7 @@ function GrievanceSection({ email }: { email: string }) {
       </p>
 
       <form action={action} className="mt-5 flex max-w-xl flex-col gap-4">
-        <Field label="Subject" htmlFor="subject">
+        <Field state={state} label="Subject" htmlFor="subject">
           <input
             id="subject"
             name="subject"
@@ -303,7 +303,7 @@ function GrievanceSection({ email }: { email: string }) {
             className={inputClass}
           />
         </Field>
-        <Field label="What happened" htmlFor="body">
+        <Field state={state} label="What happened" htmlFor="body">
           <textarea
             id="body"
             name="body"
@@ -314,7 +314,7 @@ function GrievanceSection({ email }: { email: string }) {
             className={`${inputClass} h-auto resize-y py-2.5`}
           />
         </Field>
-        <Field label="Where should we reply?" htmlFor="contact">
+        <Field state={state} label="Where should we reply?" htmlFor="contact">
           <input
             id="contact"
             name="contact"
@@ -363,7 +363,7 @@ function EraseSection() {
         </button>
       ) : (
         <form action={action} className="mt-5 flex max-w-md flex-col gap-4">
-          <Field label="Type DELETE to confirm" htmlFor="confirm">
+          <Field state={state} label="Type DELETE to confirm" htmlFor="confirm">
             <input
               id="confirm"
               name="confirm"

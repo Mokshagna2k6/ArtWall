@@ -30,20 +30,27 @@ export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
     setError(null);
     start(async () => {
       try {
-        if (kind === "sale")
-          await createSale({
-            status: "lead",
-            amount: value ? Math.round(Number(value)) : undefined,
-          });
-        if (kind === "document")
-          await createDocument({ title: value, kind: "archive" });
-        if (kind === "room")
-          await createRoom({
-            name: value,
-            slug: value.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-          });
-        if (kind === "contact") await createContact({ name: value });
-        if (kind === "collection") await createCollection({ name: value });
+        const result =
+          kind === "sale"
+            ? await createSale({
+                status: "lead",
+                amount: value ? Math.round(Number(value)) : undefined,
+              })
+            : kind === "document"
+              ? await createDocument({ title: value, kind: "archive" })
+              : kind === "room"
+                ? await createRoom({
+                    name: value,
+                    slug: value.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+                  })
+                : kind === "contact"
+                  ? await createContact({ name: value })
+                  : await createCollection({ name: value });
+        if (!result.ok) {
+          // One input, so whichever field the schema flagged is this one.
+          setError(result.message);
+          return;
+        }
         setValue("");
         setOpen(false);
       } catch {
@@ -63,6 +70,8 @@ export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className="studio-input flex-1"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `create-${kind}-error` : undefined}
           placeholder="Amount in ₹ (optional)"
           aria-label="Amount in rupees"
         />
@@ -73,6 +82,8 @@ export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           className="studio-input flex-1"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `create-${kind}-error` : undefined}
           placeholder={`${label} name`}
           aria-label={`${label} name`}
         />
@@ -89,7 +100,11 @@ export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
         ×
       </button>
       {error && (
-        <p role="alert" className="w-full text-sm text-red-600">
+        <p
+          id={`create-${kind}-error`}
+          role="alert"
+          className="w-full text-sm text-red-600"
+        >
           {error}
         </p>
       )}

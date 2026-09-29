@@ -14,7 +14,12 @@
 
 export type ActionState =
   | { status: "idle" }
-  | { status: "error"; message: string }
+  | {
+      status: "error";
+      message: string;
+      /** Per-field messages from the server's zod schema, keyed by input `name`. */
+      fieldErrors?: Record<string, string[] | undefined>;
+    }
   | { status: "ok"; message: string; data?: unknown };
 
 export const IDLE: ActionState = { status: "idle" };

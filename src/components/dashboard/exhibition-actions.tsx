@@ -8,6 +8,9 @@ import {
   createExhibition,
   publishExhibition,
 } from "@/features/exhibitions/actions";
+import type { FieldErrors } from "@/lib/form-result";
+
+import { FieldError, fieldProps } from "./field-error";
 
 function useAction() {
   const router = useRouter();
@@ -29,6 +32,7 @@ function useAction() {
 
 export function CreateExhibitionForm() {
   const { pending, error, run } = useAction();
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>();
   return (
     <form
       className="studio-card flex flex-wrap items-end gap-3 p-4"
@@ -36,33 +40,60 @@ export function CreateExhibitionForm() {
         e.preventDefault();
         const f = new FormData(e.currentTarget);
         const form = e.currentTarget;
+        setFieldErrors(undefined);
         run(async () => {
-          await createExhibition({
+          const result = await createExhibition({
             title: String(f.get("title")),
             venue: String(f.get("venue") || "") || undefined,
             startDate: String(f.get("startDate") || "") || undefined,
             endDate: String(f.get("endDate") || "") || undefined,
           });
+          if (!result.ok) {
+            setFieldErrors(result.fieldErrors);
+            throw new Error(result.message);
+          }
           form.reset();
         }, "Could not create the exhibition.");
       }}
     >
-      <input
-        name="title"
-        required
-        maxLength={160}
-        placeholder="Exhibition title"
-        aria-label="Exhibition title"
-        className="studio-input min-w-48 flex-1"
-      />
-      <input
-        name="venue"
-        placeholder="Venue (optional)"
-        aria-label="Venue"
-        className="studio-input min-w-40 flex-1"
-      />
-      <input name="startDate" type="date" aria-label="Start date" className="studio-input" />
-      <input name="endDate" type="date" aria-label="End date" className="studio-input" />
+      <label className="flex min-w-48 flex-1 flex-col gap-1">
+        <input
+          {...fieldProps(fieldErrors, "title")}
+          required
+          maxLength={160}
+          placeholder="Exhibition title"
+          aria-label="Exhibition title"
+          className="studio-input"
+        />
+        <FieldError errors={fieldErrors} name="title" />
+      </label>
+      <label className="flex min-w-40 flex-1 flex-col gap-1">
+        <input
+          {...fieldProps(fieldErrors, "venue")}
+          placeholder="Venue (optional)"
+          aria-label="Venue"
+          className="studio-input"
+        />
+        <FieldError errors={fieldErrors} name="venue" />
+      </label>
+      <label className="flex flex-col gap-1">
+        <input
+          {...fieldProps(fieldErrors, "startDate")}
+          type="date"
+          aria-label="Start date"
+          className="studio-input"
+        />
+        <FieldError errors={fieldErrors} name="startDate" />
+      </label>
+      <label className="flex flex-col gap-1">
+        <input
+          {...fieldProps(fieldErrors, "endDate")}
+          type="date"
+          aria-label="End date"
+          className="studio-input"
+        />
+        <FieldError errors={fieldErrors} name="endDate" />
+      </label>
       <button className="studio-button" disabled={pending}>
         {pending ? "Creating…" : "Create exhibition"}
       </button>

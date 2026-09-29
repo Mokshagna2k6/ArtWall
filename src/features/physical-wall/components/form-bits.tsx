@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 
 import type { ActionState } from "@/features/physical-wall/action-state";
@@ -69,17 +69,38 @@ export function FormStatus({ state }: { state: ActionState }) {
   );
 }
 
+/**
+ * A labelled field. Pass the form's `state` and any zod error the server
+ * returned for the child input's `name` is shown under it, and the input is
+ * marked `aria-invalid` and described by the message.
+ */
 export function Field({
   label,
   htmlFor,
   hint,
+  state,
   children,
 }: {
   label: string;
   htmlFor: string;
   hint?: string;
+  state?: ActionState;
   children: ReactNode;
 }) {
+  const name = isValidElement<{ name?: string }>(children)
+    ? children.props.name
+    : undefined;
+  const errors =
+    state?.status === "error" && name ? state.fieldErrors?.[name] : undefined;
+  const errorId = `${htmlFor}-error`;
+  const control =
+    errors?.length && isValidElement<Record<string, unknown>>(children)
+      ? cloneElement(children, {
+          "aria-invalid": true,
+          "aria-describedby": errorId,
+        })
+      : children;
+
   return (
     <div className="flex flex-col gap-1.5">
       <label
@@ -88,7 +109,12 @@ export function Field({
       >
         {label}
       </label>
-      {children}
+      {control}
+      {errors?.length ? (
+        <p id={errorId} className="text-destructive text-xs leading-5">
+          {errors[0]}
+        </p>
+      ) : null}
       {hint && <p className="text-ink-muted text-xs leading-5">{hint}</p>}
     </div>
   );

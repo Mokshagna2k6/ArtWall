@@ -79,7 +79,7 @@ export function PerkCounter({
         <form action={formAction} className="mt-6 flex flex-col gap-5">
           <input type="hidden" name="token" value={token} />
 
-          <Field
+          <Field state={state}
             label="Bill total (₹)"
             htmlFor="billAmount"
             hint="The full amount before the discount."

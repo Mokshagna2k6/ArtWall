@@ -22,7 +22,7 @@ import {
 } from "@/features/physical-wall/schema";
 import {
   fail,
-  firstIssue,
+  invalid,
   inTransaction,
   newId,
   ok,
@@ -55,7 +55,7 @@ export async function chooseInstallWindow(
       bookingId: formData.get("bookingId"),
       startsAt: formData.get("startsAt"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { bookingId, startsAt } = parsed.data;
     const starts = new Date(startsAt);
@@ -255,7 +255,7 @@ export async function updateChecklist(
       completed: formData.getAll("completed").map(String),
       conditionNotes: formData.get("conditionNotes") || undefined,
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { checkinId, completed, conditionNotes } = parsed.data;
     const sql = getSql();
@@ -327,7 +327,7 @@ export async function verifyAndGoLive(
       token: formData.get("token"),
       slotId: formData.get("slotId"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { token, slotId } = parsed.data;
 

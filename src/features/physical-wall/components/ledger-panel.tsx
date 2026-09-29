@@ -95,7 +95,7 @@ export function LedgerPanel({
           action={action}
           className="border-hairline mt-4 grid max-w-4xl items-end gap-4 rounded-md border p-5 sm:grid-cols-5"
         >
-          <Field label="Type" htmlFor="type">
+          <Field state={state} label="Type" htmlFor="type">
             <select
               id="type"
               name="type"
@@ -109,7 +109,7 @@ export function LedgerPanel({
               <option value="revenue">Revenue</option>
             </select>
           </Field>
-          <Field label="Category" htmlFor="category">
+          <Field state={state} label="Category" htmlFor="category">
             <select id="category" name="category" className={inputClass}>
               {CATEGORIES[type].map((category) => (
                 <option key={category} value={category}>
@@ -118,7 +118,7 @@ export function LedgerPanel({
               ))}
             </select>
           </Field>
-          <Field label="Amount (₹)" htmlFor="amount">
+          <Field state={state} label="Amount (₹)" htmlFor="amount">
             <input
               id="amount"
               name="amount"
@@ -129,7 +129,7 @@ export function LedgerPanel({
               className={inputClass}
             />
           </Field>
-          <Field label="Date" htmlFor="entryDate">
+          <Field state={state} label="Date" htmlFor="entryDate">
             <input
               id="entryDate"
               name="entryDate"
@@ -141,7 +141,7 @@ export function LedgerPanel({
           </Field>
           <SubmitButton>Record</SubmitButton>
           <div className="sm:col-span-3">
-            <Field label="Note" htmlFor="note">
+            <Field state={state} label="Note" htmlFor="note">
               <input id="note" name="note" maxLength={280} className={inputClass} />
             </Field>
           </div>

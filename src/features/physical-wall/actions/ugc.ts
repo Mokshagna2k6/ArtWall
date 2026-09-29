@@ -8,7 +8,7 @@ import { requireRole } from "@/features/physical-wall/authorize";
 import { recordAuditIn } from "@/features/physical-wall/audit";
 import {
   fail,
-  firstIssue,
+  invalid,
   inTransaction,
   newId,
   ok,
@@ -53,7 +53,7 @@ export async function submitUgc(
       consent: formData.get("consent") === "on",
       adultConfirmed: formData.get("adultConfirmed") === "on",
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { caption, imageUrl, cloudinaryId, visitId } = parsed.data;
 
@@ -141,7 +141,7 @@ export async function moderateUgc(
       submissionId: formData.get("submissionId"),
       verdict: formData.get("verdict"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { submissionId, verdict } = parsed.data;
 

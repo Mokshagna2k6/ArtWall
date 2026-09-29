@@ -109,7 +109,7 @@ export function GridEditor({
           <form action={resizeAction} className="mt-4 flex flex-col gap-4">
             <input type="hidden" name="gridId" value={grid.id} />
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Rows" htmlFor="rowCount">
+              <Field state={resizeState} label="Rows" htmlFor="rowCount">
                 <input
                   id="rowCount"
                   name="rowCount"
@@ -120,7 +120,7 @@ export function GridEditor({
                   className={inputClass}
                 />
               </Field>
-              <Field label="Columns" htmlFor="colCount">
+              <Field state={resizeState} label="Columns" htmlFor="colCount">
                 <input
                   id="colCount"
                   name="colCount"
@@ -145,7 +145,7 @@ export function GridEditor({
           </p>
           <form action={templateAction} className="mt-4 flex flex-col gap-4">
             <input type="hidden" name="gridId" value={grid.id} />
-            <Field label="Name" htmlFor="templateName">
+            <Field state={templateState} label="Name" htmlFor="templateName">
               <input
                 id="templateName"
                 name="name"

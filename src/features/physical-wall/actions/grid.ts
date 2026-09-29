@@ -13,7 +13,7 @@ import {
 } from "@/features/physical-wall/schema";
 import {
   fail,
-  firstIssue,
+  invalid,
   inTransaction,
   newId,
   ok,
@@ -55,7 +55,7 @@ export async function resizeGrid(
       rowCount: formData.get("rowCount"),
       colCount: formData.get("colCount"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { gridId, rowCount, colCount } = parsed.data;
 
@@ -190,7 +190,7 @@ export async function moveSlot(
       targetCol: formData.get("targetCol"),
       version: formData.get("version"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { slotId, targetRow, targetCol, version } = parsed.data;
 
@@ -280,7 +280,7 @@ export async function editSlot(
       typeId: formData.get("typeId"),
       version: formData.get("version"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { slotId, label, sizeId, typeId, version } = parsed.data;
 
@@ -350,7 +350,7 @@ export async function saveAsTemplate(
       gridId: formData.get("gridId"),
       name: formData.get("name"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { gridId, name } = parsed.data;
     const templateId = newId("grid");

@@ -172,7 +172,7 @@ function QueueRow({
         <div className="border-hairline mt-4 flex flex-col gap-6 border-t pt-4">
           <form action={matchAction} className="flex flex-col gap-3">
             <input type="hidden" name="waitlistId" value={entry.id} />
-            <Field
+            <Field state={matchState}
               label="Offer an open slot"
               htmlFor={`slot-${entry.id}`}
               hint="Holds it for them for 48 hours. They still book and pay themselves."

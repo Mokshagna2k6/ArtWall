@@ -2,6 +2,7 @@ import "server-only";
 
 import { randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
+import { z } from "zod";
 
 import { NotAuthorisedError } from "@/features/physical-wall/authorize";
 import {
@@ -129,4 +130,16 @@ export function firstIssue(
   fallback = "Check the form and try again."
 ): string {
   return error.issues[0]?.message ?? fallback;
+}
+
+/**
+ * A zod failure as an ActionState: the first issue as the summary line, plus
+ * every issue keyed by field so `<Field state={state}>` can mark its input.
+ */
+export function invalid(error: z.ZodError): ActionState {
+  return {
+    status: "error",
+    message: firstIssue(error),
+    fieldErrors: z.flattenError(error).fieldErrors as Record<string, string[]>,
+  };
 }

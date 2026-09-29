@@ -198,7 +198,7 @@ export function BookingFlow({
               </p>
 
               <div className="mt-6 max-w-sm">
-                <Field label="Starting" htmlFor="startDate-input">
+                <Field state={state} label="Starting" htmlFor="startDate-input">
                   <input
                     id="startDate-input"
                     type="date"
@@ -252,7 +252,7 @@ export function BookingFlow({
               </p>
 
               <div className="mt-6 max-w-md">
-                <Field label="Artwork" htmlFor="artworkId-select">
+                <Field state={state} label="Artwork" htmlFor="artworkId-select">
                   <select
                     id="artworkId-select"
                     value={artworkId}

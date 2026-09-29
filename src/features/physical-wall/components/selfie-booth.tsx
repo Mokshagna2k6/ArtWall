@@ -117,7 +117,7 @@ export function SelfieBooth({ visitId }: { visitId?: string }) {
             <input type="hidden" name="imageUrl" value={preview} />
           )}
 
-          <Field label="Photo" htmlFor="ugc-photo">
+          <Field state={state} label="Photo" htmlFor="ugc-photo">
             <input
               id="ugc-photo"
               type="file"
@@ -151,7 +151,7 @@ export function SelfieBooth({ visitId }: { visitId?: string }) {
             )}
           </Field>
 
-          <Field label="Caption (optional)" htmlFor="caption">
+          <Field state={state} label="Caption (optional)" htmlFor="caption">
             <textarea
               id="caption"
               name="caption"

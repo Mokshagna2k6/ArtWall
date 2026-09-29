@@ -15,7 +15,7 @@ import {
 import {
   CATALOG_TAG,
   fail,
-  firstIssue,
+  invalid,
   newId,
   ok,
   toActionError,
@@ -62,7 +62,7 @@ export async function upsertSize(
       basePrice: formData.get("basePrice"),
       active: formData.get("active") === "on" || formData.get("active") === "true",
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const input = parsed.data;
     const pricePaise = toPaise(input.basePrice);
@@ -120,7 +120,7 @@ export async function upsertSlotType(
         formData.get("requiresGrant") === "true",
       active: formData.get("active") === "on" || formData.get("active") === "true",
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const input = parsed.data;
     const id = input.id ?? slugId(input.label);
@@ -169,7 +169,7 @@ export async function upsertAddon(
       category: formData.get("category"),
       active: formData.get("active") === "on" || formData.get("active") === "true",
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const input = parsed.data;
     const pricePaise = toPaise(input.price);
@@ -226,7 +226,7 @@ export async function setRefundPolicy(
       percentage: formData.get("percentage"),
       note: formData.get("note") || undefined,
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const sql = getSql();
     const rows = (await sql`
@@ -274,7 +274,7 @@ export async function updateSettings(
       perkDiscount: formData.get("perkDiscount"),
       perkCostBearer: formData.get("perkCostBearer"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const input = parsed.data;
     const sql = getSql();

@@ -16,7 +16,7 @@ import {
 import { mintQrToken } from "@/features/physical-wall/qr";
 import {
   fail,
-  firstIssue,
+  invalid,
   inTransaction,
   newId,
   ok,
@@ -81,7 +81,7 @@ export async function completeOnboarding(
       isAdult: formData.get("isAdult") === "on",
       foundingMember: formData.get("foundingMember") === "on",
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const input = parsed.data;
     const sql = getSql();
@@ -312,7 +312,7 @@ export async function raiseGrievance(
       body: formData.get("body"),
       contact: formData.get("contact"),
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const sql = getSql();
     const id = newId("gr");

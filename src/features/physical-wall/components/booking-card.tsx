@@ -125,7 +125,7 @@ export function BookingCard({
       {booking.status === "paid" && agreement && (
         <div className="border-hairline mt-5 flex flex-col gap-6 border-t pt-5">
           <form action={windowAction} className="flex flex-col gap-3">
-            <Field
+            <Field state={windowState}
               label="Install window"
               htmlFor={`startsAt-${booking.id}`}
               hint="One hour. Bring the work and your booking code."

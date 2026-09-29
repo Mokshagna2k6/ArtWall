@@ -85,7 +85,7 @@ function BookingRow({
         {booking.status === "held" && (
           <form action={payAction} className="flex flex-col gap-3">
             <input type="hidden" name="bookingId" value={booking.id} />
-            <Field label="Offline payment method" htmlFor={`method-${booking.id}`}>
+            <Field state={payState} label="Offline payment method" htmlFor={`method-${booking.id}`}>
               <select id={`method-${booking.id}`} name="method" required className={inputClass}>
                 <option value="upi">UPI</option>
                 <option value="bank_transfer">Bank transfer</option>
@@ -93,7 +93,7 @@ function BookingRow({
                 <option value="cheque">Cheque</option>
               </select>
             </Field>
-            <Field
+            <Field state={payState}
               label="Payment reference"
               htmlFor={`note-${booking.id}`}
               hint={
@@ -139,7 +139,7 @@ function BookingRow({
                   today&rsquo;s. If anything is hanging, a de-install task is
                   created.
                 </p>
-                <Field label="Reason (audited)" htmlFor={`reason-${booking.id}`}>
+                <Field state={releaseState} label="Reason (audited)" htmlFor={`reason-${booking.id}`}>
                   <input
                     id={`reason-${booking.id}`}
                     name="reason"
@@ -148,7 +148,7 @@ function BookingRow({
                     className={inputClass}
                   />
                 </Field>
-                <Field
+                <Field state={releaseState}
                   label="Type 'release' to confirm"
                   htmlFor={`confirm-${booking.id}`}
                 >

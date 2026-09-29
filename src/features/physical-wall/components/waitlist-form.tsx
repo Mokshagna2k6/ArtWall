@@ -115,7 +115,7 @@ export function WaitlistPanel({
 
   return (
     <form action={joinAction} className="flex flex-col gap-5">
-      <Field label="Your name" htmlFor="wl-name">
+      <Field state={joinState} label="Your name" htmlFor="wl-name">
         <input
           id="wl-name"
           name="name"
@@ -126,7 +126,7 @@ export function WaitlistPanel({
         />
       </Field>
 
-      <Field
+      <Field state={joinState}
         label="How we reach you"
         htmlFor="wl-contact"
         hint="Phone or email — whichever you actually check."
@@ -142,7 +142,7 @@ export function WaitlistPanel({
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="City" htmlFor="wl-city">
+        <Field state={joinState} label="City" htmlFor="wl-city">
           <select id="wl-city" name="city" className={inputClass}>
             <option value="">Prefer not to say</option>
             {cities.map((city) => (
@@ -153,7 +153,7 @@ export function WaitlistPanel({
           </select>
         </Field>
 
-        <Field label="What you make" htmlFor="wl-medium">
+        <Field state={joinState} label="What you make" htmlFor="wl-medium">
           <select id="wl-medium" name="medium" className={inputClass}>
             <option value="">Prefer not to say</option>
             {mediums.map((medium) => (
@@ -165,7 +165,7 @@ export function WaitlistPanel({
         </Field>
       </div>
 
-      <Field
+      <Field state={joinState}
         label="Slot preference"
         htmlFor="wl-size"
         hint="Optional. Helps us match you to the right opening rather than the next one."

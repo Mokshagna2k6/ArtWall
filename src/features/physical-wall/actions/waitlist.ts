@@ -7,7 +7,7 @@ import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
 import { getActor, requireRole } from "@/features/physical-wall/authorize";
 import {
   fail,
-  firstIssue,
+  invalid,
   inTransaction,
   newId,
   ok,
@@ -89,7 +89,7 @@ export async function joinWaitlist(
       sizePref: formData.get("sizePref") || undefined,
       note: formData.get("note") || undefined,
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
     if (formData.get("consent") !== "on") {
       return fail(
         "We can only hold your place if you agree to us storing your name and contact."

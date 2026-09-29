@@ -11,6 +11,7 @@ import { feedbackSchema, reactionSchema } from "@/features/physical-wall/schema"
 import {
   fail,
   firstIssue,
+  invalid,
   newId,
   ok,
   toActionError,
@@ -140,7 +141,7 @@ export async function submitFeedback(
       nps: formData.get("nps") || undefined,
       note: formData.get("note") || undefined,
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { bookingId, rating, nps, note } = parsed.data;
     const sql = getSql();

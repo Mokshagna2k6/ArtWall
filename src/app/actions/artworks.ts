@@ -12,6 +12,7 @@ import { db } from "@/lib/db/index";
 import { artworks } from "@/lib/db/schema";
 import { ARTWORK_CATEGORIES } from "@/features/marketplace/categories";
 import { toPaise } from "@/features/physical-wall/money";
+import { formFail, formInvalid, type FormResult } from "@/lib/form-result";
 
 async function getUserId() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -67,11 +68,13 @@ export async function getArtworks() {
     .where(eq(artworks.userId, userId))
     .orderBy(desc(artworks.createdAt));
 }
-export async function createArtwork(input: unknown) {
+export async function createArtwork(input: unknown): Promise<FormResult> {
   const userId = await getUserId();
-  const { price, ...data } = artworkSchema.parse(input);
+  const parsed = artworkSchema.safeParse(input);
+  if (!parsed.success) return formInvalid(parsed.error);
+  const { price, ...data } = parsed.data;
   if (data.imageUrl && !isOwnAsset(data.imageUrl, "artwall/artwork"))
-    throw new Error(
+    return formFail(
       "That artwork image could not be verified. Please upload it again."
     );
   await db
@@ -79,6 +82,7 @@ export async function createArtwork(input: unknown) {
     .values({ id: randomUUID(), userId, ...data, pricePaise: price });
   revalidatePath("/studio");
   revalidatePath("/studio/artworks");
+  return { ok: true };
 }
 export async function setArtworkPublic(id: string, isPublic: boolean) {
   const userId = await getUserId();

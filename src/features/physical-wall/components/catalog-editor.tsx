@@ -82,7 +82,7 @@ function SizesSection({ sizes }: { sizes: SizeClass[] }) {
           >
             <input type="hidden" name="id" value={size.id} />
             <input type="hidden" name="active" value="true" />
-            <Field label="Name" htmlFor={`size-name-${size.id}`}>
+            <Field state={state} label="Name" htmlFor={`size-name-${size.id}`}>
               <input
                 id={`size-name-${size.id}`}
                 name="name"
@@ -90,7 +90,7 @@ function SizesSection({ sizes }: { sizes: SizeClass[] }) {
                 className={inputClass}
               />
             </Field>
-            <Field label="W (cm)" htmlFor={`size-w-${size.id}`}>
+            <Field state={state} label="W (cm)" htmlFor={`size-w-${size.id}`}>
               <input
                 id={`size-w-${size.id}`}
                 name="wCm"
@@ -99,7 +99,7 @@ function SizesSection({ sizes }: { sizes: SizeClass[] }) {
                 className={inputClass}
               />
             </Field>
-            <Field label="H (cm)" htmlFor={`size-h-${size.id}`}>
+            <Field state={state} label="H (cm)" htmlFor={`size-h-${size.id}`}>
               <input
                 id={`size-h-${size.id}`}
                 name="hCm"
@@ -108,7 +108,7 @@ function SizesSection({ sizes }: { sizes: SizeClass[] }) {
                 className={inputClass}
               />
             </Field>
-            <Field label="Max kg" htmlFor={`size-kg-${size.id}`}>
+            <Field state={state} label="Max kg" htmlFor={`size-kg-${size.id}`}>
               <input
                 id={`size-kg-${size.id}`}
                 name="weightKg"
@@ -117,7 +117,7 @@ function SizesSection({ sizes }: { sizes: SizeClass[] }) {
                 className={inputClass}
               />
             </Field>
-            <Field label="₹ / day" htmlFor={`size-price-${size.id}`}>
+            <Field state={state} label="₹ / day" htmlFor={`size-price-${size.id}`}>
               <input
                 id={`size-price-${size.id}`}
                 name="basePrice"
@@ -160,7 +160,7 @@ function TypesSection({ types }: { types: SlotType[] }) {
               name="requiresGrant"
               value={String(type.requiresGrant)}
             />
-            <Field label="Label" htmlFor={`type-label-${type.id}`}>
+            <Field state={state} label="Label" htmlFor={`type-label-${type.id}`}>
               <input
                 id={`type-label-${type.id}`}
                 name="label"
@@ -168,7 +168,7 @@ function TypesSection({ types }: { types: SlotType[] }) {
                 className={inputClass}
               />
             </Field>
-            <Field label="Multiplier" htmlFor={`type-mult-${type.id}`}>
+            <Field state={state} label="Multiplier" htmlFor={`type-mult-${type.id}`}>
               <input
                 id={`type-mult-${type.id}`}
                 name="multiplier"
@@ -211,7 +211,7 @@ function AddonsSection({ addons }: { addons: Addon[] }) {
           >
             <input type="hidden" name="id" value={addon.id} />
             <input type="hidden" name="active" value="true" />
-            <Field label="Label" htmlFor={`addon-label-${addon.id}`}>
+            <Field state={state} label="Label" htmlFor={`addon-label-${addon.id}`}>
               <input
                 id={`addon-label-${addon.id}`}
                 name="label"
@@ -219,7 +219,7 @@ function AddonsSection({ addons }: { addons: Addon[] }) {
                 className={inputClass}
               />
             </Field>
-            <Field label="₹" htmlFor={`addon-price-${addon.id}`}>
+            <Field state={state} label="₹" htmlFor={`addon-price-${addon.id}`}>
               <input
                 id={`addon-price-${addon.id}`}
                 name="price"
@@ -229,7 +229,7 @@ function AddonsSection({ addons }: { addons: Addon[] }) {
                 className={inputClass}
               />
             </Field>
-            <Field label="For" htmlFor={`addon-applies-${addon.id}`}>
+            <Field state={state} label="For" htmlFor={`addon-applies-${addon.id}`}>
               <select
                 id={`addon-applies-${addon.id}`}
                 name="appliesTo"
@@ -241,7 +241,7 @@ function AddonsSection({ addons }: { addons: Addon[] }) {
                 <option value="both">Both</option>
               </select>
             </Field>
-            <Field label="Category" htmlFor={`addon-cat-${addon.id}`}>
+            <Field state={state} label="Category" htmlFor={`addon-cat-${addon.id}`}>
               <select
                 id={`addon-cat-${addon.id}`}
                 name="category"
@@ -283,7 +283,7 @@ function RefundSection({
         action={action}
         className="border-hairline mt-6 grid max-w-2xl items-end gap-4 rounded-md border p-5 sm:grid-cols-3"
       >
-        <Field label="Refund %" htmlFor="percentage">
+        <Field state={state} label="Refund %" htmlFor="percentage">
           <input
             id="percentage"
             name="percentage"
@@ -294,7 +294,7 @@ function RefundSection({
             className={inputClass}
           />
         </Field>
-        <Field label="Why (optional)" htmlFor="policy-note">
+        <Field state={state} label="Why (optional)" htmlFor="policy-note">
           <input id="policy-note" name="note" maxLength={280} className={inputClass} />
         </Field>
         <SubmitButton>Set policy</SubmitButton>
@@ -328,7 +328,7 @@ function SettingsSection({ settings }: { settings: WallSettings }) {
         action={action}
         className="border-hairline mt-6 grid max-w-4xl gap-4 rounded-md border p-5 sm:grid-cols-3"
       >
-        <Field
+        <Field state={state}
           label="Hold (minutes)"
           htmlFor="holdMinutes"
           hint="How long slots stay held while an artist pays."
@@ -342,7 +342,7 @@ function SettingsSection({ settings }: { settings: WallSettings }) {
             className={inputClass}
           />
         </Field>
-        <Field
+        <Field state={state}
           label="Buffer (days)"
           htmlFor="bufferDays"
           hint="Gap enforced between two bookings on one slot."
@@ -356,7 +356,7 @@ function SettingsSection({ settings }: { settings: WallSettings }) {
             className={inputClass}
           />
         </Field>
-        <Field label="GST %" htmlFor="gstRate">
+        <Field state={state} label="GST %" htmlFor="gstRate">
           <input
             id="gstRate"
             name="gstRate"
@@ -367,7 +367,7 @@ function SettingsSection({ settings }: { settings: WallSettings }) {
           />
         </Field>
 
-        <Field
+        <Field state={state}
           label="Platter discount %"
           htmlFor="perkDiscount"
           hint="Taken off a food bill at the counter."
@@ -381,7 +381,7 @@ function SettingsSection({ settings }: { settings: WallSettings }) {
             className={inputClass}
           />
         </Field>
-        <Field
+        <Field state={state}
           label="Who bears it"
           htmlFor="perkCostBearer"
           hint="Only our share becomes an expense in the ledger."
@@ -417,7 +417,7 @@ function SettingsSection({ settings }: { settings: WallSettings }) {
               />
               Enabled
             </label>
-            <Field label="Above % full" htmlFor="surgeThresholdPct">
+            <Field state={state} label="Above % full" htmlFor="surgeThresholdPct">
               <input
                 id="surgeThresholdPct"
                 name="surgeThresholdPct"
@@ -428,7 +428,7 @@ function SettingsSection({ settings }: { settings: WallSettings }) {
                 className={inputClass}
               />
             </Field>
-            <Field label="Multiplier" htmlFor="surgeMultiplier">
+            <Field state={state} label="Multiplier" htmlFor="surgeMultiplier">
               <input
                 id="surgeMultiplier"
                 name="surgeMultiplier"

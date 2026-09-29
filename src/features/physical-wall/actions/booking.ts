@@ -23,6 +23,7 @@ import {
   addDays,
   fail,
   firstIssue,
+  invalid,
   inTransaction,
   LEDGER_TAG,
   newId,
@@ -157,7 +158,7 @@ export async function reserveBooking(
       addonIds: formData.getAll("addonIds").map(String),
       artworkId: formData.get("artworkId") || undefined,
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { slotIds, durationDays, startDate, addonIds, artworkId } = parsed.data;
     const endDate = addDays(startDate, durationDays - 1);
@@ -430,7 +431,7 @@ export async function cancelBooking(
       bookingId: formData.get("bookingId"),
       reason: formData.get("reason") || undefined,
     });
-    if (!parsed.success) return fail(firstIssue(parsed.error));
+    if (!parsed.success) return invalid(parsed.error);
 
     const { bookingId, reason } = parsed.data;
 

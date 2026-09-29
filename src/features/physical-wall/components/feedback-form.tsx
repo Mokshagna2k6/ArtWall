@@ -140,7 +140,7 @@ export function FeedbackForm({
         </div>
       </fieldset>
 
-      <Field
+      <Field state={state}
         label="Anything we should do differently?"
         htmlFor="note"
         hint="Optional. Read by the founders, not published anywhere."
