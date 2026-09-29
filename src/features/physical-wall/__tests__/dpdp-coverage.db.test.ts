@@ -33,7 +33,7 @@ async function seedEverything(): Promise<TestUser> {
     [tid("ugc"), u, `artwall/ugc/${tid("cov")}`, ugcConsent]
   );
   await q(`insert into pw_grievances (id, user_id, contact, subject, body, due_at) values ($1, $2, $3, 'betest', 'body text', now())`, [tid("gr"), u, user.email]);
-  await q(`insert into coa_certificates (id, artwork_id, user_id, metadata_hash, status) values ($1, $2, $3, $4, 'issued')`, [tid("coa"), art, u, tid("hash")]);
+  await q(`insert into coa_certificates (id, artwork_id, user_id, metadata_hash, status, issued_at) values ($1, $2, $3, $4, 'issued', now())`, [tid("coa"), art, u, tid("hash")]);
   await q(`insert into exhibitions (id, user_id, title) values ($1, $2, 'betest cov show')`, [tid("exh"), u]);
 
   const paid = await makeBooking(u, await makeSlots(1), { status: "paid" });
