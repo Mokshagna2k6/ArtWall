@@ -54,6 +54,7 @@ export async function setTileStatus(
   _previous: AdminState,
   formData: FormData
 ): Promise<AdminState> {
+  // Password-guarded: fails CLOSED if the limiter store is down (PERF-2.03).
   const limit = mostRestrictive(
     await Promise.all([
       checkRateLimit(`admin:ip:${clientIp(await headers())}`, ADMIN_PER_IP),
@@ -61,7 +62,12 @@ export async function setTileStatus(
     ])
   );
   if (!limit.ok) {
-    return { status: "error", message: `Too many attempts. Try again in ${retryIn(limit)}.` };
+    return {
+      status: "error",
+      message: limit.unavailable
+        ? "Temporarily unavailable. Try again shortly."
+        : `Too many attempts. Try again in ${retryIn(limit)}.`,
+    };
   }
 
   const password = String(formData.get("password") ?? "");

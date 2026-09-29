@@ -56,12 +56,15 @@ export async function POST(request: Request) {
     checks.push(checkRateLimit(`auth${path}:id:${ip}:${email}`, rule.identifier));
   }
 
+  // Credential endpoints fail CLOSED (PERF-2.03): no counting, no sign-in.
   const limit = mostRestrictive(await Promise.all(checks));
   if (!limit.ok) {
-    return tooManyRequests(limit, {
-      code: "TOO_MANY_REQUESTS",
-      message: `Too many attempts. Try again in ${retryIn(limit)}.`,
-    });
+    return tooManyRequests(
+      limit,
+      limit.unavailable
+        ? { code: "SERVICE_UNAVAILABLE", message: "Sign-in is temporarily unavailable. Try again shortly." }
+        : { code: "TOO_MANY_REQUESTS", message: `Too many attempts. Try again in ${retryIn(limit)}.` }
+    );
   }
   return handler.POST(request);
 }
