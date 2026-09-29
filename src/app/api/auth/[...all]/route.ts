@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     return tooManyRequests(
       limit,
       limit.unavailable
-        ? { code: "SERVICE_UNAVAILABLE", message: "Sign-in is temporarily unavailable. Try again shortly." }
+        ? { code: "SERVICE_UNAVAILABLE", message: "Temporarily unavailable on our side. Try again in a moment." }
         : { code: "TOO_MANY_REQUESTS", message: `Too many attempts. Try again in ${retryIn(limit)}.` }
     );
   }
