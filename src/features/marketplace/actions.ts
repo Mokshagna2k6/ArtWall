@@ -1,9 +1,11 @@
 "use server";
 
-import { eq, and, gte, ilike, lte, sql, or } from "drizzle-orm";
+import { eq, and, gte, ilike, lte, sql, or, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { artworks, artistProfiles, coaCertificates } from "@/lib/db/schema";
+
+export type MarketplaceSort = "recent" | "price_asc" | "price_desc" | "title";
 
 export interface MarketplaceFilters {
   q?: string;
@@ -12,10 +14,95 @@ export interface MarketplaceFilters {
   /** Inclusive bounds, in paise (artworks.price_paise). */
   minPrice?: number;
   maxPrice?: number;
-  sort?: "recent" | "price_asc" | "price_desc" | "title";
+  sort?: MarketplaceSort;
+  /** Opaque `nextCursor` from the previous page. Omit for the first page. */
+  cursor?: string | null;
+  /** Page size, 1..96. Default 48. */
+  limit?: number;
 }
 
-export async function discoverArtworks(filters: MarketplaceFilters = {}) {
+export interface MarketplaceItem {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  medium: string | null;
+  dimensions: string | null;
+  year: number | null;
+  pricePaise: number | null;
+  category: string | null;
+  artistName: string;
+  artistHandle: string;
+}
+
+export interface MarketplacePage {
+  items: MarketplaceItem[];
+  /** Pass back as `cursor` (same filters + sort) for the next page; null on the last page. */
+  nextCursor: string | null;
+}
+
+const DEFAULT_LIMIT = 48;
+const MAX_LIMIT = 96;
+
+/**
+ * Keyset order per sort. Every sort ends with `id` so the order is total and a
+ * cursor names exactly one position. Nulls (unpriced works) always sort last.
+ */
+const SORT_KEYS: Record<MarketplaceSort, { key: SQL; cast: string; desc: boolean }> = {
+  recent: { key: sql`"artworks"."createdAt"`, cast: "timestamp", desc: true },
+  title: { key: sql`"artworks"."title"`, cast: "text", desc: false },
+  price_asc: { key: sql`"artworks"."price_paise"`, cast: "integer", desc: false },
+  price_desc: { key: sql`"artworks"."price_paise"`, cast: "integer", desc: true },
+};
+
+/**
+ * Position just after the last row of a page. `v` is the sort value rendered
+ * by Postgres as text, so a timestamp keeps its microseconds (a JS Date would
+ * round them away and skip or repeat rows).
+ */
+interface Cursor {
+  s: MarketplaceSort;
+  v: string | null;
+  id: string;
+}
+
+function encodeCursor(c: Cursor): string {
+  return Buffer.from(JSON.stringify(c)).toString("base64url");
+}
+
+/** A malformed cursor, or one minted under a different sort, is ignored (first page). */
+function decodeCursor(raw: string | null | undefined, sort: MarketplaceSort): Cursor | null {
+  if (!raw) return null;
+  try {
+    const c = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as Cursor;
+    const valid =
+      c?.s === sort && typeof c.id === "string" && (c.v === null || typeof c.v === "string");
+    return valid ? c : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Published marketplace listings, one keyset page at a time (PERF-1.07).
+ *
+ *   discoverArtworks({ ...filters, sort, limit })          -> first page
+ *   discoverArtworks({ ...filters, sort, limit, cursor })  -> following pages
+ *
+ * Returns `{ items, nextCursor }`; `nextCursor` is null on the last page. Keep
+ * filters and sort identical between pages: the cursor is a position in that
+ * ordering. Keyset rather than OFFSET, so a deep page costs the same as the
+ * first and works published mid-browse cannot cause duplicates or gaps.
+ */
+export async function discoverArtworks(
+  filters: MarketplaceFilters = {}
+): Promise<MarketplacePage> {
+  const sort: MarketplaceSort =
+    filters.sort && filters.sort in SORT_KEYS ? filters.sort : "recent";
+  const { key, cast, desc } = SORT_KEYS[sort];
+  const limit = Number.isFinite(filters.limit)
+    ? Math.min(Math.max(Math.trunc(filters.limit!), 1), MAX_LIMIT)
+    : DEFAULT_LIMIT;
+
   const conditions = [
     eq(artworks.isPublic, true),
     eq(artworks.status, "available"),
@@ -44,16 +131,19 @@ export async function discoverArtworks(filters: MarketplaceFilters = {}) {
   if (Number.isFinite(filters.minPrice)) conditions.push(gte(artworks.pricePaise, paise(filters.minPrice!)));
   if (Number.isFinite(filters.maxPrice)) conditions.push(lte(artworks.pricePaise, paise(filters.maxPrice!)));
 
-  const orderBy =
-    filters.sort === "price_asc"
-      ? sql`"artworks"."price_paise" asc nulls last`
-      : filters.sort === "price_desc"
-        ? sql`"artworks"."price_paise" desc nulls last`
-        : filters.sort === "title"
-          ? sql`"artworks"."title" asc`
-          : sql`"artworks"."createdAt" desc`;
+  const dir = sql.raw(desc ? "desc" : "asc");
+  const cmp = sql.raw(desc ? "<" : ">");
+  const cursor = decodeCursor(filters.cursor, sort);
+  if (cursor) {
+    // Rows strictly after the cursor in (key nulls last, id) order.
+    conditions.push(
+      cursor.v === null
+        ? sql`(${key} is null and "artworks"."id" ${cmp} ${cursor.id})`
+        : sql`((${key}, "artworks"."id") ${cmp} (${cursor.v}::${sql.raw(cast)}, ${cursor.id}) or ${key} is null)`
+    );
+  }
 
-  return db
+  const rows = await db
     .select({
       id: artworks.id,
       title: artworks.title,
@@ -65,12 +155,24 @@ export async function discoverArtworks(filters: MarketplaceFilters = {}) {
       category: artworks.category,
       artistName: artistProfiles.displayName,
       artistHandle: artistProfiles.handle,
+      sortValue: sql<string | null>`${key}::text`,
     })
     .from(artworks)
     .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
     .where(and(...conditions))
-    .orderBy(orderBy)
-    .limit(48);
+    .orderBy(sql`${key} ${dir} nulls last`, sql`"artworks"."id" ${dir}`)
+    // One extra row tells us whether there is a next page without a count(*).
+    .limit(limit + 1);
+
+  const page = rows.slice(0, limit);
+  const last = page.at(-1);
+  return {
+    items: page.map(({ sortValue: _sortValue, ...item }) => item),
+    nextCursor:
+      rows.length > limit && last
+        ? encodeCursor({ s: sort, v: last.sortValue, id: last.id })
+        : null,
+  };
 }
 
 export async function getArtworkDetail(id: string) {
