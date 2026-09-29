@@ -13,9 +13,12 @@ import { makeArtwork, makeBooking, makeSlots, makeUser, purgeTestData, q, tid } 
  *   23514 check_violation                  23505 unique_violation
  *   23P01 exclusion_violation              23503 foreign_key_violation
  *
- * Where a table has both a REVOKE and a trigger, the trigger is tested on its
- * own too: `granted` re-grants the privilege inside a transaction that is
- * always rolled back, so the trigger is the only thing left standing.
+ * Append-only has two layers, and each is tested on its own:
+ *   asApp    runs as artwall_app (0035), where the REVOKEs bind         -> 42501
+ *   asOwner  runs as the owner. On Neon the owner holds pg_write_all_data,
+ *            so UPDATE/DELETE pass the ACL and the trigger is all that is
+ *            left standing                                              -> 23001
+ * Both run in a transaction that is always rolled back.
  */
 
 afterAll(purgeTestData);
@@ -42,9 +45,19 @@ async function rolledBack<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
   }
 }
 
-/** Like rolledBack, with `privs` on `table` re-granted, so only the trigger guards it. */
+/** One statement as `role` ("none" = the owner), rolled back. */
+const as = (role: string, text: string, params: unknown[] = []) =>
+  rolledBack(async (c) => {
+    await c.query(`set local role ${role}`);
+    return c.query(text, params);
+  });
+const asApp = (text: string, params: unknown[] = []) => as("artwall_app", text, params);
+const asOwner = (text: string, params: unknown[] = []) => as("none", text, params);
+
+/** As the owner with `privs` on `table` re-granted, so only the trigger guards it. */
 const granted = <T>(table: string, privs: string, fn: (c: PoolClient) => Promise<T>) =>
   rolledBack(async (c) => {
+    await c.query("set local role none");
     await c.query(`grant ${privs} on ${table} to current_user`);
     return fn(c);
   });
@@ -59,19 +72,15 @@ describe("DB-2.01 pw_ledger is append-only", () => {
       `insert into pw_ledger (id, type, category, amount_paise, source_ref) values ($1, 'revenue', 'other', 500, $1)`,
       [id]
     );
-    await rejects(q(`update pw_ledger set amount_paise = 1 where id = $1`, [id]), "42501");
-    await rejects(q(`delete from pw_ledger where id = $1`, [id]), "42501");
-    await rejects(q(`truncate pw_ledger`), "42501");
-
-    await granted("pw_ledger", "update, delete, truncate", async (c) => {
-      await rejects(c.query(`update pw_ledger set amount_paise = 1 where id = $1`, [id]), "23001");
-    });
-    await granted("pw_ledger", "update, delete, truncate", async (c) => {
-      await rejects(c.query(`delete from pw_ledger where id = $1`, [id]), "23001");
-    });
-    await granted("pw_ledger", "update, delete, truncate", async (c) => {
-      await rejects(c.query(`truncate pw_ledger`), "23001");
-    });
+    const upd = `update pw_ledger set amount_paise = 1 where id = $1`;
+    const del = `delete from pw_ledger where id = $1`;
+    await rejects(asApp(upd, [id]), "42501");
+    await rejects(asApp(del, [id]), "42501");
+    await rejects(asApp(`truncate pw_ledger`), "42501");
+    await rejects(asOwner(upd, [id]), "23001");
+    await rejects(asOwner(del, [id]), "23001");
+    await rejects(asOwner(`truncate pw_ledger`), "42501"); // TRUNCATE is not in pg_write_all_data
+    await granted("pw_ledger", "truncate", (c) => rejects(c.query(`truncate pw_ledger`), "23001"));
     expect(await q(`select amount_paise from pw_ledger where id = $1`, [id])).toEqual([{ amount_paise: 500 }]);
   });
 });
@@ -88,24 +97,28 @@ describe("DB-2.02 provenance_events is append-only", () => {
       owner.id,
     ]);
 
-    await rejects(q(`update provenance_events set label = 'forged' where id = $1`, [id]), "42501");
-    await granted("provenance_events", "update", (c) =>
-      rejects(c.query(`update provenance_events set label = 'forged' where id = $1`, [id]), "23001")
-    );
-    await rejects(q(`delete from provenance_events where id = $1`, [id]), "23001");
-    await rejects(q(`truncate provenance_events`), "42501");
+    const upd = `update provenance_events set label = 'forged' where id = $1`;
+    const del = `delete from provenance_events where id = $1`;
+    await rejects(asApp(upd, [id]), "42501");
+    await rejects(asOwner(upd, [id]), "23001");
+    await rejects(asApp(del, [id]), "23001"); // DELETE stays granted (erasure needs it); the trigger scopes it
+    await rejects(asOwner(del, [id]), "23001");
+    await rejects(asApp(`truncate provenance_events`), "42501");
+    await rejects(asOwner(`truncate provenance_events`), "42501");
     // Erasing someone else does not unlock this artist's provenance.
     await rolledBack(async (c) => {
+      await c.query("set local role artwall_app");
       await erasing(c, other.id);
-      await rejects(c.query(`delete from provenance_events where id = $1`, [id]), "23001");
+      await rejects(c.query(del, [id]), "23001");
     });
     // Erasing the owner does.
     await rolledBack(async (c) => {
+      await c.query("set local role artwall_app");
       await erasing(c, owner.id);
-      expect((await c.query(`delete from provenance_events where id = $1`, [id])).rowCount).toBe(1);
+      expect((await c.query(del, [id])).rowCount).toBe(1);
     });
     // ...and only inside that transaction.
-    await rejects(q(`delete from provenance_events where id = $1`, [id]), "23001");
+    await rejects(q(del, [id]), "23001");
   });
 });
 
@@ -130,12 +143,13 @@ describe("DB-2.03 / DB-2.04 ownership and price history", () => {
       ["artwork_ownership_history", `owner_id = '${b.id}'`],
       ["artwork_price_history", "price_paise = 1"],
     ]) {
-      await rejects(q(`update ${table} set ${set} where artwork_id = $1`, [art]), "42501");
-      await granted(table, "update", (c) =>
-        rejects(c.query(`update ${table} set ${set} where artwork_id = $1`, [art]), "23001")
-      );
-      await rejects(q(`delete from ${table} where artwork_id = $1`, [art]), "23001");
-      await rejects(q(`truncate ${table}`), "42501");
+      const upd = `update ${table} set ${set} where artwork_id = $1`;
+      const del = `delete from ${table} where artwork_id = $1`;
+      await rejects(asApp(upd, [art]), "42501");
+      await rejects(asOwner(upd, [art]), "23001");
+      await rejects(asApp(del, [art]), "23001");
+      await rejects(asOwner(del, [art]), "23001");
+      await rejects(asApp(`truncate ${table}`), "42501");
     }
 
     // History goes only with its artwork (the FK cascade), never on its own.
@@ -153,21 +167,25 @@ describe("DB-2.05 pw_audit_log is append-only", () => {
        values ($1, 'Real Name', 'betest.action', 'betest', $2) returning id`,
       [actor.id, tid("subj")]
     );
-    await rejects(q(`update pw_audit_log set action = 'nothing happened' where id = $1`, [id]), "42501");
-    await rejects(q(`delete from pw_audit_log where id = $1`, [id]), "42501");
-    await rejects(q(`truncate pw_audit_log`), "42501");
-    await rejects(q(`update pw_audit_log set actor_label = 'someone else' where id = $1`, [id]), "23001");
-    await granted("pw_audit_log", "update, delete", async (c) => {
-      await rejects(c.query(`update pw_audit_log set action = 'x' where id = $1`, [id]), "23001");
-    });
-    await granted("pw_audit_log", "update, delete", async (c) => {
-      await rejects(c.query(`delete from pw_audit_log where id = $1`, [id]), "23001");
-    });
+    await rejects(asApp(`update pw_audit_log set action = 'nothing happened' where id = $1`, [id]), "42501");
+    await rejects(asApp(`delete from pw_audit_log where id = $1`, [id]), "42501");
+    await rejects(asApp(`truncate pw_audit_log`), "42501");
+    await rejects(asOwner(`update pw_audit_log set action = 'x' where id = $1`, [id]), "23001");
+    await rejects(asOwner(`delete from pw_audit_log where id = $1`, [id]), "23001");
+    // actor_label is column-granted (erasure needs it); outside an erasure the trigger refuses it.
+    await rejects(asApp(`update pw_audit_log set actor_label = 'someone else' where id = $1`, [id]), "23001");
     await rolledBack(async (c) => {
+      await c.query("set local role artwall_app");
       await erasing(c, actor.id);
       expect((await c.query(`update pw_audit_log set actor_label = 'Erased user' where id = $1`, [id])).rowCount).toBe(1);
-      // Pseudonymising is all erasure may do.
+      // Pseudonymising is all erasure may do: the privilege layer...
       await rejects(c.query(`update pw_audit_log set actor_label = 'x', action = 'y' where id = $1`, [id]), "42501");
+    });
+    await rolledBack(async (c) => {
+      await c.query("set local role none");
+      await erasing(c, actor.id);
+      // ...and the trigger layer.
+      await rejects(c.query(`update pw_audit_log set actor_label = 'x', action = 'y' where id = $1`, [id]), "23001");
     });
   });
 });
@@ -187,18 +205,38 @@ describe("condition reports are append-only", () => {
       `insert into pw_damage_records (id, booking_id, slot_id, item_key, description, photo_id) values ($1, $2, $3, 'front', 'scratch', $4)`,
       [dmg, bk, slot, photo]
     );
-    await rejects(q(`update pw_condition_photos set url = 'https://other' where id = $1`, [photo]), "42501");
-    await rejects(q(`delete from pw_condition_photos where id = $1`, [photo]), "42501");
-    await granted("pw_condition_photos", "update, delete", (c) =>
-      rejects(c.query(`update pw_condition_photos set url = 'https://other' where id = $1`, [photo]), "23001")
-    );
-    await rejects(q(`update pw_damage_records set description = 'fine' where id = $1`, [dmg]), "42501");
-    await rejects(q(`delete from pw_damage_records where id = $1`, [dmg]), "42501");
+    for (const [sql, id] of [
+      [`update pw_condition_photos set url = 'https://other' where id = $1`, photo],
+      [`delete from pw_condition_photos where id = $1`, photo],
+      [`update pw_damage_records set description = 'fine' where id = $1`, dmg],
+      [`delete from pw_damage_records where id = $1`, dmg],
+    ]) {
+      await rejects(asApp(sql, [id]), "42501");
+      await rejects(asOwner(sql, [id]), "23001");
+    }
 
-    await q(`update pw_damage_records set resolved_at = now() where id = $1`, [dmg]);
-    await rejects(q(`update pw_damage_records set resolved_at = now() - interval '1 day' where id = $1`, [dmg]), "23001");
+    await rolledBack(async (c) => {
+      await c.query("set local role artwall_app");
+      await c.query(`update pw_damage_records set resolved_at = now() where id = $1`, [dmg]);
+      await rejects(c.query(`update pw_damage_records set resolved_at = now() - interval '1 day' where id = $1`, [dmg]), "23001");
+    });
     // Evidence outlives nothing silently: its booking cannot be deleted from under it.
     await rejects(q(`delete from pw_bookings where id = $1`, [bk]), "23503");
+
+    // ...but it does outlive an erased artwork: ON DELETE SET NULL is the one edit the trigger allows.
+    const art = await makeArtwork(artist.id);
+    const dmg2 = tid("dmg");
+    await q(
+      `insert into pw_damage_records (id, booking_id, slot_id, item_key, description, artwork_id) values ($1, $2, $3, 'back', 'dent', $4)`,
+      [dmg2, bk, slot, art]
+    );
+    await rolledBack(async (c) => {
+      await c.query("set local role artwall_app");
+      await c.query(`delete from artworks where id = $1`, [art]);
+      expect((await c.query(`select artwork_id, description from pw_damage_records where id = $1`, [dmg2])).rows).toEqual([
+        { artwork_id: null, description: "dent" },
+      ]);
+    });
   });
 });
 

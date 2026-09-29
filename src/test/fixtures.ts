@@ -9,7 +9,13 @@ import type { TestUser } from "@/test/db-setup";
  * owns is ever touched.
  */
 
-export const tid = (prefix = "x") => `betest_${prefix}_${randomBytes(6).toString("hex")}`;
+/**
+ * Per-process run tag. Several agents/CI jobs share one dev database; purging
+ * only this run's rows keeps one run's cleanup from deleting another's fixtures
+ * mid-test.
+ */
+export const RUN = randomBytes(3).toString("hex");
+export const tid = (prefix = "x") => `betest_${RUN}_${prefix}_${randomBytes(6).toString("hex")}`;
 
 export async function q<T = Record<string, unknown>>(text: string, params: unknown[] = []) {
   return (await pool.query(text, params)).rows as T[];
@@ -127,10 +133,12 @@ const GUARDED = [...DELETE_REVOKED, "provenance_events", "coa_certificates"];
  * explicitly (not discovered) so a typo cannot widen the blast radius.
  */
 export async function purgeTestData() {
-  const like = "betest\\_%";
+  const like = `betest\\_${RUN}\\_%`;
   const client = await pool.connect();
   try {
     await client.query("begin");
+    // Back to the owner if the suite runs as artwall_app (DB_TEST_ROLE); ends with the transaction.
+    await client.query("set local role none");
     for (const t of GUARDED) await client.query(`alter table ${t} disable trigger user`);
     for (const t of DELETE_REVOKED) await client.query(`grant delete on ${t} to current_user`);
     await client.query(`delete from pw_audit_log where subject_id like $1 or actor_id like $1`, [like]);
@@ -143,20 +151,22 @@ export async function purgeTestData() {
       [like]
     );
     await client.query(`delete from pw_ugc_submissions where id in (${ugc})`, [like]);
-    await client.query(`delete from pw_invoices where booking_id like $1`, [like]);
+    // Bookings created through app code get bk_ ids; they belong to betest_ artists.
+    const bks = `select id from pw_bookings where id like $1 or artist_id like $1`;
+    await client.query(`delete from pw_invoices where booking_id in (${bks})`, [like]);
     await client.query(
-      `delete from pw_ledger where booking_id like $1 or created_by like $1 or source_ref like '%betest\\_%'`,
+      `delete from pw_ledger where booking_id in (${bks}) or created_by like $1 or source_ref like '%' || $1`,
       [like]
     );
-    await client.query(`delete from pw_refunds where booking_id like $1`, [like]);
+    await client.query(`delete from pw_refunds where booking_id in (${bks})`, [like]);
     await client.query(`delete from pw_asset_deletions where public_id like '%betest%'`);
-    await client.query(`delete from pw_payments where booking_id like $1`, [like]);
-    await client.query(`delete from pw_damage_records where booking_id like $1`, [like]);
-    await client.query(`delete from pw_condition_photos where booking_id like $1`, [like]);
-    await client.query(`delete from pw_install_windows where booking_id like $1`, [like]);
-    await client.query(`delete from pw_booking_slots where booking_id like $1`, [like]);
-    await client.query(`delete from pw_agreements where booking_id like $1`, [like]);
-    await client.query(`delete from pw_bookings where id like $1`, [like]);
+    await client.query(`delete from pw_payments where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_damage_records where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_condition_photos where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_install_windows where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_booking_slots where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_agreements where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_bookings where id in (${bks})`, [like]);
     await client.query(`delete from pw_slots where id like $1`, [like]);
     await client.query(`delete from pw_grid_config where id like $1`, [like]);
     await client.query(`delete from pw_identity_verifications where user_id like $1`, [like]);
