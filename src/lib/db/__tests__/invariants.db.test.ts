@@ -492,19 +492,47 @@ describe("DB-2.11 foreign keys state their ON DELETE", () => {
 });
 
 describe("DB-2.12 marketplace query uses its indexes", () => {
-  it("plans discoverArtworks' filters on the partial marketplace indexes", async () => {
-    // The shape discoverArtworks (features/marketplace/actions.ts) generates.
-    const plan = await rolledBack(async (c) => {
-      await c.query("set local enable_seqscan = off"); // the dev table is tiny; ask what the planner CAN use
-      const { rows } = await c.query(
-        `explain select a.id from artworks a join artist_profiles p on a."userId" = p."userId"
-         where a."isPublic" = true and a.status = 'available' and p.published = true
-           and a.category = $1 and a.price_paise >= $2 and a.price_paise <= $3
-         order by a.price_paise asc nulls last limit 48`,
-        ["painting", 0, 100_000_00]
+  it("at marketplace volume, the default planner serves every discoverArtworks shape from an index", async () => {
+    // The dev table is ~100 rows, where a seq scan is rightly cheapest. So load
+    // 30k artworks (a third hidden, a quarter sold) in a rolled-back transaction,
+    // ANALYZE (transactional too), and ask the planner with default settings.
+    const plans = await rolledBack(async (c) => {
+      const u = tid("user");
+      await c.query(`insert into "user" (id, name, email, role, "emailVerified") values ($1, 'x', $1 || '@example.test', 'artist', true)`, [u]);
+      await c.query(`insert into artist_profiles ("userId", handle, "displayName", published) values ($1, $2, 'x', true)`, [
+        u,
+        u.replace(/_/g, "-"),
+      ]);
+      await c.query(
+        `insert into artworks (id, "userId", title, category, price_paise, "isPublic", status, medium, "createdAt")
+         select $1 || g, $2, 'Work ' || g, (array['painting','sculpture','photography','print','drawing'])[1 + g % 5],
+                (g * 7919) % 5000000, g % 3 <> 0, case when g % 4 = 0 then 'sold' else 'available' end,
+                'Oil', now() - g * interval '1 minute'
+         from generate_series(1, 30000) g`,
+        [tid("art"), u]
       );
-      return rows.map((r) => r["QUERY PLAN"]).join("\n");
+      await c.query("analyze artworks");
+      await c.query("analyze artist_profiles");
+      // The shapes discoverArtworks (features/marketplace/actions.ts) generates.
+      const market = `select a.id from artworks a join artist_profiles p on a."userId" = p."userId"
+        where a."isPublic" = true and a.status = 'available' and p.published = true`;
+      const explain = async (sql: string) =>
+        (await c.query(`explain ${sql}`)).rows.map((r) => r["QUERY PLAN"]).join("\n");
+      return {
+        recent: await explain(`${market} order by a."createdAt" desc limit 48`),
+        categoryPrice: await explain(
+          `${market} and a.category = 'painting' and a.price_paise >= 100000 and a.price_paise <= 200000
+           order by a.price_paise asc nulls last limit 48`
+        ),
+        price: await explain(`${market} and a.price_paise >= 100 order by a.price_paise asc nulls last limit 48`),
+        // Full-text search (physical-wall/actions/search.ts) on the search_tsv GIN index.
+        search: await explain(`select id from artworks where search_tsv @@ plainto_tsquery('english', 'work 12345')`),
+      };
     });
-    expect(plan).toMatch(/artworks_market_(category_price|price)_idx/);
+    expect(plans.recent).toMatch(/artworks_marketplace_recent_idx/);
+    expect(plans.categoryPrice).toMatch(/artworks_market_category_price_idx/);
+    expect(plans.price).toMatch(/artworks_market_price_idx/);
+    expect(plans.search).toMatch(/artworks_search_idx/);
+    for (const plan of Object.values(plans)) expect(plan).not.toMatch(/Seq Scan on artworks/);
   });
 });
