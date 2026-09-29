@@ -52,6 +52,10 @@ create index if not exists artworks_market_price_idx
   on artworks (price_paise)
   where "isPublic" = true and status = 'available';
 
-create index if not exists artworks_market_recent_idx
-  on artworks ("createdAt" desc)
+-- Newest-first. Same name and definition as PERF-1.07's keyset index
+-- (0029_perf_marketplace_keyset), so whichever migration runs first creates it
+-- and the other is a no-op: one index, not two.
+drop index if exists artworks_market_recent_idx;
+create index if not exists artworks_marketplace_recent_idx
+  on artworks ("createdAt" desc, id desc)
   where "isPublic" = true and status = 'available';
