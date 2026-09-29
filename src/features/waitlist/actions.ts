@@ -12,25 +12,15 @@ import {
 } from "@/features/waitlist/schema";
 import { saveWaitlistEntry } from "@/features/waitlist/store";
 import { DatabaseNotConfiguredError } from "@/lib/db";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { limitRequest, retryIn } from "@/lib/rate-limit";
 import { getSessionUser } from "@/lib/session";
 
-const RATE_LIMIT = { limit: 5, windowMs: 10 * 60 * 1000 };
-
 /**
- * Best-effort client identity for rate limiting.
- *
- * Proxy headers are spoofable, so this is a speed bump rather than an identity.
- * On Vercel `x-forwarded-for` is set by the platform edge and the client cannot
- * override it; behind other proxies, confirm the same before trusting it.
+ * 5 attempts per 10 minutes per user (plus a 25/10 min ceiling per IP, see
+ * limitRequest). Joining is once per account; the headroom is for validation
+ * retries.
  */
-async function clientKey(): Promise<string> {
-  const headerList = await headers();
-  const forwarded = headerList.get("x-forwarded-for");
-  return (
-    forwarded?.split(",")[0]?.trim() || headerList.get("x-real-ip") || "unknown"
-  );
-}
+const RATE_LIMIT = { limit: 5, windowMs: 10 * 60 * 1000 };
 
 /**
  * Join the founding roster.
@@ -108,15 +98,14 @@ export async function joinWaitlist(
     return { status: "success", founderNumber: 0, name: parsed.data.name };
   }
 
-  const limit = checkRateLimit(`waitlist:${await clientKey()}`, RATE_LIMIT);
+  const headerList = await headers();
+  const limit = await limitRequest("waitlist", RATE_LIMIT, user.id, headerList);
   if (!limit.ok) {
     return {
       status: "error",
-      message: `Too many attempts. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.`,
+      message: `Too many attempts. Try again in ${retryIn(limit)}.`,
     };
   }
-
-  const headerList = await headers();
 
   try {
     const { founderNumber } = await saveWaitlistEntry({

@@ -38,6 +38,10 @@ export const auth = betterAuth({
   baseURL: baseUrl,
   trustedOrigins,
   emailAndPassword: { enabled: true },
+  // Off: better-auth's built-in limiter defaults to per-instance memory, which
+  // does nothing on serverless. The credential endpoints are limited by the
+  // shared Postgres limiter in app/api/auth/[...all]/route.ts instead.
+  rateLimit: { enabled: false },
   account: {
     accountLinking: {
       // Equivalent to NextAuth's `allowDangerousEmailAccountLinking` for Google.
