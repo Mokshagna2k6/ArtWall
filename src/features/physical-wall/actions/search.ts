@@ -1,7 +1,7 @@
 "use server";
 
 import { getSql } from "@/lib/db";
-import { fail, newId, ok, type ActionState } from "@/features/physical-wall/actions/shared";
+import { fail, newId, type ActionState } from "@/features/physical-wall/actions/shared";
 
 export async function searchArtworks(
   _previous: ActionState,
@@ -55,7 +55,9 @@ export async function searchArtworks(
 
     // No cache invalidation: nothing cached reads pw_search_log, and updateTag
     // throws outside a Server Action, which failed every /api/physical-wall/search call.
-    return ok("", { results });
+    // `results` at the top level, as the return type says: ok("", { results })
+    // nested it under `data`, so the route never found it and always answered 400.
+    return { status: "ok", message: "", results };
   } catch (error) {
     console.error("[physical-wall] searchArtworks", error);
     return fail("Search failed. Try again.");
