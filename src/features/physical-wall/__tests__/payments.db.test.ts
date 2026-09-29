@@ -32,7 +32,7 @@ vi.mock("@/features/physical-wall/razorpay", async (orig) => {
         rp.failNextRefund = false;
         throw new Error("Razorpay 502");
       }
-      const refund = { id: `rfnd_${rp.refunds.length}`, payment_id: paymentId, amount, status: "processed", notes: refs };
+      const refund = { id: `rfnd_${rp.refunds.length}_${Math.random().toString(36).slice(2)}`, // unique: pw_refunds.provider_refund_id is, across runs payment_id: paymentId, amount, status: "processed", notes: refs };
       rp.refunds.push(refund);
       return refund;
     }),
@@ -246,12 +246,13 @@ describe("durable refunds (BE-1.14)", () => {
     const [{ id }] = await q<{ id: string }>(`select id from pw_refunds where booking_id = $1`, [booking]);
 
     // Simulate: a worker claimed it, Razorpay created the refund, then the process died.
-    rp.refunds.push({ id: "rfnd_crash", payment_id: paymentId, amount: 5900, notes: { refundId: id } });
+    const rfnd = `rfnd_crash_${id}`;
+    rp.refunds.push({ id: rfnd, payment_id: paymentId, amount: 5900, notes: { refundId: id } });
     await q(`update pw_refunds set status = 'processing', updated_at = now() - interval '11 minutes' where id = $1`, [id]);
 
     expect(await processRefund(id)).toBe("processed");
     const [r] = await q<{ provider_refund_id: string }>(`select provider_refund_id from pw_refunds where id = $1`, [id]);
-    expect(r.provider_refund_id).toBe("rfnd_crash");
+    expect(r.provider_refund_id).toBe(rfnd);
     expect(rp.refunds.filter((x) => x.notes.refundId === id)).toHaveLength(1);
     expect(rp.createRefundCalls).toBe(1); // only the failed in-request attempt
   });
