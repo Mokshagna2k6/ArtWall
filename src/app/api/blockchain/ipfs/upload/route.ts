@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pinata } from "@/lib/blockchain/pinata";
 import { getApiUser } from "@/lib/blockchain/auth";
-import { apiError, handleRouteError, requestId, checkRateLimit } from "@/lib/blockchain/http";
+import { apiError, handleRouteError, requestId } from "@/lib/blockchain/http";
+import { limitRequest, tooManyRequests } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -21,8 +22,10 @@ export async function POST(req: NextRequest) {
     const user = await getApiUser();
     if (!user) return apiError("unauthenticated", { reqId });
 
-    const rl = await checkRateLimit(`upload:${user.id}`, { limit: 20, windowSec: 3600 });
-    if (!rl.ok) return apiError("rate_limited", { reqId });
+    // 20/hour per user: each call pushes up to 25 MB into paid Pinata storage.
+    // Covers an artist uploading a whole series; stops storage-filling scripts.
+    const rl = await limitRequest("ipfs-upload", { limit: 20, windowMs: 60 * 60 * 1000 }, user.id);
+    if (!rl.ok) return tooManyRequests(rl, { error: { code: "rate_limited", reqId } });
 
     const form = await req.formData();
     const file = form.get("file");

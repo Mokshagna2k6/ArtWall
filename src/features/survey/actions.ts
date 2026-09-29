@@ -9,18 +9,15 @@ import {
 } from "@/features/survey/schema";
 import { saveSurveyResponse } from "@/features/survey/store";
 import { DatabaseNotConfiguredError } from "@/lib/db";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { limitRequest, retryIn } from "@/lib/rate-limit";
 import { getSessionUser } from "@/lib/session";
 
+/**
+ * 6 responses per 10 minutes per respondent (user id when signed in, else IP).
+ * One honest person answers once or twice; an art-school lab on one IP still
+ * fits under the signed-in NAT allowance; a stuffing script does not.
+ */
 const RATE_LIMIT = { limit: 6, windowMs: 10 * 60 * 1000 };
-
-async function clientKey(): Promise<string> {
-  const headerList = await headers();
-  const forwarded = headerList.get("x-forwarded-for");
-  return (
-    forwarded?.split(",")[0]?.trim() || headerList.get("x-real-ip") || "unknown"
-  );
-}
 
 /**
  * Record a pain-point survey response.
@@ -74,15 +71,15 @@ export async function submitSurvey(
   // Honeypot tripped - answer like success so bots learn nothing, save nothing.
   if (parsed.data.website) return { status: "success" };
 
-  const limit = checkRateLimit(`survey:${await clientKey()}`, RATE_LIMIT);
+  const [user, headerList] = await Promise.all([getSessionUser(), headers()]);
+
+  const limit = await limitRequest("survey", RATE_LIMIT, user?.id, headerList);
   if (!limit.ok) {
     return {
       status: "error",
-      message: `Too many submissions. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.`,
+      message: `Too many submissions. Try again in ${retryIn(limit)}.`,
     };
   }
-
-  const [user, headerList] = await Promise.all([getSessionUser(), headers()]);
 
   try {
     await saveSurveyResponse({

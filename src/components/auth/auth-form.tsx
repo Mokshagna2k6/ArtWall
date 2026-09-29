@@ -67,7 +67,12 @@ function humanError(
     return { text: "That password is too short — use at least 8 characters." };
   }
   if (normalised.includes("RATE") || normalised.includes("TOO_MANY")) {
-    return { text: "Too many attempts. Wait a minute and try again." };
+    // Our limiter's message carries the real wait ("Try again in 12 minutes.").
+    return {
+      text: message?.startsWith("Too many")
+        ? message
+        : "Too many attempts. Wait a minute and try again.",
+    };
   }
 
   return {

@@ -51,20 +51,3 @@ export function handleRouteError(
 export function requestId(): string {
   return crypto.randomUUID().slice(0, 8);
 }
-
-// In-memory rate limiter (per-instance)
-const store = new Map<string, { count: number; resetAt: number }>();
-
-export async function checkRateLimit(
-  key: string,
-  opts: { limit: number; windowSec: number },
-): Promise<{ ok: boolean }> {
-  const now = Date.now();
-  let bucket = store.get(key);
-  if (!bucket || bucket.resetAt <= now) {
-    bucket = { count: 0, resetAt: now + opts.windowSec * 1000 };
-    store.set(key, bucket);
-  }
-  bucket.count += 1;
-  return { ok: bucket.count <= opts.limit };
-}

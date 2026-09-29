@@ -42,6 +42,14 @@ export async function GET(request: Request) {
     }
   }
 
+  // Expired rate-limit windows (lib/rate-limit.ts). Live rows are reused in
+  // place, so this only bounds the table to about a day of distinct keys.
+  const expired = (await sql`
+    with d as (delete from rate_limits where reset_at < now() returning 1)
+    select count(*)::int as n from d
+  `) as { n: number }[];
+  results.rate_limits = expired[0]?.n ?? 0;
+
   // Retry Cloudinary deletions queued by DPDP erasure (BE-1.32).
   const assetDeletions = await processAssetDeletions();
 
