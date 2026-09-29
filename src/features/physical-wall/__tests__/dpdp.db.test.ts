@@ -83,6 +83,45 @@ async function richUser() {
     [tid("led"), paid, user.id]
   );
   await q(`update artworks set price_paise = 50000 where id = $1`, [art]); // a second price-history row
+  const photo = tid("cp");
+  await q(
+    `insert into pw_condition_photos (id, booking_id, slot_id, item_key, cloudinary_id, url, uploaded_by)
+     values ($1, $2, $3, 'front', 'artwall/betest/cp', 'https://x', $4)`,
+    [photo, paid, paidSlot, user.id]
+  );
+  // The most frozen certificate there is (0029): minted. Only erasure of its owner may delete it.
+  const edition = tid("ed");
+  await q(`insert into editions (id, artwork_id, user_id, status) values ($1, $2, $3, 'active')`, [edition, art, user.id]);
+  await q(
+    `insert into coa_certificates (id, artwork_id, edition_id, user_id, metadata_hash, status, issued_at,
+       "txHash", "tokenId", "chainId", "contractAddr", "mintedAt", "mintNonce")
+     values ($1, $2, $3, $4, $1, 'minted', now(), '0xbeef', $1, 84532, '0xc0ffee', now(), $1)`,
+    [tid("coa"), art, edition, user.id]
+  );
+  await q(`insert into mint_commitments (id, artwork_id, edition_id, user_id, leaf_hash) values ($1, $2, $3, $4, $1)`, [
+    tid("mint"),
+    art,
+    edition,
+    user.id,
+  ]);
+  const curator = tid("cur");
+  await q(`insert into curators (id, user_id, display_name) values ($1, $2, 'betest curator')`, [curator, user.id]);
+  await q(`insert into curator_picks (id, curator_id, artwork_id) values ($1, $2, $3)`, [tid("pick"), curator, art]);
+
+  // A bystander's append-only rows that name the erased user must survive untouched:
+  // erasure unlocks the guards for the erased user's own rows only.
+  const other = await makeUser("admin");
+  const otherArt = await makeArtwork(other.id);
+  const otherProv = tid("prov");
+  await q(
+    `insert into provenance_events (id, artwork_id, event_type, actor_id, label) values ($1, $2, 'transferred', $3, 'bought from the erased artist')`,
+    [otherProv, otherArt, user.id]
+  );
+  const [{ id: otherAudit }] = await q<{ id: string }>(
+    `insert into pw_audit_log (actor_id, actor_label, action, subject_type, subject_id)
+     values ($1, $2, 'betest.review', 'booking', $3) returning id`,
+    [other.id, other.name, paid]
+  );
 
   const heldSlots = await makeSlots(1);
   const held = await makeBooking(user.id, heldSlots);
@@ -92,7 +131,10 @@ async function richUser() {
   const { issueCertificate } = await import("@/features/coa/actions");
   await createExhibition({ title: "betest exh" });
   await issueCertificate(art);
-  return { user, art, artId, docId, paid, held, heldSlot: heldSlots[0], damage, audit, tag };
+  return {
+    user, art, artId, docId, paid, held, heldSlot: heldSlots[0], damage, audit, tag, photo, edition,
+    other, otherArt, otherProv, otherAudit,
+  };
 }
 
 const count = async (sql: string, params: unknown[]) => (await q(sql, params)).length;
@@ -112,7 +154,7 @@ describe("DPDP export (BE-1.27)", () => {
     expect(data.payments).toHaveLength(1);
     expect(data.invoices).toHaveLength(1);
     expect(data.ugcSubmissions).toHaveLength(1);
-    expect(data.certificates).toHaveLength(1);
+    expect(data.certificates).toHaveLength(2); // issued + minted
   }, 120_000);
 });
 
@@ -133,6 +175,15 @@ describe("DPDP erasure (BE-1.28 – 1.33)", () => {
   it("deletes personal data, sessions, OAuth links and Cloudinary files; keeps tax/contract records pseudonymised", async () => {
     const r = await richUser();
     const u: TestUser = r.user;
+    // The fixture really holds guarded rows, so "0 left" below means erasure removed them.
+    const before = {
+      provenance: await count(`select 1 from provenance_events where artwork_id = $1`, [r.art]),
+      ownership: await count(`select 1 from artwork_ownership_history where artwork_id = $1`, [r.art]),
+      price: await count(`select 1 from artwork_price_history where artwork_id = $1`, [r.art]),
+      certificates: await count(`select status from coa_certificates where artwork_id = $1 and status in ('issued', 'minted')`, [r.art]),
+      mints: await count(`select 1 from mint_commitments where artwork_id = $1`, [r.art]),
+    };
+    expect(before).toEqual({ provenance: 1, ownership: 1, price: 2, certificates: 2, mints: 1 });
     actAs(u);
     const f = new FormData();
     f.set("confirm", "DELETE");
@@ -181,9 +232,22 @@ describe("DPDP erasure (BE-1.28 – 1.33)", () => {
     expect(audit.actor_label).toMatch(/^Erased user /);
     const [tag] = await q(`select artwork_id, bound_by, bound_at from art_tags where id = $1`, [r.tag]);
     expect(tag).toEqual({ artwork_id: null, bound_by: null, bound_at: null });
-    for (const t of ["provenance_events", "artwork_ownership_history", "artwork_price_history", "coa_certificates"]) {
+    for (const t of [
+      "provenance_events", "artwork_ownership_history", "artwork_price_history", "coa_certificates",
+      "mint_commitments", "editions", "curator_picks",
+    ]) {
       expect(await count(`select 1 from ${t} where artwork_id = $1`, [r.art]), t).toBe(0);
     }
+    expect(await count(`select 1 from curators where user_id = $1`, [u.id]), "curators").toBe(0);
+    const [photo] = await q(`select booking_id, uploaded_by, url from pw_condition_photos where id = $1`, [r.photo]);
+    expect(photo).toEqual({ booking_id: r.paid, uploaded_by: u.id, url: "https://x" });
+
+    // A bystander's records naming the erased user: untouched.
+    const [prov] = await q(`select actor_id, label from provenance_events where id = $1`, [r.otherProv]);
+    expect(prov).toEqual({ actor_id: u.id, label: "bought from the erased artist" });
+    const [otherAudit] = await q(`select actor_label from pw_audit_log where id = $1`, [r.otherAudit]);
+    expect(otherAudit).toEqual({ actor_label: r.other.name });
+    expect(await count(`select 1 from artwork_ownership_history where artwork_id = $1`, [r.otherArt])).toBe(1);
 
     // The live hold is released
     expect((await q<{ status: string }>(`select status from pw_bookings where id = $1`, [r.held]))[0].status).toBe("cancelled");
