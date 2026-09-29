@@ -42,6 +42,11 @@ export async function POST(
     if (cert.status === "minted") {
       return apiError("conflict", { reqId, details: "already minted" });
     }
+    // The update below sets metadata_pinned: without this, a voucher request
+    // quietly un-revoked a revoked certificate and let it be minted.
+    if (cert.status === "revoked") {
+      return apiError("conflict", { reqId, details: "certificate revoked" });
+    }
 
     const { to, royaltyReceiver, royaltyFeeBps } = bodySchema.parse(await req.json());
 
