@@ -1,10 +1,10 @@
 "use server";
 
-import { headers } from "next/headers";
 import { z } from "zod";
 
 import { createUploadSignature } from "@/lib/cloudinary";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { limitRequest, retryIn } from "@/lib/rate-limit";
+import { getSessionUser } from "@/lib/session";
 
 export type SignatureResult =
   | {
@@ -16,15 +16,6 @@ export type SignatureResult =
       folder: string;
     }
   | { ok: false; message: string };
-
-async function clientKey(): Promise<string> {
-  const headerList = await headers();
-  return (
-    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headerList.get("x-real-ip") ||
-    "unknown"
-  );
-}
 
 /**
  * Mint a short-lived signature so the browser can upload straight to Cloudinary.
@@ -47,15 +38,17 @@ export async function getUploadSignature(
   const parsed = z.enum(["artwork", "selfie"]).safeParse(kind);
   if (!parsed.success) return { ok: false, message: "Unknown upload type." };
 
-  const limit = checkRateLimit(`upload:${await clientKey()}`, {
-    limit: 10,
-    windowMs: 10 * 60 * 1000,
-  });
+  const user = await getSessionUser();
+  const limit = await limitRequest(
+    "upload-signature",
+    { limit: 10, windowMs: 10 * 60 * 1000 },
+    user?.id
+  );
 
   if (!limit.ok) {
     return {
       ok: false,
-      message: `Too many uploads. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.`,
+      message: `Too many uploads. Try again in ${retryIn(limit)}.`,
     };
   }
 

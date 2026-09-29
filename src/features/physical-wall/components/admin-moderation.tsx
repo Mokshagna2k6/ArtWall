@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 
+import { fullSrc } from "@/lib/cloudinary-url";
 import { IDLE } from "@/features/physical-wall/action-state";
 import { moderateUgc, listPendingUgc } from "@/features/physical-wall/actions/ugc";
 import {
@@ -84,7 +85,8 @@ export function AdminModeration() {
 
                 <div className="mt-4 overflow-hidden rounded-md border">
                   <img
-                    src={item.imageUrl}
+                    src={fullSrc(item.imageUrl, 800)}
+                    loading="lazy"
                     alt="UGC submission"
                     className="h-64 w-full object-cover"
                   />

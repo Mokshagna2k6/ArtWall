@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 
-import { cookies, headers } from "next/headers";
-import { createHash } from "node:crypto";
+import { cookies } from "next/headers";
 
 import { mintQrToken } from "@/features/physical-wall/qr";
 import { visitorRegisterSchema } from "@/features/physical-wall/schema";
@@ -17,7 +16,7 @@ import {
   ok,
   toActionError,
 } from "@/features/physical-wall/actions/shared";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { limitRequest } from "@/lib/rate-limit";
 import { getSql } from "@/lib/db";
 
 /**
@@ -29,40 +28,23 @@ import { getSql } from "@/lib/db";
  *    the schema, so no consent is a schema failure and the row is never written.
  *    Marketing consent is a separate, optional field — bundling them is exactly
  *    the dark pattern the spec rules out.
- *  - Scans store no IP address and no user agent. Rate limiting uses a hash
- *    that never reaches the database, so the demand signal stays honest without
- *    the platform holding a log of who stood in front of which painting.
+ *  - Scans store no IP address and no user agent. The shared rate limiter only
+ *    stores an HMAC of its key (never the IP) in a counter row that is swept
+ *    once expired, so the demand signal stays honest without the platform
+ *    holding a log of who stood in front of which painting.
  */
 
 /** How long a walk-in registration is kept before it expires. */
 const VISITOR_RETENTION_DAYS = 90;
-
-/**
- * A rotating key for rate limiting only.
- *
- * The IP is hashed together with the current hour, so the key changes on its
- * own and cannot be used to follow one person through the evening. It exists in
- * memory for a rate-limit window and is never persisted.
- */
-async function rotatingKey(prefix: string): Promise<string> {
-  const headerList = await headers();
-  const ip =
-    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headerList.get("x-real-ip") ||
-    "unknown";
-  const hour = Math.floor(Date.now() / 3_600_000);
-  return `${prefix}:${createHash("sha256").update(`${ip}:${hour}`).digest("hex").slice(0, 16)}`;
-}
 
 export async function registerVisitor(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const limit = checkRateLimit(await rotatingKey("pw-visitor"), {
-      limit: 10,
-      windowMs: 15 * 60 * 1000,
-    });
+    // 10 per 15 minutes per IP: the venue's shared Wi-Fi registers a queue of
+    // walk-ins, but a script cannot flood the visitor table.
+    const limit = await limitRequest("pw-visitor", { limit: 10, windowMs: 15 * 60 * 1000 });
     if (!limit.ok) return fail("Too many sign-ups from here. Try again shortly.");
 
     const parsed = visitorRegisterSchema.safeParse({
@@ -157,10 +139,8 @@ export async function recordScan(
   try {
     const ids = z.object({ artworkId: z.string().min(1).max(64), visitId: z.string().min(1).max(64).nullable() });
     if (!ids.safeParse({ artworkId, visitId }).success) return;
-    const limit = checkRateLimit(await rotatingKey(`pw-scan:${artworkId}`), {
-      limit: 30,
-      windowMs: 60 * 1000,
-    });
+    // 30/minute per IP per artwork: drops scripted scan inflation silently.
+    const limit = await limitRequest(`pw-scan:${artworkId}`, { limit: 30, windowMs: 60 * 1000 });
     if (!limit.ok) return;
 
     const sql = getSql();

@@ -27,6 +27,7 @@ export async function commitPendingMerkleRoot(): Promise<
     const { rows: pending } = await client.query<{ id: string; leaf_hash: string }>(
       `select id, leaf_hash from mint_commitments
        where status = 'pending' order by created_at
+       limit 1000 -- one bounded root per run (PERF-2.09); the rest wait for the next
        for update skip locked`
     );
     if (pending.length === 0) {

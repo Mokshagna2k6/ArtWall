@@ -2,17 +2,8 @@
 
 import { z } from "zod";
 
-import { updateTag } from "next/cache";
-
 import { getSql } from "@/lib/db";
-import {
-  type ActionState,
-  fail,
-  firstIssue,
-  newId,
-  ok,
-  WALL_TAG,
-} from "@/features/physical-wall/actions/shared";
+import { type ActionState, fail, firstIssue, newId } from "@/features/physical-wall/actions/shared";
 
 export async function searchArtworks(
   _previous: ActionState,
@@ -65,8 +56,11 @@ export async function searchArtworks(
       values (${newId("srch")}, ${query}, ${results.length})
     `;
 
-    updateTag(WALL_TAG);
-    return ok("", { results });
+    // No cache invalidation: nothing cached reads pw_search_log, and updateTag
+    // throws outside a Server Action, which failed every /api/physical-wall/search call.
+    // `results` at the top level, as the return type says: ok("", { results })
+    // nested it under `data`, so the route never found it and always answered 400.
+    return { status: "ok", message: "", results };
   } catch (error) {
     console.error("[physical-wall] searchArtworks", error);
     return fail("Search failed. Try again.");

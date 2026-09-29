@@ -6,6 +6,7 @@ import { eq, and, desc, count } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
+import { expireCatalog } from "@/lib/catalog-cache";
 import { db } from "@/lib/db/index";
 import {
   exhibitions,
@@ -101,6 +102,7 @@ export async function addArtworkToExhibition(exhibitionId: string, artworkId: st
       .values({ exhibitionId: input.exhibitionId, artworkId: input.artworkId, displayOrder: 0 })
       .onConflictDoNothing();
 
+    expireCatalog();
     revalidatePath("/studio/exhibitions");
     return null;
   });
@@ -158,6 +160,7 @@ export async function publishExhibition(
     if (row.userId !== actor.id) {
       await recordAudit({ actor, action: "exhibition.published", subjectType: "exhibition", subjectId: row.id });
     }
+    expireCatalog();
     revalidatePath("/studio/exhibitions");
     revalidatePath(`/exhibitions/${row.id}`);
     return { id: row.id, status: row.status };

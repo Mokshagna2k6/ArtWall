@@ -4,9 +4,11 @@ import { isAddress, getAddress } from "viem";
 import { eq, and } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
+import { expireCatalog } from "@/lib/catalog-cache";
 import { coaCertificates } from "@/lib/db/schema";
 import { getApiUser } from "@/lib/blockchain/auth";
-import { apiError, handleRouteError, requestId, checkRateLimit } from "@/lib/blockchain/http";
+import { apiError, handleRouteError, requestId } from "@/lib/blockchain/http";
+import { limitRequest, tooManyRequests } from "@/lib/rate-limit";
 import { newVoucherNonce, signMintVoucher } from "@/lib/blockchain/mint-voucher";
 
 export const runtime = "nodejs";
@@ -26,8 +28,11 @@ export async function POST(
     const user = await getApiUser();
     if (!user) return apiError("unauthenticated", { reqId });
 
-    const rl = await checkRateLimit(`voucher:${user.id}`, { limit: 30, windowSec: 3600 });
-    if (!rl.ok) return apiError("rate_limited", { reqId });
+    // 10/hour per user: a voucher is a server signature authorising an on-chain
+    // mint. One per certificate is normal and a few retries after wallet errors
+    // is generous; beyond that someone is farming signatures.
+    const rl = await limitRequest("mint-voucher", { limit: 10, windowMs: 60 * 60 * 1000 }, user.id);
+    if (!rl.ok) return tooManyRequests(rl, { error: { code: "rate_limited", reqId } });
 
     const { id } = await params;
     const [cert] = await db
@@ -66,6 +71,7 @@ export async function POST(
       .update(coaCertificates)
       .set({ mintNonce: nonce, status: "metadata_pinned", mintError: null })
       .where(eq(coaCertificates.id, id));
+    expireCatalog();
 
     return NextResponse.json({
       voucher: {

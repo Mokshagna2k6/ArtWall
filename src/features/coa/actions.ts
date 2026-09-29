@@ -2,10 +2,11 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { eq, and, desc, or } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
+import { expireCatalog, getCertificateForVerify } from "@/lib/catalog-cache";
 import { db } from "@/lib/db/index";
 import {
   artworks,
@@ -170,6 +171,7 @@ export async function issueCertificate(
       metadata: { certificateId: certId, metadataHash: hash },
     });
 
+    expireCatalog();
     revalidatePath("/studio/certificates");
     return { id: certId, hash };
   });
@@ -194,6 +196,8 @@ export async function revokeCertificate(certId: string, reason: string): Promise
       .set({ status: "revoked", revokedAt: new Date(), revokeReason: input.reason })
       .where(eq(coaCertificates.id, input.certId));
 
+    // A revoked certificate must stop verifying as issued immediately (PERF-2.07).
+    expireCatalog();
     revalidatePath("/studio/certificates");
     return null;
   });
@@ -255,6 +259,7 @@ export async function addProvenanceEvent(raw: z.input<typeof provenanceSchema>):
       metadata: input.metadata ?? null,
     });
 
+    expireCatalog();
     revalidatePath("/studio/provenance");
     return eventId;
   });
@@ -326,6 +331,7 @@ export async function createMintCommitment(artworkId: string): Promise<Result<{ 
       metadata: { mintCommitmentId: commitmentId, leafHash },
     });
 
+    expireCatalog();
     revalidatePath("/studio/certificates");
     return { id: commitmentId, leafHash };
   });
@@ -336,27 +342,9 @@ export async function createMintCommitment(artworkId: string): Promise<Result<{ 
 export async function verifyCertificateByHash(hash: string) {
   return readSafely("verifyCertificateByHash", null, async () => {
     const key = parseInput(id, hash);
-    const [cert] = await db
-      .select({
-        id: coaCertificates.id,
-        artworkId: coaCertificates.artworkId,
-        ownerId: coaCertificates.userId,
-        status: coaCertificates.status,
-        issuedAt: coaCertificates.issuedAt,
-        revokedAt: coaCertificates.revokedAt,
-        artworkTitle: artworks.title,
-        artworkImage: artworks.imageUrl,
-        medium: artworks.medium,
-        dimensions: artworks.dimensions,
-        year: artworks.year,
-        artistName: artistProfiles.displayName,
-      })
-      .from(coaCertificates)
-      .innerJoin(artworks, eq(coaCertificates.artworkId, artworks.id))
-      .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
-      // By metadata hash (COA PDFs, artwork pages) or by certificate id: NFT
-      // metadata can't embed its own hash, so its external_url uses the id.
-      .where(or(eq(coaCertificates.metadataHash, key), eq(coaCertificates.id, key)));
+    // The certificate itself comes from the shared catalogue cache (PERF-2.07);
+    // only the viewer check below is per request.
+    const cert = await getCertificateForVerify(key);
     if (!cert) return null;
 
     // Callable as a public server action, so never hand back the owner's user id;

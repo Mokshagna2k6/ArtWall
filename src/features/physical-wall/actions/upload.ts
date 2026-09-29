@@ -1,27 +1,27 @@
 "use server";
 
-import { headers } from "next/headers";
-
-import { checkRateLimit } from "@/lib/rate-limit";
+import { limitRequest, retryIn, type RateLimitResult } from "@/lib/rate-limit";
+import { getSessionUser } from "@/lib/session";
 import {
   requestUgcUploadSignature as createUgcUploadSignature,
   type UgcUploadSignature,
 } from "@/features/physical-wall/image-validation";
 
 /**
- * A signature for one selfie upload, into the caller's own folder (BE-2.08).
- * Send every field back to Cloudinary, including `allowedFormats` as
- * `allowed_formats` (and `moderation` when present), or the upload is rejected.
+ * 10 signatures per hour per visitor (user id when signed in, else IP). A
+ * signature is a write token for our Cloudinary account; a selfie plus a few
+ * retakes fits, a script filling the account does not. (This used to be one
+ * global bucket shared by every visitor.)
  */
+const UGC_SIGNATURE_LIMIT = { limit: 10, windowMs: 60 * 60 * 1000 };
+
 export async function requestUgcUploadSignature(): Promise<
-  { ok: true; signature: UgcUploadSignature } | { ok: false; message: string }
+  { ok: true; signature: UgcUploadSignature } | { ok: false; message: string; rateLimit?: RateLimitResult }
 > {
-  // Per client IP. The key used to be the constant "pw-ugc-upload", which
-  // made it 10 uploads an hour for the whole site, not per visitor.
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  const limit = checkRateLimit(`pw-ugc-upload:${ip}`, { limit: 10, windowMs: 60 * 60 * 1000 });
+  const user = await getSessionUser();
+  const limit = await limitRequest("pw-ugc-upload", UGC_SIGNATURE_LIMIT, user?.id);
   if (!limit.ok) {
-    return { ok: false, message: `Too many uploads. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.` };
+    return { ok: false, message: `Too many uploads. Try again in ${retryIn(limit)}.`, rateLimit: limit };
   }
 
   try {

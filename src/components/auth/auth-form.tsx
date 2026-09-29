@@ -67,7 +67,16 @@ function humanError(
     return { text: "That password is too short — use at least 8 characters." };
   }
   if (normalised.includes("RATE") || normalised.includes("TOO_MANY")) {
-    return { text: "Too many attempts. Wait a minute and try again." };
+    // Our limiter's message carries the real wait ("Try again in 12 minutes.").
+    return {
+      text: message?.startsWith("Too many")
+        ? message
+        : "Too many attempts. Wait a minute and try again.",
+    };
+  }
+  if (normalised.includes("SERVICE_UNAVAILABLE")) {
+    // Rate-limit store down, auth fails closed (PERF-2.03): not the user's fault.
+    return { text: "Something's briefly down on our side, not yours. Try again in a moment." };
   }
 
   return {

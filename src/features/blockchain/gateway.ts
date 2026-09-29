@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db/index";
 import { merkleRoots, mintCommitments, provenanceEvents } from "@/lib/db/schema";
 import { publicClientFor } from "@/lib/blockchain/chain";
+import { expireCatalog } from "@/lib/catalog-cache";
 
 export async function submitRootOnChain(rootId: string): Promise<{
   submitted: boolean;
@@ -81,4 +82,5 @@ export async function recordOnChainProvenance(rootId: string, txHash: string, bl
       txHash,
     });
   }
+  expireCatalog(); // provenance timelines on /artwork and /verify
 }
