@@ -186,7 +186,10 @@ export async function reserveBooking(
          join pw_size_catalog z on z.id = s.size_id
          join pw_slot_types   t on t.id = s.type_id
          where s.id = any($1::text[]) and s.grid_id = $2
+         order by s.id
          for update of s`,
+        // order by: every reservation locks in the same order, so two baskets
+        // sharing slots queue behind each other instead of deadlocking.
         [slotIds, grid.id]
       );
 

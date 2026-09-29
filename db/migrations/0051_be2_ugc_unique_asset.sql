@@ -1,4 +1,4 @@
--- 0029: one submission per uploaded photo (BE-2.07).
+-- 0051: one submission per uploaded photo (BE-2.07).
 --
 -- A double-click, a replayed form or a second tab used to create a second
 -- pending row for the same Cloudinary asset, so moderators reviewed it twice

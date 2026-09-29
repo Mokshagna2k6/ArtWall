@@ -1,4 +1,4 @@
--- 0028: gap-free invoice numbers per financial year (BE-2.05).
+-- 0050: gap-free invoice numbers per financial year (BE-2.05).
 --
 -- generateInvoice used to number with count(*) + 1 under an advisory lock.
 -- That is gap-free only while no invoice row is ever deleted; one delete and
