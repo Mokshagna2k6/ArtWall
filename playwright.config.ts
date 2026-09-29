@@ -1,8 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 /**
- * E2E (`pnpm test:e2e`). Runs against E2E_BASE_URL when set (CI starts the
- * built app itself), otherwise starts `next dev` on port 3217.
+ * E2E (`pnpm test:e2e`). Runs against E2E_BASE_URL when set, otherwise starts
+ * the app on port 3217: `next start` (after `pnpm build`) in CI, `next dev`
+ * locally.
  *
  * Needs a real database and Razorpay TEST keys in the environment: the booking
  * spec pays through real Razorpay Checkout in test mode.
@@ -27,7 +28,7 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: `pnpm dev -p ${port}`,
+        command: process.env.CI ? `pnpm start -p ${port}` : `pnpm dev -p ${port}`,
         url: baseURL,
         reuseExistingServer: true,
         timeout: 180_000,
