@@ -42,6 +42,11 @@ export async function POST(
     if (cert.status === "minted") {
       return apiError("conflict", { reqId, details: "already minted" });
     }
+    // A voucher resets status to metadata_pinned; from 'revoked' that would
+    // un-revoke the certificate. The DB guard (0029) refuses it too.
+    if (cert.status === "revoked" || cert.status === "issued") {
+      return apiError("conflict", { reqId, details: `cannot mint a ${cert.status} certificate` });
+    }
 
     const { to, royaltyReceiver, royaltyFeeBps } = bodySchema.parse(await req.json());
 

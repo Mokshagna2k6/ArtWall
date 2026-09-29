@@ -59,6 +59,15 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
+// DB_TEST_ROLE=artwall_app runs the whole suite as the least-privilege role
+// (0035), the way production should connect. purgeTestData steps back to the owner.
+const testRole = process.env.DB_TEST_ROLE;
+if (testRole) {
+  if (!/^\w+$/.test(testRole)) throw new Error(`bad DB_TEST_ROLE ${testRole}`);
+  const { pool } = await import("@/lib/db/index");
+  pool.on("connect", (client) => void client.query(`set role ${testRole}`));
+}
+
 afterAll(async () => {
   const { pool } = await import("@/lib/db/index");
   await pool.end().catch(() => {});

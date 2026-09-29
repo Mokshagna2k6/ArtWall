@@ -26,5 +26,6 @@ create index artworks_search_idx on artworks using gin (search_tsv);
 -- There is no earlier price column or table to backfill it from (sales.amount
 -- is a deal amount, not a listing price), so existing rows stay null = "price
 -- on request", which every reader already handles.
+alter table artworks drop constraint if exists artworks_price_paise_check;
 alter table artworks add constraint artworks_price_paise_check
   check (price_paise is null or price_paise >= 0);
