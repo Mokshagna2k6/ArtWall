@@ -28,7 +28,13 @@ answers with.
 | 14 | A tag UID is registered once, case-insensitively. | `art_tags_tag_uid_key` + `art_tags_tag_uid_ci_uidx` on `lower(tag_uid)` | 0013, 0033 | `DB-2.16 tag uid and binding` | 23505 |
 | 15 | A tag has at most one binding, and a binding stamp implies an artwork. | the binding is a column on the tag's own row (one per tag by construction) + CHECK `art_tags_binding_check` + FK RESTRICT on the artwork | 0032, 0033 | same | 23514, 23503 |
 
-DB-2.12 (indexes) is covered by `DB-2.12 marketplace query uses its indexes`;
+DB-2.12 (indexes) is covered by `DB-2.12 marketplace query uses its indexes`:
+it loads 30k artworks in a rolled-back transaction, ANALYZEs, and asserts the
+default planner uses `artworks_marketplace_recent_idx`,
+`artworks_market_category_price_idx`, `artworks_market_price_idx` and the
+`search_tsv` GIN index `artworks_search_idx`, with no seq scan on artworks.
+(The marketplace's free-text `q` filter is `ILIKE '%…%'`, which no btree or
+the tsvector index serves; it filters the rows the partial indexes return.)
 DB-2.13 (re-runnable migrations) by `scripts/migrations-check.mjs`.
 
 ## The two layers of append-only
@@ -131,5 +137,17 @@ external that happened after the restore point: Razorpay payments/refunds
 `pg_dump --format=custom --no-owner "$DATABASE_URL_UNPOOLED" > artwall-$(date +%F).dump`,
 stored off Neon; restore with `pg_restore --no-owner -d <empty db> artwall-….dump`.
 
-Not yet exercised: no `NEON_API_KEY` is configured in this repo, so the API
-drill above has not been run against a real branch.
+**What has been exercised (2026-09-30):** the logical dump path, end to end.
+`pg_dump --format=custom --no-owner` of the dev branch (PG 17.11) from a
+`postgres:17` container, `pg_restore --no-owner --no-acl` into an empty
+database: no restore errors; row counts and money sums (ledger, payments),
+users, artworks, provenance, audit, certificates, ownership history,
+`_migrations`, 20 guard triggers and 276 constraints identical to the source
+snapshot; and the append-only triggers fire in the restored copy (an UPDATE
+on `pw_ledger` and a DELETE on `provenance_events` were refused).
+`--no-acl` drops the `artwall_app` grants; re-run 0035 after restoring into a
+fresh server.
+
+Not yet exercised: the Neon branch / restore-in-place drill. No `NEON_API_KEY`
+(or neonctl login) is available here, so it has not been run against a real
+branch. Run the non-destructive branch drill above once a key exists.
