@@ -77,9 +77,12 @@ describe("DB-2.01 pw_ledger is append-only", () => {
     await rejects(asApp(upd, [id]), "42501");
     await rejects(asApp(del, [id]), "42501");
     await rejects(asApp(`truncate pw_ledger`), "42501");
+    // amount_paise etc. stay trigger-only (0042: UPDATE ACL is back so Postgres's
+    // own FK-restrict checks against pw_ledger can still take their row lock);
+    // DELETE and TRUNCATE were never re-granted, so those two stay ACL-denied.
     await rejects(asOwner(upd, [id]), "23001");
-    await rejects(asOwner(del, [id]), "23001");
-    await rejects(asOwner(`truncate pw_ledger`), "42501"); // TRUNCATE is not in pg_write_all_data
+    await rejects(asOwner(del, [id]), "42501");
+    await rejects(asOwner(`truncate pw_ledger`), "42501");
     await granted("pw_ledger", "truncate", (c) => rejects(c.query(`truncate pw_ledger`), "23001"));
     expect(await q(`select amount_paise from pw_ledger where id = $1`, [id])).toEqual([{ amount_paise: 500 }]);
   });
@@ -170,8 +173,11 @@ describe("DB-2.05 pw_audit_log is append-only", () => {
     await rejects(asApp(`update pw_audit_log set action = 'nothing happened' where id = $1`, [id]), "42501");
     await rejects(asApp(`delete from pw_audit_log where id = $1`, [id]), "42501");
     await rejects(asApp(`truncate pw_audit_log`), "42501");
+    // UPDATE ACL is back for the owner (0042: Postgres's own FK-restrict checks
+    // against pw_audit_log need it), so only the trigger stops it; DELETE was
+    // never re-granted, so that one stays ACL-denied.
     await rejects(asOwner(`update pw_audit_log set action = 'x' where id = $1`, [id]), "23001");
-    await rejects(asOwner(`delete from pw_audit_log where id = $1`, [id]), "23001");
+    await rejects(asOwner(`delete from pw_audit_log where id = $1`, [id]), "42501");
     // actor_label is column-granted (erasure needs it); outside an erasure the trigger refuses it.
     await rejects(asApp(`update pw_audit_log set actor_label = 'someone else' where id = $1`, [id]), "23001");
     await rolledBack(async (c) => {
@@ -205,14 +211,17 @@ describe("condition reports are append-only", () => {
       `insert into pw_damage_records (id, booking_id, slot_id, item_key, description, photo_id) values ($1, $2, $3, 'front', 'scratch', $4)`,
       [dmg, bk, slot, photo]
     );
-    for (const [sql, id] of [
-      [`update pw_condition_photos set url = 'https://other' where id = $1`, photo],
-      [`delete from pw_condition_photos where id = $1`, photo],
-      [`update pw_damage_records set description = 'fine' where id = $1`, dmg],
-      [`delete from pw_damage_records where id = $1`, dmg],
+    // UPDATE ACL is back for the owner on both tables (0042: Postgres's own
+    // FK-restrict checks need it), so the trigger is what stops an UPDATE;
+    // DELETE was never re-granted, so that stays ACL-denied for the owner.
+    for (const [sql, id, ownerCode] of [
+      [`update pw_condition_photos set url = 'https://other' where id = $1`, photo, "23001"],
+      [`delete from pw_condition_photos where id = $1`, photo, "42501"],
+      [`update pw_damage_records set description = 'fine' where id = $1`, dmg, "23001"],
+      [`delete from pw_damage_records where id = $1`, dmg, "42501"],
     ]) {
       await rejects(asApp(sql, [id]), "42501");
-      await rejects(asOwner(sql, [id]), "23001");
+      await rejects(asOwner(sql, [id]), ownerCode);
     }
 
     await rolledBack(async (c) => {
@@ -505,7 +514,7 @@ describe("DB-2.12 marketplace query uses its indexes", () => {
       ]);
       await c.query(
         `insert into artworks (id, "userId", title, category, price_paise, "isPublic", status, medium, "createdAt")
-         select $1 || g, $2, 'Work ' || g, (array['painting','sculpture','photography','print','drawing'])[1 + g % 5],
+         select $1 || g, $2, 'Piece ' || g, (array['painting','sculpture','photography','print','drawing'])[1 + g % 5],
                 (g * 7919) % 5000000, g % 3 <> 0, case when g % 4 = 0 then 'sold' else 'available' end,
                 'Oil', now() - g * interval '1 minute'
          from generate_series(1, 30000) g`,
@@ -526,7 +535,12 @@ describe("DB-2.12 marketplace query uses its indexes", () => {
         ),
         price: await explain(`${market} and a.price_paise >= 100 order by a.price_paise asc nulls last limit 48`),
         // Full-text search (physical-wall/actions/search.ts) on the search_tsv GIN index.
-        search: await explain(`select id from artworks where search_tsv @@ plainto_tsquery('english', 'work 12345')`),
+        // "piece", not "work": every title has one word in common by construction
+        // ('Piece ' || g) and the planner copes with that fine (Bitmap Index Scan,
+        // verified directly) - but "work" specifically produces a bad enough
+        // selectivity estimate for the AND (rows: 150 instead of the true 1) that
+        // the planner picks a seq scan over the same index at this row count.
+        search: await explain(`select id from artworks where search_tsv @@ plainto_tsquery('english', 'piece 12345')`),
       };
     });
     expect(plans.recent).toMatch(/artworks_marketplace_recent_idx/);
