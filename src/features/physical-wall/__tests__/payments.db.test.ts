@@ -32,7 +32,9 @@ vi.mock("@/features/physical-wall/razorpay", async (orig) => {
         rp.failNextRefund = false;
         throw new Error("Razorpay 502");
       }
-      const refund = { id: `rfnd_${rp.refunds.length}_${Math.random().toString(36).slice(2)}`, // unique: pw_refunds.provider_refund_id is, across runs payment_id: paymentId, amount, status: "processed", notes: refs };
+      // Unique across runs: pw_refunds.provider_refund_id is unique in the shared database.
+      const id = `rfnd_${rp.refunds.length}_${Math.random().toString(36).slice(2)}`;
+      const refund = { id, payment_id: paymentId, amount, status: "processed", notes: refs };
       rp.refunds.push(refund);
       return refund;
     }),
