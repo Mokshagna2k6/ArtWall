@@ -74,6 +74,10 @@ function humanError(
         : "Too many attempts. Wait a minute and try again.",
     };
   }
+  if (normalised.includes("SERVICE_UNAVAILABLE")) {
+    // Rate-limit store down, auth fails closed (PERF-2.03): not the user's fault.
+    return { text: "Something's briefly down on our side, not yours. Try again in a moment." };
+  }
 
   return {
     text:
