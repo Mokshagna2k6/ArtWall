@@ -5,14 +5,16 @@ import { AtSign, Globe2, MapPin } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { getPublicArtistProfile } from "@/lib/artist-profiles";
+import { cachedCatalog } from "@/lib/catalog-cache";
 
-export const dynamic = "force-dynamic";
+// Catalogue cache (PERF-2.06): same for every visitor, expired on profile/artwork writes.
+const loadArtist = cachedCatalog(getPublicArtistProfile, "artist", 3600);
 
 export async function generateMetadata({
   params,
 }: PageProps<"/artist/[handle]">): Promise<Metadata> {
   const { handle } = await params;
-  const artist = await getPublicArtistProfile(handle.toLowerCase());
+  const artist = await loadArtist(handle.toLowerCase());
   if (!artist) return { title: "Artist not found" };
   return {
     title: artist.profile.displayName,
@@ -26,7 +28,7 @@ export default async function ArtistProfilePage({
   params,
 }: PageProps<"/artist/[handle]">) {
   const { handle } = await params;
-  const artist = await getPublicArtistProfile(handle.toLowerCase());
+  const artist = await loadArtist(handle.toLowerCase());
   if (!artist) notFound();
   const { profile, artworks } = artist;
   const websiteLabel = profile.website?.replace(/^https?:\/\/(www\.)?/, "");

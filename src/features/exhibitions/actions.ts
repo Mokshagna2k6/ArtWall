@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { eq, and, desc } from "drizzle-orm";
 
 import { auth } from "@/lib/auth";
+import { expireCatalog } from "@/lib/catalog-cache";
 import { db } from "@/lib/db/index";
 import {
   exhibitions,
@@ -82,6 +83,7 @@ export async function addArtworkToExhibition(
     .values({ exhibitionId, artworkId, displayOrder: 0 })
     .onConflictDoNothing();
 
+  expireCatalog();
   revalidatePath("/studio/exhibitions");
 }
 
@@ -108,6 +110,7 @@ export async function publishExhibition(exhibitionId: string) {
   if (row.userId !== actor.id) {
     await recordAudit({ actor, action: "exhibition.published", subjectType: "exhibition", subjectId: row.id });
   }
+  expireCatalog();
   revalidatePath("/studio/exhibitions");
   revalidatePath(`/exhibitions/${row.id}`);
   return { id: row.id, status: row.status };
