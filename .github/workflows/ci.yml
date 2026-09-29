@@ -1,10 +1,10 @@
 name: CI
 
+# BE-2.23: every push to every branch, and every pull request (any base).
 on:
-  pull_request:
-    branches: [main]
   push:
-    branches: [main]
+    branches: ["**"]
+  pull_request:
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -33,12 +33,76 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Test
-        run: pnpm test
-
       - name: Build
         run: pnpm build
         env:
           DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
           BETTER_AUTH_SECRET: "ci-placeholder-secret"
           BETTER_AUTH_URL: "http://localhost:3000"
+
+  # BE-2.24 / BE-2.25: the whole vitest suite, unit and integration, against a
+  # real Postgres with every migration applied; one merged coverage report,
+  # with the per-module floors in vitest.config.ts enforced.
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Apply all migrations
+        run: node scripts/migrate.mjs
+
+      # Reference data the suite books against (sizes, slot types, refund policy).
+      - name: Seed catalogs
+        run: node scripts/seed-physical-wall.mjs
+
+      - name: Unit tests
+        run: pnpm vitest run --coverage --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/unit.json
+
+      # Real Cloudinary for the DPDP file-deletion tests; without these secrets
+      # (forks) that one file skips and everything else runs on stand-ins.
+      - name: Integration tests
+        run: pnpm vitest run --config vitest.db.config.ts --coverage --reporter=default --reporter=blob --outputFile.blob=.vitest-reports/db.json
+        env:
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+
+      - name: Merged coverage and floors
+        run: pnpm vitest --merge-reports --coverage --reporter=dot
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            node -e 'const t=require("./coverage/coverage-summary.json").total;console.log("## Coverage\n\n| | % |\n|---|---|\n"+["lines","statements","functions","branches"].map(k=>`| ${k} | ${t[k].pct} |`).join("\n"))' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Publish coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: ignore
