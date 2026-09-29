@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -15,8 +17,10 @@ import {
 } from "@/features/physical-wall/state-machine";
 import { forceReleaseSchema, transitionSchema } from "@/features/physical-wall/schema";
 import {
+  type ActionState,
   fail,
   firstIssue,
+  formInput,
   inTransaction,
   LEDGER_TAG,
   newId,
@@ -25,7 +29,6 @@ import {
   StaleWriteError,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 
 /**
@@ -288,13 +291,13 @@ export async function setSlotServiceState(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("admin");
-    const slotId = String(formData.get("slotId") ?? "");
-    const to = String(formData.get("to") ?? "") as SlotState;
-
-    if (!slotId) return fail("Which slot?");
-    if (!["maintenance", "blocked", "available"].includes(to)) {
-      return fail("That isn't a service state.");
-    }
+    const { slotId, to } = formInput(
+      z.object({
+        slotId: z.string({ error: "Which slot?" }).min(1, "Which slot?").max(64),
+        to: z.enum(["maintenance", "blocked", "available"], { error: "That isn't a service state." }),
+      }),
+      formData
+    );
 
     await inTransaction(async (client) => {
       const current = await client.query<{ state: SlotState; label: string }>(

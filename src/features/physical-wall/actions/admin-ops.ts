@@ -1,18 +1,18 @@
 "use server";
 
-import { updateTag } from "next/cache";
 import { z } from "zod";
 
 import { recordAudit } from "@/features/physical-wall/audit";
 import { requireRole } from "@/features/physical-wall/authorize";
 import { notify, notifyUser } from "@/features/physical-wall/notifications";
 import {
+  type ActionState,
   fail,
   firstIssue,
+  formInput,
   newId,
   ok,
   toActionError,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { getSql } from "@/lib/db";
 
@@ -23,7 +23,7 @@ import { getSql } from "@/lib/db";
 
 const responseSchema = z.object({
   grievanceId: z.string().min(1),
-  body: z.string().trim().min(10, "Write a real reply — at least a sentence.").max(2000),
+  body: z.string({ error: "Write a real reply — at least a sentence." }).trim().min(10, "Write a real reply — at least a sentence.").max(2000),
 });
 
 /**
@@ -90,8 +90,7 @@ export async function closeGrievance(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("admin");
-    const id = String(formData.get("grievanceId") ?? "");
-    if (!id) return fail("Which grievance?");
+    const { grievanceId: id } = formInput(z.object({ grievanceId: z.string({ error: "Which grievance?" }).min(1, "Which grievance?").max(64) }), formData);
 
     const sql = getSql();
     const rows = (await sql`
@@ -134,7 +133,9 @@ export async function deliverNotificationsNow(): Promise<ActionState> {
           `${result.skipped} pending — RESEND_API_KEY is not configured, so nothing was sent.`,
       };
     }
-    return ok(`Sent ${result.sent}, failed ${result.failed}.`);
+    return ok(
+      `Sent ${result.sent}, will retry ${result.failed}, dead-lettered ${result.dead}.`
+    );
   } catch (error) {
     return toActionError("deliverNotificationsNow", error);
   }

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { defineConfig } from "vitest/config";
 
-import { shared, worktreeExcludes } from "./vitest.config";
+import { coverage, shared, worktreeExcludes } from "./vitest.config";
 
 /**
  * Integration suite (`pnpm test:db`): *.db.test.ts against the real database in
@@ -17,14 +17,42 @@ function dotenv(): Record<string, string> {
   }
 }
 
+/**
+ * Stand-ins so the suite runs with no .env (CI). Razorpay's HTTP API is faked,
+ * and Cloudinary upload signing and the guest cookie are local HMAC, so any
+ * value works for those.
+ * The one suite that talks to real Cloudinary (dpdp.db.test) skips itself on
+ * the stand-in cloud name. .env, then non-empty real env vars, override these.
+ */
+const STAND_INS = {
+  BETTER_AUTH_SECRET: "standin-auth-secret-at-least-32-chars",
+  RAZORPAY_KEY_ID: "rzp_test_standin",
+  RAZORPAY_KEY_SECRET: "standin-key-secret",
+  RAZORPAY_WEBHOOK_SECRET: "standin-webhook-secret",
+  CLOUDINARY_CLOUD_NAME: "standin-no-cloudinary",
+  CLOUDINARY_API_KEY: "000000000000000",
+  CLOUDINARY_API_SECRET: "standin-cloudinary-secret",
+};
+const fromProcess = Object.fromEntries(
+  Object.keys(STAND_INS).flatMap((k) => (process.env[k] ? [[k, process.env[k]]] : []))
+);
+
 export default defineConfig({
   ...shared,
   test: {
     globals: true,
     include: ["src/**/*.db.test.ts"],
     exclude: worktreeExcludes,
-    env: dotenv(),
+    // TEST_DATABASE_URL points the suite at a throwaway Postgres (CI service
+    // container, local docker) instead of the shared dev database in .env.
+    env: {
+      ...STAND_INS,
+      ...dotenv(),
+      ...fromProcess,
+      ...(process.env.TEST_DATABASE_URL ? { DATABASE_URL: process.env.TEST_DATABASE_URL } : {}),
+    },
     setupFiles: ["src/test/db-setup.ts"],
+    coverage,
     fileParallelism: false,
     testTimeout: 60_000,
     hookTimeout: 60_000,

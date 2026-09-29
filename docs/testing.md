@@ -48,8 +48,27 @@ real**):
 Fixture rows use ids prefixed `betest_` and are removed by `purgeTestData()`
 (`src/test/fixtures.ts`) after each file.
 
-Line coverage is not measured: `@vitest/coverage-v8` is not installed. Add it
-if a number is wanted; the list above is the honest map of what is exercised.
+## CI (`.github/workflows/ci.yml`)
+
+Every push to every branch and every pull request. Job `check`: typecheck,
+lint, build. Job `test`: a `postgres:17` service container, every migration
+applied (`scripts/migrate.mjs`) and the catalogs seeded, then both suites with
+`--coverage --reporter=blob`, then `vitest --merge-reports --coverage`, which
+enforces the per-module floors in `vitest.config.ts` (payment, invoice, UGC,
+NFT routes) on the merged numbers. The HTML report is uploaded as the
+`coverage` artifact and the totals go in the job summary.
+
+With no `.env` (CI) the integration suite runs on stand-in secrets
+(`vitest.db.config.ts`); `dpdp.db.test.ts` needs real Cloudinary and skips
+unless the `CLOUDINARY_*` repository secrets are set.
+
+To reproduce locally against Docker instead of the shared dev database:
+
+    docker run -d --name pg -e POSTGRES_PASSWORD=postgres -p 55432:5432 postgres:17
+    export DATABASE_URL=postgresql://postgres:postgres@localhost:55432/postgres
+    node scripts/migrate.mjs && node scripts/seed-physical-wall.mjs
+    TEST_DATABASE_URL=$DATABASE_URL pnpm test:db
+
 Not covered by automated tests: UI components, E2E journeys, the real
 Razorpay API (the test keys in `.env` currently fail authentication with
 401, see below), email delivery through a real provider.

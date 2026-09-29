@@ -12,7 +12,7 @@ import type { TestUser } from "@/test/db-setup";
 /**
  * Per-process run tag. Several agents/CI jobs share one dev database; purging
  * only this run's rows keeps one run's cleanup from deleting another's fixtures
- * mid-test.
+ * mid-test (which showed up as FK violations and hook timeouts on lock waits).
  */
 export const RUN = randomBytes(3).toString("hex");
 export const tid = (prefix = "x") => `betest_${RUN}_${prefix}_${randomBytes(6).toString("hex")}`;
@@ -164,7 +164,9 @@ export async function purgeTestData() {
     await client.query(`delete from pw_damage_records where booking_id in (${bks})`, [like]);
     await client.query(`delete from pw_condition_photos where booking_id in (${bks})`, [like]);
     await client.query(`delete from pw_install_windows where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_booking_addons where booking_id in (${bks})`, [like]);
     await client.query(`delete from pw_booking_slots where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_feedback where booking_id in (${bks})`, [like]);
     await client.query(`delete from pw_agreements where booking_id in (${bks})`, [like]);
     await client.query(`delete from pw_bookings where id in (${bks})`, [like]);
     await client.query(`delete from pw_slots where id like $1`, [like]);

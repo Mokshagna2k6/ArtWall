@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -20,9 +22,11 @@ import {
   reserveSchema,
 } from "@/features/physical-wall/schema";
 import {
+  type ActionState,
   addDays,
   fail,
   firstIssue,
+  formInput,
   inTransaction,
   LEDGER_TAG,
   newId,
@@ -30,7 +34,6 @@ import {
   PreconditionError,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { releaseLapsedHoldsIn } from "@/features/physical-wall/expiry";
 import { getSql } from "@/lib/db";
@@ -186,7 +189,10 @@ export async function reserveBooking(
          join pw_size_catalog z on z.id = s.size_id
          join pw_slot_types   t on t.id = s.type_id
          where s.id = any($1::text[]) and s.grid_id = $2
+         order by s.id
          for update of s`,
+        // order by: every reservation locks in the same order, so two baskets
+        // sharing slots queue behind each other instead of deadlocking.
         [slotIds, grid.id]
       );
 
@@ -362,9 +368,13 @@ export async function attachArtwork(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("artist");
-    const bookingId = String(formData.get("bookingId") ?? "");
-    const artworkId = String(formData.get("artworkId") ?? "");
-    if (!bookingId || !artworkId) return fail("Choose an artwork.");
+    const { bookingId, artworkId } = formInput(
+      z.object({
+        bookingId: z.string({ error: "Choose an artwork." }).min(1, "Choose an artwork.").max(64),
+        artworkId: z.string({ error: "Choose an artwork." }).min(1, "Choose an artwork.").max(64),
+      }),
+      formData
+    );
 
     const sql = getSql();
 

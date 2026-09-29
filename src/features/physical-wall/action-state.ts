@@ -18,3 +18,9 @@ export type ActionState =
   | { status: "ok"; message: string; data?: unknown };
 
 export const IDLE: ActionState = { status: "idle" };
+
+/**
+ * What a non-form server action returns (BE-2.15): data, or a message that is
+ * safe to show. Never a thrown database error — see `attempt` in actions/shared.
+ */
+export type Result<T = null> = { ok: true; data: T } | { ok: false; error: string };

@@ -177,8 +177,13 @@ export interface RevenueReport {
  * recorded), so the old "pending settlement" card is replaced by two derived
  * figures that are real: bookings awaiting an invoice, and unreconciled ones.
  */
-export async function getRevenueReport(range: "day" | "week" | "month"): Promise<RevenueReport> {
+export async function getRevenueReport(
+  range: "day" | "week" | "month",
+  /** Scope to one artist's bookings (per-artist statements; exact-total tests). */
+  opts: { artistId?: string } = {}
+): Promise<RevenueReport> {
   const sql = getSql();
+  const artistId = opts.artistId ?? null;
 
   const rows = (await sql.query(
     `select to_char(date_trunc($1, l.entry_date), 'YYYY-MM-DD') as period,
@@ -187,11 +192,12 @@ export async function getRevenueReport(range: "day" | "week" | "month"): Promise
             count(distinct l.booking_id) filter (where l.type = 'revenue')::int as bookings
      from pw_ledger l
      join pw_bookings b on b.id = l.booking_id
-     where l.type = 'revenue' or (l.type = 'expense' and l.category = 'refund')
+     where (l.type = 'revenue' or (l.type = 'expense' and l.category = 'refund'))
+       and ($2::text is null or b.artist_id = $2::text)
      group by 1
      order by 1 desc
      limit 24`,
-    [range]
+    [range, artistId]
   )) as { period: string; gross: string; refunds: string; bookings: number }[];
 
   const [open] = (await sql`
@@ -204,6 +210,7 @@ export async function getRevenueReport(range: "day" | "week" | "month"): Promise
     left join pw_invoices i on i.booking_id = b.id
     left join pw_ledger l on l.booking_id = b.id and l.type = 'revenue'
     where b.status in ('paid', 'completed')
+      and (${artistId}::text is null or b.artist_id = ${artistId}::text)
   `) as { awaiting_n: number; awaiting_paise: string; unrec_n: number; unrec_paise: string }[];
 
   const mapped = rows.map((r) => ({

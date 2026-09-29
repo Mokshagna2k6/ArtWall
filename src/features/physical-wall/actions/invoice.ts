@@ -1,24 +1,31 @@
 "use server";
 
+import { z } from "zod";
+
 import { recordAuditIn } from "@/features/physical-wall/audit";
 import { getActor, hasRole, requireRole } from "@/features/physical-wall/authorize";
 import { formatINR } from "@/features/physical-wall/money";
 import {
+  fiscalYear,
   GST_STATES,
   GstinError,
+  invoiceAmounts,
   normaliseCustomerGstin,
-  splitGst,
   supplierStateCode,
   venuePlaceOfSupply,
 } from "@/features/physical-wall/gst";
+import { allocateInvoiceNumber } from "@/features/physical-wall/invoice-number";
 import {
+  type ActionState,
   fail,
+  firstIssue,
   inTransaction,
   newId,
   ok,
+  parseInput,
   PreconditionError,
+  readSafely,
   toActionError,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { getSql } from "@/lib/db";
 
@@ -29,12 +36,10 @@ function istDate(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
 }
 
-/** Indian fiscal year (April–March) of an IST date, e.g. "2026-27". */
-function fiscalYear(isoDate: string): string {
-  const [y, m] = isoDate.split("-").map(Number);
-  const year = m >= 4 ? y : y - 1;
-  return `${year}-${String(year + 1).slice(2)}`;
-}
+const generateInvoiceSchema = z.object({
+  bookingId: z.string({ error: "Which booking?" }).trim().min(1, "Which booking?").max(64),
+  customerGstin: z.string().trim().max(20, "That GSTIN is not valid.").optional(),
+});
 
 /**
  * Issue a GST tax invoice for a paid booking. Admin only.
@@ -44,22 +49,28 @@ function fiscalYear(isoDate: string): string {
  * the venue's state (IGST Act s.12(3)(a), see gst.ts), so CGST + SGST.
  *
  * Amounts come from pw_bookings.total_amount_paise / gst_amount_paise, which
- * were fixed server-side when the booking was quoted. One transaction with an
- * advisory lock: sequential invoice numbers are a legal requirement, and two
- * concurrent generations must not both read the same count.
+ * were fixed server-side when the booking was quoted. The number comes from
+ * pw_invoice_counters (0028), incremented inside this transaction: the counter
+ * row lock serialises concurrent generations and a rollback hands the number
+ * back, so numbering is sequential and gap-free per financial year.
  */
 export async function generateInvoice(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
   try {
+    const parsed = generateInvoiceSchema.safeParse({
+      bookingId: formData.get("bookingId") ?? "",
+      customerGstin: formData.get("customerGstin") || undefined,
+    });
+    if (!parsed.success) return fail(firstIssue(parsed.error));
     const actor = await requireRole("admin");
-    const bookingId = String(formData.get("bookingId") ?? "");
-    const customerGstin = normaliseCustomerGstin(String(formData.get("customerGstin") ?? ""));
-    if (!bookingId) return fail("Which booking?");
+    const { bookingId } = parsed.data;
+    const customerGstin = normaliseCustomerGstin(parsed.data.customerGstin);
 
     const result = await inTransaction(async (client) => {
-      await client.query(`select pg_advisory_xact_lock(hashtext('pw_invoices.number'))`);
+      // Two admins invoicing one booking: the second waits here, then sees the first's row.
+      await client.query(`select 1 from pw_bookings where id = $1 for update`, [bookingId]);
 
       const existing = await client.query(`select 1 from pw_invoices where booking_id = $1`, [bookingId]);
       if (existing.rowCount) throw new PreconditionError("An invoice already exists for this booking.");
@@ -72,22 +83,17 @@ export async function generateInvoice(
       const booking = rows[0];
       if (!booking) throw new PreconditionError("No paid booking found with that id.");
 
-      const totalPaise = Number(booking.total_amount_paise);
-      const gstPaise = Number(booking.gst_amount_paise);
-      const netPaise = totalPaise - gstPaise;
-      if (netPaise < 0 || gstPaise < 0) throw new Error(`Booking ${bookingId} has inconsistent amounts`);
-
       const supplierState = supplierStateCode();
       const placeOfSupply = venuePlaceOfSupply();
-      const { cgstPaise, sgstPaise, igstPaise } = splitGst(gstPaise, supplierState, placeOfSupply);
+      const { netPaise, totalPaise, cgstPaise, sgstPaise, igstPaise } = invoiceAmounts(
+        Number(booking.total_amount_paise),
+        Number(booking.gst_amount_paise),
+        supplierState,
+        placeOfSupply
+      );
 
       const issueDate = istDate();
-      const fy = fiscalYear(issueDate);
-      const count = await client.query<{ n: number }>(
-        `select count(*)::int as n from pw_invoices where number like $1`,
-        [`AW/${fy}/%`]
-      );
-      const number = `AW/${fy}/${String((count.rows[0]?.n ?? 0) + 1).padStart(4, "0")}`;
+      const number = await allocateInvoiceNumber(client, fiscalYear(issueDate));
 
       const lineItems = [
         {
@@ -172,6 +178,10 @@ export interface InvoiceRow {
  * same answer as "no such invoice", so ids cannot be probed.
  */
 export async function getInvoice(invoiceId: string): Promise<InvoiceRow | null> {
+  return readSafely("getInvoice", null, () => loadInvoice(parseInput(z.string().min(1).max(64), invoiceId)));
+}
+
+async function loadInvoice(invoiceId: string): Promise<InvoiceRow | null> {
   const actor = await getActor();
   if (!actor) return null;
 

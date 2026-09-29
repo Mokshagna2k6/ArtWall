@@ -20,7 +20,11 @@ function useAction() {
     setError(null);
     start(async () => {
       try {
-        await fn();
+        const result = await fn();
+        // Actions return { ok: false, error } for anything the user can fix.
+        if (result && typeof result === "object" && "ok" in result && result.ok === false) {
+          return setError((result as { error?: string }).error || fallback);
+        }
         router.refresh();
       } catch (e) {
         setError(e instanceof Error && e.message ? e.message : fallback);
@@ -40,12 +44,13 @@ export function CreateTagForm({ artworks }: { artworks: Artwork[] }) {
         const form = e.currentTarget;
         const f = new FormData(form);
         run(async () => {
-          await createTag({
+          const result = await createTag({
             tagType: f.get("tagType") === "nfc" ? "nfc" : "qr",
             tagUid: String(f.get("tagUid")).trim(),
             artworkId: String(f.get("artworkId") || "") || undefined,
           });
-          form.reset();
+          if (result.ok) form.reset();
+          return result;
         }, "Could not register this tag. Is the UID already in use?");
       }}
     >

@@ -1,20 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
 import type { Hex } from "viem";
 import { eq, and, lt, isNotNull } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { coaCertificates } from "@/lib/db/schema";
 import { verifyMintTx } from "@/lib/blockchain/chain";
+import { runCron } from "@/lib/cron";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
+// Auth moved into runCron: the old inline check compared the header with !==
+// (not constant-time); isCronAuthorized uses timingSafeEqual like the others.
+export async function GET(request: Request) {
+  return runCron("reconcile-mints", request, reconcile);
+}
 
+async function reconcile() {
   const stale = await db
     .select()
     .from(coaCertificates)
@@ -30,6 +31,7 @@ export async function GET(req: NextRequest) {
   let minted = 0;
   let failed = 0;
   let pending = 0;
+  let errors = 0;
 
   for (const cert of stale) {
     try {
@@ -61,9 +63,10 @@ export async function GET(req: NextRequest) {
         minted++;
       }
     } catch (err) {
+      errors++;
       console.error("[reconcile]", cert.id, err instanceof Error ? err.message : err);
     }
   }
 
-  return NextResponse.json({ scanned: stale.length, minted, failed, pending });
+  return { processed: stale.length, errors, scanned: stale.length, minted, failed, pending };
 }

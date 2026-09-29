@@ -1,21 +1,24 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 import { createHash } from "node:crypto";
 import { headers } from "next/headers";
 
 import { requireRole } from "@/features/physical-wall/authorize";
 import { getActor } from "@/features/physical-wall/authorize";
-import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
+import { recordAudit } from "@/features/physical-wall/audit";
 import { feedbackSchema, reactionSchema } from "@/features/physical-wall/schema";
 import {
+  type ActionState,
   fail,
   firstIssue,
+  formInput,
   newId,
   ok,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getSql } from "@/lib/db";
@@ -99,12 +102,13 @@ export async function shareArtwork(
   try {
     const actor = await getActor();
 
-    const artworkId = String(formData.get("artworkId") ?? "");
-    const target = String(formData.get("target") ?? "");
-
-    if (!artworkId || !target) {
-      return fail("Share what, and where?");
-    }
+    const { artworkId, target } = formInput(
+      z.object({
+        artworkId: z.string({ error: "Share what, and where?" }).min(1, "Share what, and where?").max(64),
+        target: z.enum(["whatsapp", "instagram", "x", "copy"], { error: "Share what, and where?" }),
+      }),
+      formData
+    );
 
     await recordAudit({
       actor,

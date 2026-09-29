@@ -1,15 +1,13 @@
-import { NextResponse } from "next/server";
-
 import { processOpenRefunds } from "@/features/physical-wall/refunds";
-import { isCronAuthorized } from "@/lib/cron";
+import { runCron } from "@/lib/cron";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-/** Retry refunds that are pending, failed, or stuck mid-flight (BE-1.14). */
+/** Retry refunds that are pending, failed, or stuck mid-flight (BE-1.14); alert on stuck ones (BE-2.11). */
 export async function GET(request: Request) {
-  if (!isCronAuthorized(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  return NextResponse.json(await processOpenRefunds());
+  return runCron("refunds", request, async () => {
+    const r = await processOpenRefunds();
+    return { ...r, refunded: r.processed, processed: r.scanned, errors: r.failed };
+  });
 }

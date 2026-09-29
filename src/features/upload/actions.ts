@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { z } from "zod";
 
 import { createUploadSignature } from "@/lib/cloudinary";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -39,6 +40,13 @@ async function clientKey(): Promise<string> {
 export async function getUploadSignature(
   kind: "artwork" | "selfie"
 ): Promise<SignatureResult> {
+  // The folder is built from this argument, and a Server Action argument is
+  // whatever the caller sends: without the enum, getUploadSignature("wall")
+  // or ("ugc/<someone's folder>") signed uploads into folders this action was
+  // never meant to reach.
+  const parsed = z.enum(["artwork", "selfie"]).safeParse(kind);
+  if (!parsed.success) return { ok: false, message: "Unknown upload type." };
+
   const limit = checkRateLimit(`upload:${await clientKey()}`, {
     limit: 10,
     windowMs: 10 * 60 * 1000,
@@ -52,7 +60,7 @@ export async function getUploadSignature(
   }
 
   try {
-    const signed = createUploadSignature(`artwall/${kind}`);
+    const signed = createUploadSignature(`artwall/${parsed.data}`);
     return { ok: true, ...signed };
   } catch (error) {
     console.error("[upload] Could not create signature", error);

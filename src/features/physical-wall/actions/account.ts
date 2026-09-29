@@ -5,7 +5,13 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
-import { eraseUserIn, exportUserData, processAssetDeletions } from "@/features/physical-wall/data-rights";
+import {
+  eraseUserIn,
+  exportUserData,
+  logDataRightsRequest,
+  processAssetDeletions,
+} from "@/features/physical-wall/data-rights";
+import { pool } from "@/lib/db/index";
 import { getActor, requireRole } from "@/features/physical-wall/authorize";
 import {
   GRIEVANCE_RESPONSE_DAYS,
@@ -15,14 +21,15 @@ import {
 } from "@/features/physical-wall/consent";
 import { mintQrToken } from "@/features/physical-wall/qr";
 import {
+  type ActionState,
   fail,
   firstIssue,
+  formInput,
   inTransaction,
   newId,
   ok,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { notify } from "@/features/physical-wall/notifications";
 import { getSql } from "@/lib/db";
@@ -159,13 +166,13 @@ export async function setConsent(
   try {
     const actor = await requireRole("artist");
 
-    const purpose = String(formData.get("purpose") ?? "");
-    const next = String(formData.get("next") ?? "");
-
-    if (!PURPOSE_IDS.includes(purpose as ConsentPurpose)) {
-      return fail("Unknown purpose.");
-    }
-    if (next !== "grant" && next !== "withdraw") return fail("Unknown action.");
+    const { purpose, next } = formInput(
+      z.object({
+        purpose: z.enum(PURPOSE_IDS, { error: "Unknown purpose." }),
+        next: z.enum(["grant", "withdraw"], { error: "Unknown action." }),
+      }),
+      formData
+    );
     if (purpose === "account" && next === "withdraw") {
       return fail(
         "Withdrawing account consent closes the account — use 'Delete my data' below, which explains what happens to your bookings."
@@ -229,7 +236,17 @@ export async function exportMyData(): Promise<
 > {
   try {
     const actor = await requireRole("artist");
-    const payload = await exportUserData(actor.id);
+    await logDataRightsRequest(pool, actor.id, "export", "requested");
+    let payload: Awaited<ReturnType<typeof exportUserData>>;
+    try {
+      payload = await exportUserData(actor.id);
+    } catch (error) {
+      await logDataRightsRequest(pool, actor.id, "export", "failed").catch(() => {});
+      throw error;
+    }
+    await logDataRightsRequest(pool, actor.id, "export", "completed", {
+      categories: Object.keys(payload).filter((k) => Array.isArray(payload[k as keyof typeof payload])),
+    });
 
     return {
       ok: true,
@@ -253,15 +270,19 @@ export async function eraseMyData(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  let pending: string | null = null; // user id once "requested" is logged, until "completed" commits
   try {
     const actor = await requireRole("artist");
 
-    if (String(formData.get("confirm") ?? "") !== "DELETE") {
-      return fail("Type DELETE to confirm.");
-    }
+    formInput(z.object({ confirm: z.literal("DELETE", { error: "Type DELETE to confirm." }) }), formData);
 
+    // Requested is logged on its own, before the erasure: a failed erasure
+    // still leaves a record that it was asked for (BE-2.22).
+    await logDataRightsRequest(pool, actor.id, "erasure", "requested");
+    pending = actor.id;
     await inTransaction(async (client) => {
       const { assetsQueued } = await eraseUserIn(client, actor.id);
+      await logDataRightsRequest(client, actor.id, "erasure", "completed", { assetsQueued });
       await recordAuditIn(client, {
         actor: null,
         action: "account.erased",
@@ -274,11 +295,13 @@ export async function eraseMyData(
         },
       });
     });
+    pending = null;
 
     await processAssetDeletions();
 
     updateTag(WALL_TAG);
   } catch (error) {
+    if (pending) await logDataRightsRequest(pool, pending, "erasure", "failed").catch(() => {});
     return toActionError("eraseMyData", error);
   }
   // The sessions are gone, so re-rendering the account page would bounce to
@@ -288,9 +311,9 @@ export async function eraseMyData(
 }
 
 const grievanceSchema = z.object({
-  subject: z.string().trim().min(3, "Give it a short subject.").max(140),
-  body: z.string().trim().min(10, "Tell us what happened.").max(4000),
-  contact: z.string().trim().min(3, "How should we reply?").max(140),
+  subject: z.string({ error: "Give it a short subject." }).trim().min(3, "Give it a short subject.").max(140),
+  body: z.string({ error: "Tell us what happened." }).trim().min(10, "Tell us what happened.").max(4000),
+  contact: z.string({ error: "How should we reply?" }).trim().min(3, "How should we reply?").max(140),
 });
 
 /**
@@ -359,11 +382,15 @@ export async function setNominee(
   try {
     const actor = await requireRole("artist");
 
-    const name = String(formData.get("nomineeName") ?? "").trim();
-    const contact = String(formData.get("nomineeContact") ?? "").trim();
-
-    if (name && !contact) return fail("Add a way to reach your nominee.");
-    if (name.length > 120 || contact.length > 160) return fail("That's too long.");
+    const { nomineeName: name, nomineeContact: contact } = formInput(
+      z
+        .object({
+          nomineeName: z.string().trim().max(120, "That's too long.").default(""),
+          nomineeContact: z.string().trim().max(160, "That's too long.").default(""),
+        })
+        .refine((n) => !n.nomineeName || n.nomineeContact, { message: "Add a way to reach your nominee." }),
+      formData
+    );
 
     const sql = getSql();
     await sql`

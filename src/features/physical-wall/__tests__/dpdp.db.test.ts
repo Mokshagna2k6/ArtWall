@@ -11,7 +11,9 @@ import { eraseUserIn, processAssetDeletions } from "@/features/physical-wall/dat
 const cloud = process.env.CLOUDINARY_CLOUD_NAME!;
 const apiKey = process.env.CLOUDINARY_API_KEY!;
 const apiSecret = process.env.CLOUDINARY_API_SECRET!;
-const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+/** No real Cloudinary account (CI without the secrets): vitest.db.config's stand-in. */
+const live = cloud !== "standin-no-cloudinary";
+const PNG ="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
 async function upload(publicId: string) {
   const timestamp = String(Math.floor(Date.now() / 1000));
@@ -141,7 +143,7 @@ const count = async (sql: string, params: unknown[]) => (await q(sql, params)).l
 
 afterAll(purgeTestData);
 
-describe("DPDP export (BE-1.27)", () => {
+describe.skipIf(!live)("DPDP export (BE-1.27)", () => {
   it("includes artworks, identity-doc metadata, payments, invoices and UGC", async () => {
     const { user } = await richUser();
     actAs(user);
@@ -158,7 +160,7 @@ describe("DPDP export (BE-1.27)", () => {
   }, 120_000);
 });
 
-describe("DPDP erasure (BE-1.28 – 1.33)", () => {
+describe.skipIf(!live)("DPDP erasure (BE-1.28 – 1.33)", () => {
   it("is one transaction: a failure after eraseUserIn changes nothing", async () => {
     const { user } = await richUser();
     await expect(

@@ -196,53 +196,68 @@ function isResendConfigured(): boolean {
   return Boolean(process.env.RESEND_API_KEY);
 }
 
+/** After this many failed attempts a message is dead-lettered (BE-2.12). */
+export const MAX_NOTIFICATION_ATTEMPTS = 5;
+/** Backoff before the next try, after `attempts` failures: 1, 4, 16, 64 minutes. */
+export const retryDelayMinutes = (attempts: number) => 4 ** Math.max(0, attempts - 1);
+
+type Claimed = { id: string; recipient: string; subject: string; body: string; attempts: number };
+
 /**
- * Deliver pending notifications.
+ * Deliver due notifications from the outbox (BE-2.12, BE-2.13).
  *
- * Called by the cron route (`/api/cron/deliver-notifications`) and by the
- * admin notifications page ("Send pending now"). Batched, capped, and honest:
- * each row records its own outcome, and a failure marks the row rather than
- * aborting the batch.
+ * Called by the cron route (`/api/cron/deliver-notifications`) and by the admin
+ * "Send pending now" button, so two runs can overlap. Delivery is idempotent:
+ *
+ *  - Rows are CLAIMED (status 'sending') by one UPDATE over a
+ *    `for update skip locked` subquery. Overlapping runs get disjoint rows;
+ *    a row is never handed to two runs at once.
+ *  - Resend gets the row id as its Idempotency-Key. A run that died after
+ *    Resend accepted a message but before marking it sent leaves a stale claim;
+ *    the retry re-sends with the same key and Resend drops the duplicate.
+ *  - Marking sent/retrying/dead is conditional on the row still being
+ *    'sending', so a late writer cannot overwrite a newer outcome.
+ *
+ * Failures back off (retryDelayMinutes) and after MAX_NOTIFICATION_ATTEMPTS go
+ * to 'dead', which the admin overview lists.
  */
 export async function deliverPendingNotifications(
   limit = 25,
   /** Restrict to these rows (tests; admin "send this one"). */
   onlyIds?: string[]
-): Promise<{
-  sent: number;
-  failed: number;
-  skipped: number;
-}> {
+): Promise<{ sent: number; failed: number; dead: number; skipped: number }> {
   const sql = getSql();
-  const pending = (await sql`
-    select id, recipient, subject, body, attempts
-    from pw_notifications
-    where status = 'pending' and channel = 'email'
-      and (${onlyIds ?? null}::text[] is null or id = any(${onlyIds ?? null}::text[]))
-    order by created_at asc
-    limit ${limit}
-  `) as {
-    id: string;
-    recipient: string;
-    subject: string;
-    body: string;
-    attempts: number;
-  }[];
+  const ids = onlyIds ?? null;
+  const due = `channel = 'email'
+      and ((status in ('pending', 'retrying') and next_attempt_at <= now())
+           or (status = 'sending' and claimed_at < now() - interval '10 minutes'))
+      and ($1::text[] is null or id = any($1::text[]))`;
 
   if (!isResendConfigured()) {
-    return { sent: 0, failed: 0, skipped: pending.length };
+    // Nothing is claimed: the rows stay where they are and the admin sees the backlog.
+    const [row] = (await sql.query(`select count(*)::int as n from pw_notifications where ${due}`, [ids])) as { n: number }[];
+    return { sent: 0, failed: 0, dead: 0, skipped: Math.min(Number(row?.n ?? 0), limit) };
   }
+
+  const claimed = (await sql.query(
+    `update pw_notifications set status = 'sending', claimed_at = now()
+     where id in (select id from pw_notifications where ${due} order by created_at limit $2 for update skip locked)
+     returning id, recipient, subject, body, attempts`,
+    [ids, limit]
+  )) as Claimed[];
 
   let sent = 0;
   let failed = 0;
+  let dead = 0;
 
-  for (const row of pending) {
+  for (const row of claimed) {
     try {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
           "Content-Type": "application/json",
+          "Idempotency-Key": row.id,
         },
         body: JSON.stringify({
           from: process.env.NOTIFY_FROM_EMAIL ?? "Artwall <onboarding@resend.dev>",
@@ -252,33 +267,31 @@ export async function deliverPendingNotifications(
         }),
         signal: AbortSignal.timeout(10_000),
       });
-
-      if (!response.ok) {
-        throw new Error(`Resend responded ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Resend responded ${response.status}`);
 
       await sql`
         update pw_notifications
-        set status = 'sent', sent_at = now(), last_error = null
-        where id = ${row.id}
+        set status = 'sent', sent_at = now(), last_error = null, claimed_at = null
+        where id = ${row.id} and status = 'sending'
       `;
       sent += 1;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      const nextAttempts = Number(row.attempts) + 1;
-      // Three strikes and it stops retrying automatically — someone should
-      // look at why, not let it spin forever.
-      const status = nextAttempts >= 3 ? "failed" : "pending";
+      const attempts = Number(row.attempts) + 1;
+      const giveUp = attempts >= MAX_NOTIFICATION_ATTEMPTS;
       await sql`
         update pw_notifications
-        set status = ${status}, attempts = ${nextAttempts}, last_error = ${message.slice(0, 500)}
-        where id = ${row.id}
+        set status = ${giveUp ? "dead" : "retrying"}, attempts = ${attempts},
+            last_error = ${message.slice(0, 500)}, claimed_at = null,
+            next_attempt_at = now() + make_interval(mins => ${retryDelayMinutes(attempts)})
+        where id = ${row.id} and status = 'sending'
       `;
-      failed += 1;
+      if (giveUp) dead += 1;
+      else failed += 1;
     }
   }
 
-  return { sent, failed, skipped: 0 };
+  return { sent, failed, dead, skipped: 0 };
 }
 
 /** Pending count for the admin badge / overview alert. */
@@ -286,10 +299,42 @@ export async function countPendingNotifications(): Promise<number> {
   try {
     const sql = getSql();
     const rows = (await sql`
-      select count(*)::int as n from pw_notifications where status = 'pending'
+      select count(*)::int as n from pw_notifications where status in ('pending', 'retrying', 'sending')
     `) as { n: number }[];
     return Number(rows[0]?.n ?? 0);
   } catch {
     return 0;
+  }
+}
+
+/** The dead letter: messages that exhausted their attempts, newest first (admin overview). */
+export async function listDeadNotifications(limit = 20) {
+  const sql = getSql();
+  return (await sql`
+    select id, kind, recipient, subject, attempts, last_error, created_at
+    from pw_notifications where status = 'dead'
+    order by created_at desc limit ${limit}
+  `) as { id: string; kind: string; recipient: string; subject: string; attempts: number; last_error: string | null; created_at: string }[];
+}
+
+/**
+ * Tell the admins something needs a person (BE-2.11). Queued as a system.notice
+ * to every admin (role or ADMIN_EMAILS), once per `key` per admin, and logged as
+ * a structured line for log-based alerting. Never throws.
+ */
+export async function alertAdmins(key: string, subject: string, body: string): Promise<void> {
+  console.error(JSON.stringify({ level: "alert", key, subject }));
+  try {
+    const rows = (await getSql()`select id, email from "user" where role = 'admin'`) as { id: string; email: string }[];
+    const to = new Map<string, string | null>(rows.map((r) => [r.email.toLowerCase(), r.id]));
+    for (const email of (process.env.ADMIN_EMAILS ?? "").split(",")) {
+      const e = email.trim().toLowerCase();
+      if (e && !to.has(e)) to.set(e, null);
+    }
+    for (const [email, userId] of to) {
+      await notify("system.notice", { userId, email, dedupeKey: `${key}:${email}` }, { subject, body });
+    }
+  } catch (error) {
+    console.error("[physical-wall] Could not alert admins", key, error);
   }
 }

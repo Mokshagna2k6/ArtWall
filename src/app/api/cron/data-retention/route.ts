@@ -1,6 +1,4 @@
-import { NextResponse } from "next/server";
-
-import { isCronAuthorized } from "@/lib/cron";
+import { runCron } from "@/lib/cron";
 import { getSql } from "@/lib/db";
 import { newId } from "@/features/physical-wall/actions/shared";
 import { processAssetDeletions } from "@/features/physical-wall/data-rights";
@@ -14,10 +12,10 @@ const RETENTION_DAYS: Record<string, number> = {
 };
 
 export async function GET(request: Request) {
-  if (!isCronAuthorized(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  return runCron("data-retention", request, retain);
+}
 
+async function retain() {
   const sql = getSql();
   const results: Record<string, number> = {};
 
@@ -45,5 +43,6 @@ export async function GET(request: Request) {
   // Retry Cloudinary deletions queued by DPDP erasure (BE-1.32).
   const assetDeletions = await processAssetDeletions();
 
-  return NextResponse.json({ results, assetDeletions });
+  const processed = Object.values(results).reduce((a, b) => a + b, 0) + assetDeletions.done;
+  return { processed, errors: assetDeletions.failed, results, assetDeletions };
 }

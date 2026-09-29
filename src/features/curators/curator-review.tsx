@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { approveCurator, suspendCurator } from "@/features/curators/actions";
+import type { Result } from "@/features/physical-wall/action-state";
 
 type Item = {
   id: string;
@@ -40,11 +41,13 @@ function CuratorRow({ item }: { item: Item }) {
     null
   );
 
-  function run(fn: () => Promise<{ status: string; commissionBps: number }>) {
+  function run(fn: () => Promise<Result<{ status: string; commissionBps: number }>>) {
     setResult(null);
     start(async () => {
       try {
-        const r = await fn();
+        const res = await fn();
+        if (!res.ok) return setResult({ ok: false, text: res.error });
+        const r = res.data;
         setResult({
           ok: true,
           text:

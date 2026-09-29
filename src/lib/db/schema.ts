@@ -639,6 +639,9 @@ export const pwNotifications = pgTable("pw_notifications", {
   sentAt: timestamp("sent_at", { withTimezone: true }),
   /** Scheduled sends go out once per key (0026). */
   dedupeKey: text("dedupe_key"),
+  /** Outbox retry state (0052). */
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

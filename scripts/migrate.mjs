@@ -9,7 +9,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { neon, Pool } from "@neondatabase/serverless";
+import pg from "pg";
 
 const DIR = join(import.meta.dirname, "..", "db", "migrations");
 
@@ -20,19 +20,18 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-// HTTP driver for simple reads; Pool (WebSocket) for transactional writes.
-const sql = neon(process.env.DATABASE_URL);
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Plain TCP (pg), so the same script migrates Neon and a CI Postgres container.
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
-await sql`
+await pool.query(`
   create table if not exists _migrations (
     name       text primary key,
     applied_at timestamptz not null default now()
   )
-`;
+`);
 
 const applied = new Set(
-  (await sql`select name from _migrations`).map((row) => row.name)
+  (await pool.query("select name from _migrations")).rows.map((row) => row.name)
 );
 
 const files = (await readdir(DIR)).filter((f) => f.endsWith(".sql")).sort();
