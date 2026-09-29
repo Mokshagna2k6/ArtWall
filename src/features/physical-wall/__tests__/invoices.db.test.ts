@@ -5,7 +5,7 @@ import { makeBooking, makeSlots, makeUser, purgeTestData, q, tid } from "@/test/
 
 vi.mock("@/features/physical-wall/razorpay", async (orig) => ({
   ...(await orig<object>()),
-  createRefund: vi.fn(async (paymentId: string, amount: number) => ({ id: `rfnd_${Date.now()}`, payment_id: paymentId, amount })),
+  createRefund: vi.fn(async (paymentId: string, amount: number) => ({ id: `rfnd_${crypto.randomUUID()}`, payment_id: paymentId, amount })),
   findRefund: vi.fn(async () => null),
 }));
 

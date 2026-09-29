@@ -1,6 +1,4 @@
-import { NextResponse } from "next/server";
-
-import { isCronAuthorized } from "@/lib/cron";
+import { runCron } from "@/lib/cron";
 import { commitPendingMerkleRoot } from "@/features/coa/merkle-commit";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +10,10 @@ export const maxDuration = 60;
  * separate step (features/blockchain/gateway.ts).
  */
 export async function GET(request: Request) {
-  if (!isCronAuthorized(request)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const result = await commitPendingMerkleRoot();
-  if (!result) return NextResponse.json({ message: "No pending commitments", root: null });
-  return NextResponse.json(result);
+  return runCron("merkle-root", request, async () => {
+    const result = await commitPendingMerkleRoot();
+    return result
+      ? { processed: result.leafCount, errors: 0, ...result }
+      : { processed: 0, errors: 0, root: null };
+  });
 }

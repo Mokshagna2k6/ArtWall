@@ -134,7 +134,9 @@ export async function deliverNotificationsNow(): Promise<ActionState> {
           `${result.skipped} pending — RESEND_API_KEY is not configured, so nothing was sent.`,
       };
     }
-    return ok(`Sent ${result.sent}, failed ${result.failed}.`);
+    return ok(
+      `Sent ${result.sent}, will retry ${result.failed}, dead-lettered ${result.dead}.`
+    );
   } catch (error) {
     return toActionError("deliverNotificationsNow", error);
   }

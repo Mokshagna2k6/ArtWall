@@ -30,7 +30,7 @@ vi.mock("@/features/physical-wall/razorpay", async (orig) => ({
     rp.refunds.find((r) => r.payment_id === paymentId && r.notes.refundId === refundId) ?? null
   ),
   createRefund: vi.fn(async (paymentId: string, amount: number, refs: { refundId: string }) => {
-    const refund = { id: `rfnd_${rp.refunds.length}`, payment_id: paymentId, amount, status: "processed", notes: refs };
+    const refund = { id: `rfnd_${rp.refunds.length}_${crypto.randomUUID().slice(0, 8)}`, payment_id: paymentId, amount, status: "processed", notes: refs };
     rp.refunds.push(refund);
     return refund;
   }),

@@ -3,6 +3,7 @@ import "server-only";
 import type { PoolClient } from "pg";
 
 import { newId } from "@/features/physical-wall/actions/shared";
+import { alertAdmins } from "@/features/physical-wall/notifications";
 import { createRefund, findRefund } from "@/features/physical-wall/razorpay";
 import { pool } from "@/lib/db/index";
 
@@ -22,6 +23,8 @@ import { pool } from "@/lib/db/index";
 
 const STALE = "10 minutes";
 const MAX_ATTEMPTS = 8;
+/** Admins are alerted once a refund has failed this many times (BE-2.11). Retries continue up to MAX_ATTEMPTS. */
+export const REFUND_ALERT_AFTER = 3;
 
 export async function queueRefundIn(
   client: PoolClient,
@@ -105,5 +108,32 @@ export async function processOpenRefunds(limit = 20) {
   );
   const results: Record<RefundOutcome, number> = { processed: 0, failed: 0, skipped: 0 };
   for (const { id } of rows) results[await processRefund(id)] += 1;
-  return { scanned: rows.length, ...results };
+
+  // Reconciliation: anything still failing after REFUND_ALERT_AFTER attempts
+  // needs a person. alertAdmins dedupes per refund, so each is raised once.
+  const { rows: stuck } = await pool.query<{ id: string; booking_id: string; amount_paise: number; attempts: number; last_error: string | null }>(
+    `select id, booking_id, amount_paise, attempts, last_error from pw_refunds
+     where status = 'failed' and attempts >= $1 order by updated_at limit 50`,
+    [REFUND_ALERT_AFTER]
+  );
+  for (const r of stuck) {
+    await alertAdmins(
+      `refund.stuck:${r.id}`,
+      `Refund ${r.id} has failed ${r.attempts} times`,
+      `Refund ${r.id} (booking ${r.booking_id}, ${r.amount_paise} paise) has failed ${r.attempts} times` +
+        `${r.attempts >= MAX_ATTEMPTS ? " and will not be retried automatically" : ""}.
+
+Last error: ${r.last_error ?? "unknown"}`
+    );
+  }
+  return { scanned: rows.length, ...results, stuck: stuck.length };
+}
+
+/** Refunds failing past the alert threshold: a person has to look at them (admin overview). */
+export async function countStuckRefunds(): Promise<number> {
+  const { rows } = await pool.query<{ n: number }>(
+    `select count(*)::int as n from pw_refunds where status = 'failed' and attempts >= $1`,
+    [REFUND_ALERT_AFTER]
+  );
+  return rows[0]?.n ?? 0;
 }
