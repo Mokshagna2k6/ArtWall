@@ -21,10 +21,13 @@ create index if not exists pw_ledger_booking_idx
   where booking_id is not null;
 
 -- Backfill from the system-written source_refs. Guarded (DB-2.13): 0028 makes
--- pw_ledger append-only and revokes UPDATE, so on a re-run this is skipped.
+-- pw_ledger append-only, so on a re-run after it this is skipped. (Not a
+-- privilege check: on Neon the owner keeps UPDATE through pg_write_all_data,
+-- and it is the trigger that would refuse the update.)
 do $$
 begin
-  if has_table_privilege('pw_ledger', 'UPDATE') then
+  if not exists (select 1 from pg_trigger
+                 where tgname = 'pw_ledger_append_only' and tgrelid = 'pw_ledger'::regclass) then
     update pw_ledger l
     set booking_id = b.id
     from pw_bookings b
