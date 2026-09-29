@@ -1,6 +1,6 @@
 "use server";
 
-import { eq, and, gte, ilike, lte, sql, or, type SQL } from "drizzle-orm";
+import { eq, and, gte, ilike, lte, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { artworks, artistProfiles, coaCertificates } from "@/lib/db/schema";
@@ -47,11 +47,14 @@ const MAX_LIMIT = 96;
  * Keyset order per sort. Every sort ends with `id` so the order is total and a
  * cursor names exactly one position. Nulls (unpriced works) always sort last.
  */
-const SORT_KEYS: Record<MarketplaceSort, { key: SQL; cast: string; desc: boolean }> = {
-  recent: { key: sql`"artworks"."createdAt"`, cast: "timestamp", desc: true },
-  title: { key: sql`"artworks"."title"`, cast: "text", desc: false },
-  price_asc: { key: sql`"artworks"."price_paise"`, cast: "integer", desc: false },
-  price_desc: { key: sql`"artworks"."price_paise"`, cast: "integer", desc: true },
+const SORT_KEYS: Record<
+  MarketplaceSort,
+  { key: SQL; cast: string; desc: boolean; nullable: boolean }
+> = {
+  recent: { key: sql`"artworks"."createdAt"`, cast: "timestamp", desc: true, nullable: false },
+  title: { key: sql`"artworks"."title"`, cast: "text", desc: false, nullable: false },
+  price_asc: { key: sql`"artworks"."price_paise"`, cast: "integer", desc: false, nullable: true },
+  price_desc: { key: sql`"artworks"."price_paise"`, cast: "integer", desc: true, nullable: true },
 };
 
 /**
@@ -98,7 +101,7 @@ export async function discoverArtworks(
 ): Promise<MarketplacePage> {
   const sort: MarketplaceSort =
     filters.sort && filters.sort in SORT_KEYS ? filters.sort : "recent";
-  const { key, cast, desc } = SORT_KEYS[sort];
+  const { key, cast, desc, nullable } = SORT_KEYS[sort];
   const limit = Number.isFinite(filters.limit)
     ? Math.min(Math.max(Math.trunc(filters.limit!), 1), MAX_LIMIT)
     : DEFAULT_LIMIT;
@@ -111,13 +114,10 @@ export async function discoverArtworks(
   ];
 
   if (filters.q) {
-    conditions.push(
-      or(
-        ilike(artworks.title, `%${filters.q}%`),
-        ilike(artworks.medium, `%${filters.q}%`),
-        ilike(artworks.description, `%${filters.q}%`)
-      )!
-    );
+    // search_tsv (title/medium/description, 0018) has a GIN index; three
+    // `ilike '%q%'` could only ever seq-scan every listing (PERF-2.05). Same
+    // matching as the wall search: whole words, stemmed ("paintings" ~ "painting").
+    conditions.push(sql`"artworks"."search_tsv" @@ websearch_to_tsquery('english', ${filters.q})`);
   }
 
   if (filters.medium) {
@@ -135,11 +135,16 @@ export async function discoverArtworks(
   const cmp = sql.raw(desc ? "<" : ">");
   const cursor = decodeCursor(filters.cursor, sort);
   if (cursor) {
-    // Rows strictly after the cursor in (key nulls last, id) order.
+    // Rows strictly after the cursor in (key nulls last, id) order. For a NOT
+    // NULL key, a bare row comparison: an `or key is null` arm would stop
+    // Postgres using it as an index range bound (PERF-2.05).
+    const after = sql`(${key}, "artworks"."id") ${cmp} (${cursor.v}::${sql.raw(cast)}, ${cursor.id})`;
     conditions.push(
-      cursor.v === null
-        ? sql`(${key} is null and "artworks"."id" ${cmp} ${cursor.id})`
-        : sql`((${key}, "artworks"."id") ${cmp} (${cursor.v}::${sql.raw(cast)}, ${cursor.id}) or ${key} is null)`
+      !nullable
+        ? after
+        : cursor.v === null
+          ? sql`(${key} is null and "artworks"."id" ${cmp} ${cursor.id})`
+          : sql`(${after} or ${key} is null)`
     );
   }
 
@@ -160,7 +165,9 @@ export async function discoverArtworks(
     .from(artworks)
     .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
     .where(and(...conditions))
-    .orderBy(sql`${key} ${dir} nulls last`, sql`"artworks"."id" ${dir}`)
+    // `nulls last` only where nulls exist: on a NOT NULL key it would no longer
+    // match the index order ("createdAt" DESC = nulls first) and force a sort.
+    .orderBy(sql`${key} ${dir}${sql.raw(nullable ? " nulls last" : "")}`, sql`"artworks"."id" ${dir}`)
     // One extra row tells us whether there is a next page without a count(*).
     .limit(limit + 1);
 

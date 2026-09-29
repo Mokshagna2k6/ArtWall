@@ -5,6 +5,7 @@ import {
   discoverArtworks,
   getArtworkDetail,
   type MarketplaceFilters,
+  type MarketplacePage,
   type MarketplaceSort,
 } from "@/features/marketplace/actions";
 import { pool } from "@/lib/db/index";
@@ -32,6 +33,11 @@ describe("marketplace filters (BE-1.21 / 1.22)", () => {
     expect(await ids({ category: tag, minPrice: 50_000, maxPrice: 150_000 })).toEqual([cheap, mid].sort());
     expect(await ids({ category: tag, minPrice: 150_001 })).toEqual([dear]);
     expect(await ids({ category: `${tag}x` })).toEqual([otherCat]);
+    // Free text goes through the search_tsv GIN index (PERF-2.05), stemmed.
+    const word = `zq${Date.now().toString(36)}`;
+    const titled = await makeArtwork(pub.id, { category: tag, title: `Harbour ${word} studies` });
+    expect(await ids({ category: tag, q: word })).toEqual([titled]);
+    expect(await ids({ category: tag, q: `harbours ${word}` })).toEqual([titled]);
     expect(await getArtworkDetail(unpublished)).toBeNull();
     expect(await getArtworkDetail(mid)).not.toBeNull();
   });
@@ -89,5 +95,35 @@ describe("marketplace keyset pagination (PERF-1.07)", () => {
     expect((await discoverArtworks({ category: tag, sort: "title", limit: 2, cursor: "!!" })).items).toEqual(first.items);
     const recentCursor = (await discoverArtworks({ category: tag, sort: "recent", limit: 2 })).nextCursor;
     expect((await discoverArtworks({ category: tag, sort: "title", limit: 2, cursor: recentCursor })).items).toEqual(first.items);
+  });
+
+  it("never repeats or skips a listing while others are inserted mid-pagination (PERF-2.04)", async () => {
+    const user = await makeUser();
+    await makeProfile(user.id, { published: true });
+    const tag = `betestconc${Date.now()}`;
+    const letters = "ACEGIKMOQS";
+    const original: string[] = [];
+    for (const l of letters) original.push(await makeArtwork(user.id, { category: tag, title: l, pricePaise: 100 }));
+
+    for (const sort of ["recent", "title"] as MarketplaceSort[]) {
+      const seen: string[] = [];
+      let cursor: string | null = null;
+      let n = 0;
+      do {
+        // Each page is read while two new listings commit concurrently: one
+        // sorting before the cursor, one after it (titles between the originals).
+        const [page]: [MarketplacePage, string, string] = await Promise.all([
+          discoverArtworks({ category: tag, sort, limit: 3, cursor }),
+          makeArtwork(user.id, { category: tag, title: `B${sort}${n}`, pricePaise: 100 }),
+          makeArtwork(user.id, { category: tag, title: `R${sort}${n}`, pricePaise: 100 }),
+        ]);
+        seen.push(...page.items.map((i) => i.id));
+        cursor = page.nextCursor;
+        n += 1;
+      } while (cursor && n < 50);
+
+      expect(new Set(seen).size, `${sort}: duplicates`).toBe(seen.length);
+      for (const id of original) expect(seen, `${sort}: skipped ${id}`).toContain(id);
+    }
   });
 });
