@@ -1,9 +1,7 @@
 "use server";
 
-import { updateTag } from "next/cache";
-
 import { getSql } from "@/lib/db";
-import { fail, newId, ok, WALL_TAG, type ActionState } from "@/features/physical-wall/actions/shared";
+import { fail, newId, ok, type ActionState } from "@/features/physical-wall/actions/shared";
 
 export async function searchArtworks(
   _previous: ActionState,
@@ -55,7 +53,8 @@ export async function searchArtworks(
       values (${newId("srch")}, ${query}, ${results.length})
     `;
 
-    updateTag(WALL_TAG);
+    // No cache invalidation: nothing cached reads pw_search_log, and updateTag
+    // throws outside a Server Action, which failed every /api/physical-wall/search call.
     return ok("", { results });
   } catch (error) {
     console.error("[physical-wall] searchArtworks", error);

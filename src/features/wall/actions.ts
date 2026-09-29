@@ -30,7 +30,8 @@ import { getSessionUser } from "@/lib/session";
  */
 const UPLOAD_LIMIT = { limit: 8, windowMs: 10 * 60 * 1000 };
 const PUBLISH_LIMIT = { limit: 4, windowMs: 10 * 60 * 1000 };
-const SEARCH_LIMIT = { limit: 40, windowMs: 60 * 1000 };
+// Public read: fails open if the limiter store is down (PERF-2.03, lib/rate-limit.ts).
+const SEARCH_LIMIT = { limit: 40, windowMs: 60 * 1000, failOpen: true };
 
 /**
  * Mint a short-lived signature so the browser can upload straight to

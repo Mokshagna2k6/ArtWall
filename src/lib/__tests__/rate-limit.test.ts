@@ -34,6 +34,46 @@ describe("clientIp", () => {
   });
 });
 
+describe("store unavailable (PERF-2.03)", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  // A real failure, not a mock: `.invalid` never resolves (RFC 2606), so the driver's
+  // HTTP request fails exactly as it would during a database/network outage.
+  async function downInstance() {
+    vi.stubEnv("DATABASE_URL", "postgresql://u:p@ep-down.invalid/down");
+    vi.resetModules();
+    return import("@/lib/rate-limit");
+  }
+  const rule = { limit: 5, windowMs: 60_000 };
+
+  it("fails CLOSED by default (auth, admin, writes): refused, 503, Retry-After", async () => {
+    const { checkRateLimit, tooManyRequests } = await downInstance();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const result = await checkRateLimit("auth/sign-in/email:ip:1.2.3.4", rule);
+    expect(result).toMatchObject({ ok: false, unavailable: true });
+    const res = tooManyRequests(result, {});
+    expect(res.status).toBe(503);
+    expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(errors).toHaveBeenCalledWith(expect.stringContaining("failing closed"), expect.anything());
+    errors.mockRestore();
+  });
+
+  it("fails OPEN for public reads that opt in", async () => {
+    const { checkRateLimit, limitRequest } = await downInstance();
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await checkRateLimit("wall-search:ip:1.2.3.4", { ...rule, failOpen: true })).toMatchObject({
+      ok: true,
+      unavailable: true,
+    });
+    const h = new Headers({ "x-forwarded-for": "1.2.3.4" });
+    expect((await limitRequest("pw-search", { ...rule, failOpen: true }, null, h)).ok).toBe(true);
+    // Signed in: both the user and the IP bucket fail open.
+    expect((await limitRequest("pw-search", { ...rule, failOpen: true }, "u1", h)).ok).toBe(true);
+    expect((await limitRequest("upload", rule, "u1", h)).ok).toBe(false);
+    errors.mockRestore();
+  });
+});
+
 describe("mostRestrictive", () => {
   it("blocks if any bucket blocks and reports the longest wait", () => {
     expect(

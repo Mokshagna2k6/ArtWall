@@ -18,15 +18,30 @@ import { getSql } from "@/lib/db";
  *
  * Keys are HMAC'd before they reach the database, so no raw IP address or email
  * is ever stored (DPDP), and a leaked table cannot be brute-forced back to IPs
- * without the server secret. Expired rows are swept by the data-retention cron.
+ * without the server secret. Expired rows are swept by the data-retention cron
+ * (PERF-2.02).
  *
- * A database error propagates (fails closed): the endpoints this guards all
- * need the database anyway.
+ * WHEN THE STORE IS DOWN (PERF-2.03) - a deliberate, per-rule policy:
+ *
+ *  - Fail CLOSED (the default): auth (sign-in, sign-up, password reset), admin
+ *    password actions, uploads, certificate/mint endpoints, every write. If we
+ *    cannot count, we cannot prove the caller is under the limit, and these are
+ *    exactly the endpoints an attacker would hammer during an outage (credential
+ *    stuffing does not pause because our database did). The request is refused
+ *    with `unavailable: true`; `tooManyRequests` turns that into a 503.
+ *  - Fail OPEN (`failOpen: true`): public, read-only endpoints (search, scan
+ *    counters). Blocking them would turn a rate-limit-store blip into a site
+ *    outage for every visitor, and the worst an attacker gains is some extra
+ *    reads that hit their own backend limits anyway.
+ *
+ * Either way the error is logged, never swallowed silently.
  */
 
 export interface RateLimitRule {
   limit: number;
   windowMs: number;
+  /** Allow the request if the store is unreachable. Public reads only - see above. */
+  failOpen?: boolean;
 }
 
 export interface RateLimitResult {
@@ -35,7 +50,12 @@ export interface RateLimitResult {
   remaining: number;
   /** Whole seconds until the window resets; 0 when `ok`. Use for Retry-After. */
   retryAfter: number;
+  /** The store could not be reached; `ok` reflects the rule's fail policy. */
+  unavailable?: boolean;
 }
+
+/** Retry-After when the store is down: long enough not to hammer a recovering database. */
+const STORE_DOWN_RETRY_S = 30;
 
 function hashKey(key: string): string {
   return createHmac("sha256", process.env.BETTER_AUTH_SECRET ?? "artwall-rate-limit")
@@ -46,16 +66,27 @@ function hashKey(key: string): string {
 /** Count one hit against `key` and report whether it is within `limit`. */
 export async function checkRateLimit(
   key: string,
-  { limit, windowMs }: RateLimitRule
+  { limit, windowMs, failOpen = false }: RateLimitRule
 ): Promise<RateLimitResult> {
-  const rows = (await getSql()`
-    insert into rate_limits as r (key, count, reset_at)
-    values (${hashKey(key)}, 1, now() + make_interval(secs => ${windowMs / 1000}::float8))
-    on conflict (key) do update set
-      count    = case when r.reset_at <= now() then 1 else r.count + 1 end,
-      reset_at = case when r.reset_at <= now() then excluded.reset_at else r.reset_at end
-    returning count, extract(epoch from r.reset_at - now())::float8 as ttl
-  `) as { count: number; ttl: number }[];
+  let rows: { count: number; ttl: number }[];
+  try {
+    rows = (await getSql()`
+      insert into rate_limits as r (key, count, reset_at)
+      values (${hashKey(key)}, 1, now() + make_interval(secs => ${windowMs / 1000}::float8))
+      on conflict (key) do update set
+        count    = case when r.reset_at <= now() then 1 else r.count + 1 end,
+        reset_at = case when r.reset_at <= now() then excluded.reset_at else r.reset_at end
+      returning count, extract(epoch from r.reset_at - now())::float8 as ttl
+    `) as { count: number; ttl: number }[];
+  } catch (error) {
+    console.error(
+      `[rate-limit] store unavailable, failing ${failOpen ? "open" : "closed"}:`,
+      error instanceof Error ? error.message : error
+    );
+    return failOpen
+      ? { ok: true, remaining: 0, retryAfter: 0, unavailable: true }
+      : { ok: false, remaining: 0, retryAfter: STORE_DOWN_RETRY_S, unavailable: true };
+  }
 
   const { count, ttl } = rows[0];
   const ok = count <= limit;
@@ -145,13 +176,18 @@ export function mostRestrictive(results: RateLimitResult[]): RateLimitResult {
     ok: results.every((r) => r.ok),
     remaining: Math.min(...results.map((r) => r.remaining)),
     retryAfter: Math.max(...results.map((r) => r.retryAfter)),
+    ...(results.some((r) => r.unavailable) && { unavailable: true }),
   };
 }
 
-/** HTTP 429 with a Retry-After (seconds) computed from the window (PERF-1.06). */
+/**
+ * HTTP 429 with a Retry-After (seconds) computed from the window (PERF-1.06),
+ * or 503 when the request was refused only because the store is down (fail
+ * closed, PERF-2.03) - the caller did nothing wrong, the service is unavailable.
+ */
 export function tooManyRequests(result: RateLimitResult, body: unknown): Response {
   return Response.json(body, {
-    status: 429,
+    status: result.unavailable ? 503 : 429,
     headers: { "Retry-After": String(Math.max(1, result.retryAfter)) },
   });
 }
