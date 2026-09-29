@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -44,6 +46,7 @@ export async function transitionSlot(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
 
@@ -111,6 +114,7 @@ export async function forceRelease(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
 
@@ -286,6 +290,7 @@ export async function setSlotServiceState(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
     const slotId = String(formData.get("slotId") ?? "");

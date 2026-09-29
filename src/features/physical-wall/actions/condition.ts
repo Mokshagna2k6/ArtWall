@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { recordAuditIn } from "@/features/physical-wall/audit";
 import { requireRole } from "@/features/physical-wall/authorize";
 import {
@@ -25,6 +27,7 @@ const CONDITION_FOLDER = "artwall/condition";
 
 /** Staff: a signed direct-upload for a condition photo (folder artwall/condition). */
 export async function requestConditionUploadSignature() {
+  assertPhysicalWallEnabled();
   await requireRole("staff");
   return createUploadSignature(CONDITION_FOLDER);
 }
@@ -34,6 +37,7 @@ export async function requestConditionUploadSignature() {
  * item, e.g. "frame" or "wall-surface"), cloudinaryId, url, slotId (optional).
  */
 export async function addConditionPhoto(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("staff");
     const bookingId = String(formData.get("bookingId") ?? "");
@@ -83,6 +87,7 @@ export async function addConditionPhoto(_previous: ActionState, formData: FormDa
  * slotId (optional). The artwork is taken from the booking, not the form.
  */
 export async function recordDamage(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("staff");
     const bookingId = String(formData.get("bookingId") ?? "");

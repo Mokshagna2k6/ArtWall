@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 import { z } from "zod";
 
@@ -78,6 +80,7 @@ export async function joinWaitlist(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await getActor();
 
@@ -139,6 +142,7 @@ export async function leaveWaitlist(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
     const id = String(formData.get("waitlistId") ?? "");
@@ -182,6 +186,7 @@ export async function adjustQueue(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
 
@@ -272,6 +277,7 @@ export async function forceMatch(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
 
@@ -363,6 +369,7 @@ export async function acceptOffer(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
     const id = String(formData.get("waitlistId") ?? "");
@@ -447,6 +454,7 @@ export async function declineOffer(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
     const id = String(formData.get("waitlistId") ?? "");
@@ -495,5 +503,6 @@ export async function declineOffer(
 
 /** The tier list, so the admin UI and the sort order cannot drift apart. */
 export async function getTierOrder(): Promise<readonly string[]> {
+  assertPhysicalWallEnabled();
   return TIER_ORDER;
 }

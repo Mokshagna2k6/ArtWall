@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 import { createHash } from "node:crypto";
 import { headers } from "next/headers";
@@ -58,6 +60,7 @@ export async function react(
   artworkId: string,
   kind: string
 ): Promise<{ ok: true; count: number } | { ok: false; message: string }> {
+  assertPhysicalWallEnabled();
   const parsed = reactionSchema.safeParse({ artworkId, kind });
   if (!parsed.success) return { ok: false, message: firstIssue(parsed.error) };
 
@@ -97,6 +100,7 @@ export async function shareArtwork(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await getActor();
 
@@ -132,6 +136,7 @@ export async function submitFeedback(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
 

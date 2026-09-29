@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 
 import { recordAudit } from "@/features/physical-wall/audit";
@@ -50,6 +52,7 @@ export async function upsertSize(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
 
@@ -108,6 +111,7 @@ export async function upsertSlotType(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
 
@@ -158,6 +162,7 @@ export async function upsertAddon(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
 
@@ -219,6 +224,7 @@ export async function setRefundPolicy(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
 
@@ -259,6 +265,7 @@ export async function updateSettings(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
 

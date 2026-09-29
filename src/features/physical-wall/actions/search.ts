@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 
 import { getSql } from "@/lib/db";
@@ -9,6 +11,7 @@ export async function searchArtworks(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState & { results?: unknown[] }> {
+  assertPhysicalWallEnabled();
   try {
     const query = String(formData.get("q") ?? "").trim();
     if (!query || query.length < 2) {

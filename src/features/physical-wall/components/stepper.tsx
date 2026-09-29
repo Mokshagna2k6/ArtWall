@@ -27,7 +27,7 @@ export function Stepper({
   onJump: (step: number) => void;
 }) {
   return (
-    <ol className="flex flex-wrap items-center gap-x-2 gap-y-2">
+    <ol aria-label="Progress" className="flex flex-wrap items-center gap-x-2 gap-y-2">
       {steps.map((label, index) => {
         const step = index + 1;
         const done = step < current;
@@ -58,6 +58,7 @@ export function Stepper({
                 {done ? <Check className="size-3" /> : step}
               </span>
               <span
+                aria-hidden
                 className={`hidden whitespace-nowrap sm:inline ${
                   active ? "text-ink font-medium" : "text-ink-muted"
                 }`}

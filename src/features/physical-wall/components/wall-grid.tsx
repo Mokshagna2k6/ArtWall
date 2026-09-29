@@ -144,8 +144,11 @@ export function WallGrid({
             if (event.key === "Escape") setCarrying(null);
           }}
         >
-          {Array.from({ length: rowCount }).flatMap((_, row) =>
-            Array.from({ length: colCount }).map((__, col) => (
+          {/* role="row" wrappers are display:contents, so the CSS grid is
+              unchanged but the ARIA grid has the rows it requires. */}
+          {Array.from({ length: rowCount }).map((_, row) => (
+            <div key={row} role="row" aria-rowindex={row + 1} className="contents">
+            {Array.from({ length: colCount }).map((__, col) => (
               <Cell
                 key={`${row}-${col}`}
                 row={row}
@@ -164,8 +167,9 @@ export function WallGrid({
                 onDrop={drop}
                 onEdit={onEdit}
               />
-            ))
-          )}
+            ))}
+            </div>
+          ))}
         </div>
 
         {showLegend && statesInUse.length > 0 && (

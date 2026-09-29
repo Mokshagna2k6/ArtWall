@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { recordAuditIn } from "@/features/physical-wall/audit";
 import { getActor, hasRole, requireRole } from "@/features/physical-wall/authorize";
 import { formatINR } from "@/features/physical-wall/money";
@@ -52,6 +54,7 @@ export async function generateInvoice(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
     const bookingId = String(formData.get("bookingId") ?? "");
@@ -172,6 +175,7 @@ export interface InvoiceRow {
  * same answer as "no such invoice", so ids cannot be probed.
  */
 export async function getInvoice(invoiceId: string): Promise<InvoiceRow | null> {
+  assertPhysicalWallEnabled();
   const actor = await getActor();
   if (!actor) return null;
 

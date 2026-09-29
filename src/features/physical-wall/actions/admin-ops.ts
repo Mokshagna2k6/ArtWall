@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 import { z } from "zod";
 
@@ -37,6 +39,7 @@ export async function respondToGrievance(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
 
@@ -88,6 +91,7 @@ export async function closeGrievance(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
     const id = String(formData.get("grievanceId") ?? "");
@@ -120,6 +124,7 @@ export async function closeGrievance(
  * the founder can flush the queue by hand before trusting that cron exists.
  */
 export async function deliverNotificationsNow(): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     await requireRole("admin");
     const { deliverPendingNotifications } = await import(

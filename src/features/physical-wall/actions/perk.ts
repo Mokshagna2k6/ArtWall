@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -53,6 +55,7 @@ export interface PerkPreview {
 export async function previewPerk(
   token: string
 ): Promise<{ ok: true; preview: PerkPreview } | { ok: false; message: string }> {
+  assertPhysicalWallEnabled();
   try {
     await requireRole("staff");
 
@@ -154,6 +157,7 @@ export async function redeemPerk(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("staff");
 

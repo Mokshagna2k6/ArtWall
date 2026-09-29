@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { cookies, headers } from "next/headers";
 import { createHash } from "node:crypto";
 
@@ -55,6 +57,7 @@ export async function registerVisitor(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const limit = checkRateLimit(await rotatingKey("pw-visitor"), {
       limit: 10,
@@ -151,6 +154,7 @@ export async function recordScan(
   artworkId: string,
   visitId: string | null
 ): Promise<void> {
+  assertPhysicalWallEnabled();
   try {
     const limit = checkRateLimit(await rotatingKey(`pw-scan:${artworkId}`), {
       limit: 30,
@@ -187,6 +191,7 @@ export async function withdrawVisitorConsent(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const token = String(formData.get("token") ?? "");
     if (!token) return fail("We need your code to find the record.");

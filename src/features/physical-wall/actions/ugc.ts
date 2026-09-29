@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 import { createHash } from "node:crypto";
 import { headers } from "next/headers";
@@ -38,6 +40,7 @@ export async function submitUgc(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const limit = checkRateLimit(await rotatingKey("pw-ugc"), {
       limit: 5,
@@ -134,6 +137,7 @@ export async function moderateUgc(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("staff");
 
@@ -245,6 +249,7 @@ export async function moderateUgc(
 export async function listPendingUgc(): Promise<
   { id: string; caption: string; imageUrl: string; cloudinaryId: string; kind: string; createdAt: string }[]
 > {
+  assertPhysicalWallEnabled();
   try {
     const sql = getSql();
     const rows = (await sql`
@@ -271,6 +276,7 @@ export async function listPendingUgc(): Promise<
 export async function listCommunityGallery(): Promise<
   { id: string; submissionId: string; imageUrl: string; caption: string; byline: string }[]
 > {
+  assertPhysicalWallEnabled();
   try {
     const sql = getSql();
     const rows = (await sql`
@@ -296,6 +302,7 @@ export async function withdrawUgc(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const submissionId = String(formData.get("submissionId") ?? "");
     if (!submissionId) return fail("Which submission?");

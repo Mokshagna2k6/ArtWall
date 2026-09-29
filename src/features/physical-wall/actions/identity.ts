@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { recordAudit } from "@/features/physical-wall/audit";
 import { requireRole } from "@/features/physical-wall/authorize";
 import { notify } from "@/features/physical-wall/notifications";
@@ -16,6 +18,7 @@ export async function reviewIdentity(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
     const verificationId = String(formData.get("verificationId") ?? "");
@@ -68,6 +71,7 @@ export async function reviewIdentity(
 }
 
 export async function listPendingVerifications() {
+  assertPhysicalWallEnabled();
   const sql = getSql();
   return (await sql`
     select v.id, v.user_id, v.doc_cloudinary_id, v.doc_kind, v.created_at,

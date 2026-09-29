@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -71,6 +73,7 @@ export async function completeOnboarding(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
 
@@ -156,6 +159,7 @@ export async function setConsent(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
 
@@ -227,6 +231,7 @@ export async function setConsent(
 export async function exportMyData(): Promise<
   { ok: true; json: string; filename: string } | { ok: false; message: string }
 > {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
     const payload = await exportUserData(actor.id);
@@ -253,6 +258,7 @@ export async function eraseMyData(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
 
@@ -304,6 +310,7 @@ export async function raiseGrievance(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await getActor();
 
@@ -356,6 +363,7 @@ export async function setNominee(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
 

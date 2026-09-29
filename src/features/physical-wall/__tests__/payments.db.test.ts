@@ -11,6 +11,7 @@ const rp = vi.hoisted(() => ({
   refunds: [] as { id: string; payment_id: string; amount: number; notes: { refundId: string } }[],
   failNextRefund: false,
   createRefundCalls: 0,
+  createOrderCalls: 0,
 }));
 
 vi.mock("@/features/physical-wall/razorpay", async (orig) => {
@@ -23,6 +24,11 @@ vi.mock("@/features/physical-wall/razorpay", async (orig) => {
       return p;
     }),
     fetchOrder: vi.fn(async (id: string) => ({ id, amount: 0, currency: "INR", status: "created", amount_paid: 0 })),
+    createOrder: vi.fn(async (bookingId: string, amount: number) => {
+      rp.createOrderCalls += 1;
+      await new Promise((r) => setTimeout(r, 200)); // widen the double-click race window
+      return { id: `betest_order_${bookingId}_${rp.createOrderCalls}`, amount, currency: "INR", status: "created" };
+    }),
     findRefund: vi.fn(async (paymentId: string, refundId: string) =>
       rp.refunds.find((r) => r.payment_id === paymentId && r.notes.refundId === refundId) ?? null
     ),
@@ -40,7 +46,13 @@ vi.mock("@/features/physical-wall/razorpay", async (orig) => {
 });
 
 import { cancelBooking } from "@/features/physical-wall/actions/booking";
-import { markBookingPaid, settleFromWebhook, verifyPayment } from "@/features/physical-wall/actions/payment";
+import {
+  getBookingPaymentStatus,
+  markBookingPaid,
+  settleFromWebhook,
+  startPayment,
+  verifyPayment,
+} from "@/features/physical-wall/actions/payment";
 import { processOpenRefunds, processRefund } from "@/features/physical-wall/refunds";
 
 const sign = (orderId: string, paymentId: string) =>
@@ -59,6 +71,61 @@ afterAll(purgeTestData);
 beforeEach(() => {
   rp.createRefundCalls = 0;
   rp.failNextRefund = false;
+});
+
+describe("starting a payment (FE-2.02 / FE-2.03)", () => {
+  const payForm = (bookingId: string) => {
+    const f = new FormData();
+    f.set("bookingId", bookingId);
+    return f;
+  };
+
+  it("two concurrent Pay clicks create one Razorpay order, and a retry reuses it", async () => {
+    const artist = await makeUser();
+    const booking = await makeBooking(artist.id, await makeSlots(1));
+    actAs(artist);
+    rp.createOrderCalls = 0;
+    const [a, b] = await Promise.all([
+      startPayment({ status: "idle" }, payForm(booking)),
+      startPayment({ status: "idle" }, payForm(booking)),
+    ]);
+    expect(a.status).toBe("ok");
+    expect(b.status).toBe("ok");
+    const orderOf = (s: typeof a) => (s.status === "ok" ? (s.data as { orderId: string }).orderId : null);
+    expect(orderOf(a)).toBe(orderOf(b));
+    const again = await startPayment({ status: "idle" }, payForm(booking));
+    expect(orderOf(again)).toBe(orderOf(a));
+    expect(rp.createOrderCalls).toBe(1);
+    expect(await q(`select 1 from pw_payments where booking_id = $1`, [booking])).toHaveLength(1);
+  });
+
+  it("a booking the webhook already paid reads as paid, not as an error", async () => {
+    const artist = await makeUser();
+    const orderId = tid("order");
+    const booking = await makeBooking(artist.id, await makeSlots(1), { orderId });
+    const paymentId = capture(orderId);
+    expect(await settleFromWebhook({ bookingId: null, eventId: paymentId, paymentId, orderId, amountPaise: 11800 })).toBe(
+      "settled"
+    );
+    actAs(artist);
+    const started = await startPayment({ status: "idle" }, payForm(booking));
+    expect(started).toMatchObject({ status: "ok", data: { status: "paid" } });
+    expect(await getBookingPaymentStatus(booking)).toEqual({ status: "paid" });
+    // Late client verify after the webhook: still reports paid.
+    const verified = await verifyPayment({
+      razorpay_order_id: orderId,
+      razorpay_payment_id: paymentId,
+      razorpay_signature: sign(orderId, paymentId),
+    });
+    expect(verified).toMatchObject({ status: "ok", data: { status: "paid" } });
+  });
+
+  it("another artist cannot read a booking's status", async () => {
+    const artist = await makeUser();
+    const booking = await makeBooking(artist.id, await makeSlots(1));
+    actAs(await makeUser());
+    expect(await getBookingPaymentStatus(booking)).toBeNull();
+  });
 });
 
 describe("payments (BE-1.11 / 1.12 / 1.13)", () => {

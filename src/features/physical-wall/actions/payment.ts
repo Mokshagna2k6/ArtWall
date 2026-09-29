@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { revalidateTag, updateTag } from "next/cache";
 import type { PoolClient } from "pg";
 
@@ -41,6 +43,7 @@ export async function startPayment(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
     const bookingId = String(formData.get("bookingId") ?? "");
@@ -52,48 +55,93 @@ export async function startPayment(
       );
     }
 
-    const sql = getSql();
-    const rows = (await sql`
-      select id, total_amount_paise, status, hold_expires_at
-      from pw_bookings
-      where id = ${bookingId} and artist_id = ${actor.id}
-      limit 1
-    `) as Record<string, unknown>[];
+    // The booking row lock serialises concurrent Pay clicks (two tabs, a
+    // double-click that beat the disabled button): the second waits, then
+    // finds the first one's order and reuses it instead of opening another.
+    const result = await inTransaction(async (client) => {
+      const { rows } = await client.query<{
+        total_amount_paise: number;
+        status: string;
+        hold_expires_at: Date | null;
+      }>(
+        `select total_amount_paise, status, hold_expires_at
+         from pw_bookings where id = $1 and artist_id = $2 for update`,
+        [bookingId, actor.id]
+      );
+      const booking = rows[0];
+      if (!booking) return fail("We couldn't find that booking.");
+      // Paid already (the webhook got there first, or another tab paid):
+      // say so rather than "not waiting for payment", so the UI shows paid.
+      if (booking.status === "paid" || booking.status === "completed") {
+        return ok("This booking is already paid.", { bookingId, status: "paid" });
+      }
+      if (booking.status !== "held") {
+        return fail("That booking is not waiting for payment.");
+      }
+      if (booking.hold_expires_at && new Date(booking.hold_expires_at) < new Date()) {
+        return fail("The hold on those slots has expired. Please choose again.");
+      }
 
-    const booking = rows[0];
-    if (!booking) return fail("We couldn't find that booking.");
-    if (booking.status !== "held") {
-      return fail("That booking is not waiting for payment.");
-    }
-    if (
-      booking.hold_expires_at &&
-      new Date(String(booking.hold_expires_at)) < new Date()
-    ) {
-      return fail("The hold on those slots has expired. Please choose again.");
-    }
+      const amountPaise = Number(booking.total_amount_paise);
+      const open = await client.query<{ order_id: string }>(
+        `select order_id from pw_payments
+         where booking_id = $1 and provider = 'razorpay' and status = 'created'
+           and amount_paise = $2 and order_id is not null
+         order by created_at desc limit 1`,
+        [bookingId, amountPaise]
+      );
+      let orderId = open.rows[0]?.order_id;
+      if (orderId) {
+        // Captured but not settled yet (webhook in flight): paying again
+        // would be refused by Razorpay anyway, so tell the UI to wait.
+        const existing = await fetchOrder(orderId);
+        if (existing.status === "paid" || existing.amount_paid > 0) {
+          return ok("Payment received. Your booking will be confirmed in a moment.", {
+            bookingId,
+            status: "pending",
+          });
+        }
+      } else {
+        const order = await createOrder(bookingId, amountPaise);
+        orderId = order.id;
+        await client.query(
+          `insert into pw_payments (id, booking_id, provider, order_id, amount_paise, status)
+           values ($1, $2, 'razorpay', $3, $4, 'created')`,
+          [newId("pay"), bookingId, orderId, amountPaise]
+        );
+      }
 
-    const order = await createOrder(
-      bookingId,
-      Number(booking.total_amount_paise)
-    );
-
-    await sql`
-      insert into pw_payments (id, booking_id, provider, order_id, amount_paise, status)
-      values (${newId("pay")}, ${bookingId}, 'razorpay', ${order.id},
-              ${Number(booking.total_amount_paise)}, 'created')
-    `;
-
-    return ok("Order created.", {
-      orderId: order.id,
-      amount: order.amount,
-      // The key id is public by design (Checkout needs it); the secret never leaves the server.
-      keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? process.env.RAZORPAY_KEY_ID ?? "",
-      currency: order.currency,
-      bookingId,
+      return ok("Order created.", {
+        orderId,
+        amount: amountPaise,
+        // The key id is public by design (Checkout needs it); the secret never leaves the server.
+        keyId: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? process.env.RAZORPAY_KEY_ID ?? "",
+        currency: "INR",
+        bookingId,
+        status: "held",
+      });
     });
+    return result;
   } catch (error) {
     return toActionError("startPayment", error);
   }
+}
+
+/**
+ * The artist's own booking status, for the Pay button to poll while a
+ * payment is settling (webhook vs client-verify race, FE-2.03). Only `status`
+ * is returned, and only for the caller's booking.
+ */
+export async function getBookingPaymentStatus(
+  bookingId: string
+): Promise<{ status: string } | null> {
+  assertPhysicalWallEnabled();
+  const actor = await requireRole("artist");
+  const rows = (await getSql()`
+    select status from pw_bookings
+    where id = ${String(bookingId)} and artist_id = ${actor.id} limit 1
+  `) as { status: string }[];
+  return rows[0] ?? null;
 }
 
 type SettleResult =
@@ -319,6 +367,7 @@ export async function markBookingPaid(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
     const bookingId = String(formData.get("bookingId") ?? "");
@@ -383,6 +432,7 @@ export async function verifyPayment(input: {
   razorpay_payment_id: string;
   razorpay_signature: string;
 }): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
     const orderId = String(input?.razorpay_order_id ?? "");

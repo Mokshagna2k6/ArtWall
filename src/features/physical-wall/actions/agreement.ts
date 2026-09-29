@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 import { createHash } from "node:crypto";
 
@@ -102,6 +104,7 @@ async function factsFor(
 export async function previewAgreement(
   bookingId: string
 ): Promise<{ ok: true; facts: AgreementFacts } | { ok: false; message: string }> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
     const facts = await factsFor(bookingId, actor.id);
@@ -117,6 +120,7 @@ export async function signAgreement(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
 

@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 
 import { recordAudit } from "@/features/physical-wall/audit";
@@ -39,6 +41,7 @@ export async function addLedgerEntry(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("admin");
 
@@ -103,6 +106,7 @@ export async function addLedgerEntry(
 export async function exportLedgerCsv(
   month: string
 ): Promise<{ ok: true; csv: string; filename: string } | { ok: false; message: string }> {
+  assertPhysicalWallEnabled();
   try {
     await requireRole("admin");
 
@@ -140,5 +144,6 @@ export async function exportLedgerCsv(
 
 /** The category lists, so the form and the validator cannot drift apart. */
 export async function getLedgerCategories(): Promise<typeof CATEGORIES> {
+  assertPhysicalWallEnabled();
   return CATEGORIES;
 }

@@ -1,10 +1,17 @@
 import { NextResponse } from "next/server";
 
+import { physicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { searchArtworks } from "@/features/physical-wall/actions/search";
 
 export const dynamic = "force-dynamic";
 
+const disabled = () =>
+  physicalWallEnabled() ? null : NextResponse.json({ error: "Not found" }, { status: 404 });
+
 export async function GET(request: Request) {
+  const off = disabled();
+  if (off) return off;
   const url = new URL(request.url);
   const q = url.searchParams.get("q") ?? "";
 

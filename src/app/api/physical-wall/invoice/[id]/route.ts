@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
 
+import { physicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { getInvoice } from "@/features/physical-wall/actions/invoice";
 import { formatINR } from "@/features/physical-wall/money";
 
 export const dynamic = "force-dynamic";
+
+const disabled = () =>
+  physicalWallEnabled() ? null : NextResponse.json({ error: "Not found" }, { status: 404 });
 
 /** Every interpolated value is user- or admin-supplied text: escape it. */
 function esc(value: unknown): string {
@@ -14,6 +19,8 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const off = disabled();
+  if (off) return off;
   const { id } = await params;
   // getInvoice returns null unless the caller is the invoiced artist or staff.
   const invoice = await getInvoice(id);

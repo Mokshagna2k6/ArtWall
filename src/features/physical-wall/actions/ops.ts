@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 
 import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
@@ -48,6 +50,7 @@ export async function chooseInstallWindow(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
 
@@ -158,6 +161,7 @@ export async function receiveArtwork(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("staff");
     const bookingId = String(formData.get("bookingId") ?? "");
@@ -247,6 +251,7 @@ export async function updateChecklist(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("staff");
 
@@ -320,6 +325,7 @@ export async function verifyAndGoLive(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("staff");
 
@@ -479,6 +485,7 @@ export async function issueBookingToken(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
     const bookingId = String(formData.get("bookingId") ?? "");

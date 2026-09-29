@@ -1,5 +1,7 @@
 "use server";
 
+import { assertPhysicalWallEnabled } from "@/features/physical-wall/feature-gate";
+
 import { updateTag } from "next/cache";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -59,6 +61,7 @@ export async function quoteBooking(input: unknown): Promise<
   | { ok: true; quote: Quote; endDate: string }
   | { ok: false; message: string }
 > {
+  assertPhysicalWallEnabled();
   const parsed = quoteRequestSchema.safeParse(input);
   if (!parsed.success) return { ok: false, message: firstIssue(parsed.error) };
 
@@ -148,6 +151,7 @@ export async function reserveBooking(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
 
@@ -361,6 +365,7 @@ export async function attachArtwork(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
     const bookingId = String(formData.get("bookingId") ?? "");
@@ -424,6 +429,7 @@ export async function cancelBooking(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  assertPhysicalWallEnabled();
   try {
     const actor = await requireRole("artist");
 
