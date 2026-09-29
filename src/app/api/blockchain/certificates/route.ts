@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { siteConfig } from "@/config/site";
 import { db } from "@/lib/db/index";
+import { expireCatalog } from "@/lib/catalog-cache";
 import { coaCertificates, artworks } from "@/lib/db/schema";
 import { pinata, type NftMetadata } from "@/lib/blockchain/pinata";
 import { getApiUser } from "@/lib/blockchain/auth";
@@ -79,6 +80,7 @@ export async function POST(req: NextRequest) {
       objectType: input.objectType,
       privacy: input.privacy,
     });
+    expireCatalog();
 
     return NextResponse.json({ id: certId, metadataUri: `ipfs://${pinned.cid}` });
   } catch (err) {

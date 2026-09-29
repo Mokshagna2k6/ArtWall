@@ -8,6 +8,11 @@ import {
   categoryLabel,
 } from "@/features/marketplace/categories";
 import { formatINR } from "@/features/physical-wall/money";
+import { cachedCatalog } from "@/lib/catalog-cache";
+
+// Catalogue cache (PERF-2.06), keyed by the filters + cursor. Shorter window:
+// the key space is open-ended (free-text q), so entries should age out.
+const loadPage = cachedCatalog(discoverArtworks, "discover", 300);
 
 export const metadata: Metadata = {
   title: "Discover Art",
@@ -30,7 +35,7 @@ export default async function DiscoverPage({
 }) {
   const params = await searchParams;
   const category = ARTWORK_CATEGORIES.find((c) => c === params.category);
-  const { items, nextCursor } = await discoverArtworks({
+  const { items, nextCursor } = await loadPage({
     q: params.q,
     medium: params.medium,
     category,

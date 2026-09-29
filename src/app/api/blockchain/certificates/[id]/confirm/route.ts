@@ -3,6 +3,7 @@ import type { Hex } from "viem";
 import { eq, and } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
+import { expireCatalog } from "@/lib/catalog-cache";
 import { coaCertificates } from "@/lib/db/schema";
 import { getApiUser } from "@/lib/blockchain/auth";
 import { apiError, handleRouteError, requestId } from "@/lib/blockchain/http";
@@ -48,6 +49,7 @@ export async function POST(
         .update(coaCertificates)
         .set({ status: "failed", mintError: verdict.reason })
         .where(eq(coaCertificates.id, id));
+      expireCatalog();
       return NextResponse.json({ status: "failed", error: verdict.reason });
     }
 
@@ -62,6 +64,7 @@ export async function POST(
         mintError: null,
       })
       .where(eq(coaCertificates.id, id));
+    expireCatalog();
 
     return NextResponse.json({ status: "minted", tokenId: verdict.tokenId });
   } catch (err) {
