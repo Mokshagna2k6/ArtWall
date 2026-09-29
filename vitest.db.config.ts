@@ -23,7 +23,12 @@ export default defineConfig({
     globals: true,
     include: ["src/**/*.db.test.ts"],
     exclude: worktreeExcludes,
-    env: dotenv(),
+    // TEST_DATABASE_URL points the suite at a throwaway Postgres (CI service
+    // container, local docker) instead of the shared dev database in .env.
+    env: {
+      ...dotenv(),
+      ...(process.env.TEST_DATABASE_URL ? { DATABASE_URL: process.env.TEST_DATABASE_URL } : {}),
+    },
     setupFiles: ["src/test/db-setup.ts"],
     fileParallelism: false,
     testTimeout: 60_000,

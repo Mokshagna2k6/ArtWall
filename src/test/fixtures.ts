@@ -126,7 +126,12 @@ export async function purgeTestData() {
   const client = await pool.connect();
   try {
     await client.query("begin");
-    await client.query(`delete from pw_audit_log where subject_id like $1 or actor_id like $1`, [like]);
+    // A database with the append-only audit trigger refuses this delete; the
+    // savepoint keeps the rest of the purge going (audit rows are kept by design).
+    await client.query("savepoint audit");
+    await client
+      .query(`delete from pw_audit_log where subject_id like $1 or actor_id like $1`, [like])
+      .catch(() => client.query("rollback to savepoint audit"));
     await client.query(`delete from pw_notifications where user_id like $1 or recipient like '%@example.test'`, [like]);
     const ugc = `select id from pw_ugc_submissions where user_id like $1 or caption like 'betest%'`;
     await client.query(`delete from pw_community_gallery where submission_id in (${ugc})`, [like]);
@@ -136,17 +141,20 @@ export async function purgeTestData() {
       [like]
     );
     await client.query(`delete from pw_ugc_submissions where id in (${ugc})`, [like]);
-    await client.query(`delete from pw_invoices where booking_id like $1`, [like]);
-    await client.query(`delete from pw_ledger where booking_id like $1 or source_ref like '%' || $1`, [like]);
-    await client.query(`delete from pw_refunds where booking_id like $1`, [like]);
+    // Bookings made through app code get bk_ ids; they belong to betest_ artists.
+    const bks = `select id from pw_bookings where id like $1 or artist_id like $1`;
+    await client.query(`delete from pw_invoices where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_ledger where booking_id in (${bks}) or source_ref like '%' || $1`, [like]);
+    await client.query(`delete from pw_refunds where booking_id in (${bks})`, [like]);
     await client.query(`delete from pw_asset_deletions where public_id like '%betest%'`);
-    await client.query(`delete from pw_payments where booking_id like $1`, [like]);
-    await client.query(`delete from pw_condition_photos where booking_id like $1`, [like]);
-    await client.query(`delete from pw_damage_records where booking_id like $1`, [like]);
-    await client.query(`delete from pw_install_windows where booking_id like $1`, [like]);
-    await client.query(`delete from pw_booking_slots where booking_id like $1`, [like]);
-    await client.query(`delete from pw_agreements where booking_id like $1`, [like]);
-    await client.query(`delete from pw_bookings where id like $1`, [like]);
+    await client.query(`delete from pw_payments where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_condition_photos where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_damage_records where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_install_windows where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_booking_addons where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_booking_slots where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_agreements where booking_id in (${bks})`, [like]);
+    await client.query(`delete from pw_bookings where id in (${bks})`, [like]);
     await client.query(`delete from pw_slots where id like $1`, [like]);
     await client.query(`delete from pw_grid_config where id like $1`, [like]);
     await client.query(`delete from pw_identity_verifications where user_id like $1`, [like]);
@@ -161,7 +169,11 @@ export async function purgeTestData() {
     await client.query(`delete from artist_profiles where "userId" like $1`, [like]);
     await client.query(`delete from session where "userId" like $1`, [like]);
     await client.query(`delete from account where "userId" like $1`, [like]);
-    await client.query(`delete from "user" where id like $1`, [like]);
+    // Where audit rows could not be deleted, their actor stays too.
+    await client.query(
+      `delete from "user" u where id like $1 and not exists (select 1 from pw_audit_log a where a.actor_id = u.id)`,
+      [like]
+    );
     await client.query("commit");
   } catch (error) {
     await client.query("rollback");

@@ -94,9 +94,9 @@ describe("install scheduling capacity under concurrency (BE-2.10)", () => {
     await q(`update pw_settings set install_capacity = $1`, [capBefore]);
   });
 
-  async function signedPaid(slot: string) {
+  async function signedPaid(slot: string, start = "2032-01-01") {
     const artist = await makeUser();
-    const bk = await makeBooking(artist.id, [slot], { status: "paid", start: "2032-01-01" });
+    const bk = await makeBooking(artist.id, [slot], { status: "paid", start });
     await q(
       `insert into pw_agreements (id, booking_id, artist_id, terms_version, terms_hash, body, total_amount_paise, signed_name)
        values ($1, $2, $3, 'v1', 'h', 'b', 11800, 'T')`,
@@ -130,7 +130,8 @@ describe("install scheduling capacity under concurrency (BE-2.10)", () => {
     const at = `2033-0${1 + Math.floor(Math.random() * 9)}-1${Math.floor(Math.random() * 9)}T1${Math.floor(Math.random() * 9)}:00:00.000Z`;
     const [slot] = await makeSlots(1);
     const people = [];
-    for (let i = 0; i < 4; i++) people.push(await signedPaid(slot));
+    // Consecutive (non-overlapping) bookings of one slot, all installing at the same hour.
+    for (let i = 0; i < 4; i++) people.push(await signedPaid(slot, `203${5 + i}-01-01`));
     const results = await Promise.all(people.map((p) => choose(p, at)));
     expect(results.filter((r) => r.status === "ok")).toHaveLength(1);
     expect(
@@ -148,7 +149,9 @@ describe("install scheduling capacity under concurrency (BE-2.10)", () => {
       await holder.query("begin");
       await holder.query(`select pg_advisory_xact_lock(hashtext('pw_install_windows'))`);
       let done = false;
-      const pending = choose(p, "2034-02-02T02:00:00.000Z").then((r) => ((done = true), r));
+      // A random hour, so rows a crashed earlier run left behind can't fill it.
+      const at = new Date(Date.UTC(2034, 0, 1) + Math.floor(Math.random() * 300 * 24) * 3_600_000).toISOString();
+      const pending = choose(p, at).then((r) => ((done = true), r));
       await new Promise((r) => setTimeout(r, 1500));
       expect(done).toBe(false);
       await holder.query("commit");
