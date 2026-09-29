@@ -33,10 +33,13 @@ export async function closeDb() {
 }
 
 /**
- * Remove everything an e2e user created and hand their slots back to the
- * wall, so the shared test database is left as it was found.
+ * Hand an e2e user's slots back to the wall. Their rows stay: pw_audit_log and
+ * pw_ledger are append-only (DB triggers) and RESTRICT-reference the user and
+ * booking, so a hard delete is refused by design. Cancelling the bookings
+ * releases the occupancy (pw_bookings_sync_occupancy) and the slot state, so
+ * the next run finds the wall as it was. E2E users are e2e_*@artwall.test.
  */
-export async function purgeE2eUser(email: string) {
+export async function releaseE2eUser(email: string) {
   const [user] = await q<{ id: string }>(`select id from "user" where email = $1`, [email]);
   if (!user) return;
   const bookings = `select id from pw_bookings where artist_id = $1`;
@@ -46,23 +49,11 @@ export async function purgeE2eUser(email: string) {
        and state in ('reserved', 'booked')`,
     [user.id]
   );
-  for (const table of [
-    "pw_invoices",
-    "pw_ledger",
-    "pw_refunds",
-    "pw_payments",
-    "pw_install_windows",
-    "pw_booking_slots",
-    "pw_agreements",
-  ]) {
-    await q(`delete from ${table} where booking_id in (${bookings})`, [user.id]);
-  }
-  await q(`delete from pw_audit_log where actor_id = $1 or subject_id in (${bookings})`, [user.id]);
-  await q(`delete from pw_bookings where artist_id = $1`, [user.id]);
-  await q(`delete from pw_notifications where user_id = $1`, [user.id]);
-  await q(`delete from pw_consents where user_id = $1`, [user.id]);
-  await q(`delete from artist_profiles where "userId" = $1`, [user.id]);
+  await q(
+    `update pw_bookings set status = 'cancelled', cancelled_reason = 'e2e teardown',
+       hold_expires_at = null, updated_at = now()
+     where artist_id = $1 and status not in ('cancelled', 'refunded', 'expired')`,
+    [user.id]
+  );
   await q(`delete from session where "userId" = $1`, [user.id]);
-  await q(`delete from account where "userId" = $1`, [user.id]);
-  await q(`delete from "user" where id = $1`, [user.id]);
 }

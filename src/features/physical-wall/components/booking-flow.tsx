@@ -439,7 +439,7 @@ export function BookingFlow({
               </button>
             ) : (
               <div className="flex flex-col items-end gap-2">
-                <SubmitButton>
+                <SubmitButton disabled={!canContinue}>
                   Sign and hold{" "}
                   {shownQuote ? `· ${formatINR(shownQuote.totalPaise)}` : ""}
                 </SubmitButton>

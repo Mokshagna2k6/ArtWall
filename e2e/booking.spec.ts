@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { closeDb, purgeE2eUser, q } from "./db";
+import { closeDb, releaseE2eUser, q } from "./db";
 
 /**
  * FE-2.04: the whole booking journey against the real app and real Razorpay
@@ -15,7 +15,7 @@ const email = `e2e_${randomBytes(5).toString("hex")}@artwall.test`;
 const password = `e2e-${randomBytes(9).toString("base64url")}`;
 
 test.afterAll(async () => {
-  await purgeE2eUser(email);
+  await releaseE2eUser(email);
   await closeDb();
 });
 
@@ -51,9 +51,10 @@ test("book a slot, agree, pay in Razorpay test mode, see it paid", async ({ page
   await next.click(); // → artwork
   await next.click(); // → add-ons
   await next.click(); // → agreement
-  await expect(next).toBeDisabled();
+  const sign = page.getByRole("button", { name: /Sign and hold/ });
+  await expect(sign).toBeDisabled();
   await page.getByLabel(/I have read the agreement/).check();
-  await page.getByRole("button", { name: /Sign and hold/ }).click();
+  await sign.click();
   await expect(page.getByText(/I.m exhibiting on The Wall/)).toBeVisible();
 
   await page.getByRole("link", { name: /Pay and pick an install slot/ }).click();
@@ -72,10 +73,10 @@ test("book a slot, agree, pay in Razorpay test mode, see it paid", async ({ page
   await expect(pay).toBeDisabled();
 
   const checkout = page.frameLocator("iframe.razorpay-checkout-frame");
-  await payWithTestCard(page, checkout);
+  await payInTestMode(page, checkout);
 
-  // Paid only once the server says so; the card re-renders from the server.
-  await expect(page.getByTestId("pay-status").or(page.getByText("paid", { exact: true })).first()).toBeVisible();
+  // Paid only once the server says so; the card's status pill re-renders from
+  // the server after verifyPayment (no webhook needed, so no tunnel).
   await expect(page.getByText("paid", { exact: true })).toBeVisible({ timeout: 90_000 });
 
   const orders = await q<{ order_id: string }>(
@@ -87,10 +88,22 @@ test("book a slot, agree, pay in Razorpay test mode, see it paid", async ({ page
   expect(row.status).toBe("paid");
 });
 
-async function payWithTestCard(page: Page, checkout: ReturnType<Page["frameLocator"]>) {
-  await page.screenshot({ path: ".scratch/e2e-checkout-0.png" });
+/**
+ * Razorpay TEST-mode Checkout via netbanking: the mock bank page (a popup)
+ * has Success / Failure buttons, which is the most deterministic test path.
+ */
+async function payInTestMode(page: Page, checkout: ReturnType<Page["frameLocator"]>) {
   await checkout.locator("body").waitFor();
-  await page.waitForTimeout(4000);
-  await page.screenshot({ path: ".scratch/e2e-checkout-1.png" });
-  throw new Error("explore");
+  // Checkout asks for a phone number first when none is prefilled.
+  const contact = checkout.locator('input[name="contact"]');
+  if (await contact.isVisible({ timeout: 10_000 }).catch(() => false)) {
+    await contact.fill("9999999999");
+    await checkout.getByRole("button", { name: /continue|proceed/i }).first().click();
+  }
+  await checkout.getByText(/netbanking/i).first().click();
+  await checkout.getByText(/SBI|State Bank/i).first().click();
+  const popup = page.waitForEvent("popup");
+  await checkout.getByRole("button", { name: /^pay/i }).first().click();
+  const bank = await popup;
+  await bank.getByRole("button", { name: /success/i }).click();
 }
