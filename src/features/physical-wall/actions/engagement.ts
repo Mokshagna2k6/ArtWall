@@ -8,7 +8,7 @@ import { headers } from "next/headers";
 
 import { requireRole } from "@/features/physical-wall/authorize";
 import { getActor } from "@/features/physical-wall/authorize";
-import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
+import { recordAudit } from "@/features/physical-wall/audit";
 import { feedbackSchema, reactionSchema } from "@/features/physical-wall/schema";
 import {
   type ActionState,

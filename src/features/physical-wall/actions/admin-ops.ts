@@ -1,6 +1,5 @@
 "use server";
 
-import { updateTag } from "next/cache";
 import { z } from "zod";
 
 import { recordAudit } from "@/features/physical-wall/audit";
