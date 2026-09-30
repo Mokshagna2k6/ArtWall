@@ -1,7 +1,5 @@
-import { DoorOpen } from "lucide-react";
 import { getRooms } from "@/app/actions/workspaces";
 import {
-  StudioButton,
   StudioEmptyState,
   StudioPageHeader,
 } from "@/components/dashboard/studio-shell";
@@ -21,12 +19,6 @@ export default async function RoomsPage() {
           <StudioEmptyState
             title="No private rooms"
             description="Private rooms will let you assemble selected works and share them with a collector or curator."
-            action={
-              <StudioButton>
-                <DoorOpen data-icon="inline-start" />
-                Create first room
-              </StudioButton>
-            }
           />
         </div>
       ) : (

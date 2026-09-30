@@ -1,9 +1,18 @@
 "use server";
 
 import { updateTag } from "next/cache";
+import { expireCatalog } from "@/lib/catalog-cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 
-import { recordAudit } from "@/features/physical-wall/audit";
+import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
+import {
+  eraseUserIn,
+  exportUserData,
+  logDataRightsRequest,
+  processAssetDeletions,
+} from "@/features/physical-wall/data-rights";
+import { pool } from "@/lib/db/index";
 import { getActor, requireRole } from "@/features/physical-wall/authorize";
 import {
   GRIEVANCE_RESPONSE_DAYS,
@@ -13,14 +22,17 @@ import {
 } from "@/features/physical-wall/consent";
 import { mintQrToken } from "@/features/physical-wall/qr";
 import {
+  type ActionState,
   fail,
   firstIssue,
+  formInput,
+  inTransaction,
   newId,
   ok,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
+import { notify } from "@/features/physical-wall/notifications";
 import { getSql } from "@/lib/db";
 
 /**
@@ -155,13 +167,13 @@ export async function setConsent(
   try {
     const actor = await requireRole("artist");
 
-    const purpose = String(formData.get("purpose") ?? "");
-    const next = String(formData.get("next") ?? "");
-
-    if (!PURPOSE_IDS.includes(purpose as ConsentPurpose)) {
-      return fail("Unknown purpose.");
-    }
-    if (next !== "grant" && next !== "withdraw") return fail("Unknown action.");
+    const { purpose, next } = formInput(
+      z.object({
+        purpose: z.enum(PURPOSE_IDS, { error: "Unknown purpose." }),
+        next: z.enum(["grant", "withdraw"], { error: "Unknown action." }),
+      }),
+      formData
+    );
     if (purpose === "account" && next === "withdraw") {
       return fail(
         "Withdrawing account consent closes the account — use 'Delete my data' below, which explains what happens to your bookings."
@@ -202,6 +214,8 @@ export async function setConsent(
     });
 
     updateTag(WALL_TAG);
+    // Withdrawing profile_publication unpublishes the artist from the catalogue.
+    if (next === "withdraw" && purpose === "profile_publication") expireCatalog();
     return ok(
       next === "withdraw"
         ? "Withdrawn. We've stopped processing for that purpose."
@@ -225,44 +239,17 @@ export async function exportMyData(): Promise<
 > {
   try {
     const actor = await requireRole("artist");
-    const sql = getSql();
-
-    const [account, profile, consents, bookings, agreements, feedback, grievances] =
-      await Promise.all([
-        sql`select id, name, email, role, "foundingMember", "verifiedAt",
-                   "ageDeclaredAdult", "onboardedAt", "nomineeName", "nomineeContact",
-                   "createdAt"
-            from "user" where id = ${actor.id}`,
-        sql`select handle, "displayName", discipline, location, bio, website,
-                   instagram, published, "createdAt"
-            from artist_profiles where "userId" = ${actor.id}`,
-        sql`select purpose, granted, notice_version, granted_at, withdrawn_at
-            from pw_consents where user_id = ${actor.id} order by granted_at`,
-        sql`select id, status, start_date::text as start_date, end_date::text as end_date,
-                   duration_days, total_amount_paise, refund_policy_version, created_at
-            from pw_bookings where artist_id = ${actor.id} order by created_at`,
-        sql`select id, booking_id, terms_version, terms_hash, total_amount_paise,
-                   signed_name, signed_at
-            from pw_agreements where artist_id = ${actor.id} order by signed_at`,
-        sql`select booking_id, rating, nps, note, created_at
-            from pw_feedback where artist_id = ${actor.id}`,
-        sql`select id, subject, status, created_at, responded_at
-            from pw_grievances where user_id = ${actor.id}`,
-      ]);
-
-    const payload = {
-      exportedAt: new Date().toISOString(),
-      notice:
-        "Everything ArtWall holds that identifies you. Amounts are in paise. " +
-        "Aggregate signals such as scan and reaction counts are not listed because they are not linked to you.",
-      account,
-      artistProfile: profile,
-      consents,
-      physicalWallBookings: bookings,
-      agreements,
-      feedback,
-      grievances,
-    };
+    await logDataRightsRequest(pool, actor.id, "export", "requested");
+    let payload: Awaited<ReturnType<typeof exportUserData>>;
+    try {
+      payload = await exportUserData(actor.id);
+    } catch (error) {
+      await logDataRightsRequest(pool, actor.id, "export", "failed").catch(() => {});
+      throw error;
+    }
+    await logDataRightsRequest(pool, actor.id, "export", "completed", {
+      categories: Object.keys(payload).filter((k) => Array.isArray(payload[k as keyof typeof payload])),
+    });
 
     return {
       ok: true,
@@ -276,87 +263,61 @@ export async function exportMyData(): Promise<
 }
 
 /**
- * Erasure (§5.3).
+ * Erasure (§5.3). What is deleted, what is kept and why: data-rights.ts.
  *
- * "Erase or irreversibly anonymise, **except records law requires we keep**" —
- * so this anonymises rather than deletes, and says so before it runs. Bookings,
- * payments and signed agreements are contract and tax records; destroying them
- * would breach a different obligation than the one being honoured.
- *
- * What actually goes: the name, the email, the profile, the consent contact
- * trail. What stays is a booking row whose artist is a tombstone.
+ * One transaction for every DB change (BE-1.28), including sign-in sessions
+ * and OAuth links (BE-1.29/1.30). Cloudinary files are deleted after commit
+ * from a durable queue that the data-retention cron retries (BE-1.31/1.32).
  */
 export async function eraseMyData(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
+  let pending: string | null = null; // user id once "requested" is logged, until "completed" commits
   try {
     const actor = await requireRole("artist");
 
-    if (String(formData.get("confirm") ?? "") !== "DELETE") {
-      return fail("Type DELETE to confirm.");
-    }
+    formInput(z.object({ confirm: z.literal("DELETE", { error: "Type DELETE to confirm." }) }), formData);
 
-    const sql = getSql();
-    const tombstone = `deleted-${newId("u")}@removed.artwalllabs.com`;
-
-    // Live holds are released first: an anonymised account cannot be chased for
-    // payment, and leaving slots held by a ghost blocks the wall.
-    await sql`
-      update pw_bookings set status = 'cancelled', hold_expires_at = null
-      where artist_id = ${actor.id} and status = 'held'
-    `;
-    await sql`
-      update pw_slots set state = 'available', version = version + 1
-      where state = 'reserved' and id in (
-        select bs.slot_id from pw_booking_slots bs
-        join pw_bookings b on b.id = bs.booking_id
-        where b.artist_id = ${actor.id} and b.status = 'cancelled'
-      )
-    `;
-
-    await sql`delete from artist_profiles where "userId" = ${actor.id}`;
-    await sql`update pw_qr_tokens set revoked_at = now()
-              where subject_type = 'artist' and subject_id = ${actor.id}`;
-    await sql`update pw_consents set withdrawn_at = now()
-              where user_id = ${actor.id} and withdrawn_at is null`;
-    await sql`update pw_feedback set note = null where artist_id = ${actor.id}`;
-
-    await sql`
-      update "user"
-      set name = 'Deleted account',
-          email = ${tombstone},
-          image = null,
-          "nomineeName" = null,
-          "nomineeContact" = null,
-          role = 'visitor'
-      where id = ${actor.id}
-    `;
-
-    await recordAudit({
-      actor: null,
-      action: "account.erased",
-      subjectType: "user",
-      subjectId: actor.id,
-      after: {
-        method: "anonymised",
-        retained: "bookings, payments and signed agreements (tax and contract law)",
-      },
+    // Requested is logged on its own, before the erasure: a failed erasure
+    // still leaves a record that it was asked for (BE-2.22).
+    await logDataRightsRequest(pool, actor.id, "erasure", "requested");
+    pending = actor.id;
+    await inTransaction(async (client) => {
+      const { assetsQueued } = await eraseUserIn(client, actor.id);
+      await logDataRightsRequest(client, actor.id, "erasure", "completed", { assetsQueued });
+      await recordAuditIn(client, {
+        actor: null,
+        action: "account.erased",
+        subjectType: "user",
+        subjectId: actor.id,
+        after: {
+          method: "deleted + pseudonymised",
+          assetsQueued,
+          retained: "bookings, payments, refunds, invoices, ledger (tax law); agreements (contract law); withdrawn consents, grievances, audit log (accountability), all pseudonymised",
+        },
+      });
     });
+    pending = null;
+
+    await processAssetDeletions();
 
     updateTag(WALL_TAG);
-    return ok(
-      "Done. Your name, email and profile are gone. Bookings, payments and signed agreements are kept in anonymised form because tax and contract law require it. Sign out to finish."
-    );
+    expireCatalog(); // their artworks, profile and certificates are gone
   } catch (error) {
+    if (pending) await logDataRightsRequest(pool, pending, "erasure", "failed").catch(() => {});
     return toActionError("eraseMyData", error);
   }
+  // The sessions are gone, so re-rendering the account page would bounce to
+  // sign-in and the result would never be seen. Land on the confirmation instead.
+  // Outside the try: redirect() works by throwing.
+  redirect("/physical-wall/account/erased");
 }
 
 const grievanceSchema = z.object({
-  subject: z.string().trim().min(3, "Give it a short subject.").max(140),
-  body: z.string().trim().min(10, "Tell us what happened.").max(4000),
-  contact: z.string().trim().min(3, "How should we reply?").max(140),
+  subject: z.string({ error: "Give it a short subject." }).trim().min(3, "Give it a short subject.").max(140),
+  body: z.string({ error: "Tell us what happened." }).trim().min(10, "Tell us what happened.").max(4000),
+  contact: z.string({ error: "How should we reply?" }).trim().min(3, "How should we reply?").max(140),
 });
 
 /**
@@ -390,6 +351,11 @@ export async function raiseGrievance(
               now() + (${String(GRIEVANCE_RESPONSE_DAYS)} || ' days')::interval)
     `;
 
+    const ack = { subject: parsed.data.subject, dueDays: GRIEVANCE_RESPONSE_DAYS };
+    if (!(await notify("grievance.received", { userId: actor?.id, email: parsed.data.contact }, ack)) && actor) {
+      await notify("grievance.received", { userId: actor.id, email: actor.email }, ack);
+    }
+
     await recordAudit({
       actor,
       action: "grievance.raised",
@@ -420,11 +386,15 @@ export async function setNominee(
   try {
     const actor = await requireRole("artist");
 
-    const name = String(formData.get("nomineeName") ?? "").trim();
-    const contact = String(formData.get("nomineeContact") ?? "").trim();
-
-    if (name && !contact) return fail("Add a way to reach your nominee.");
-    if (name.length > 120 || contact.length > 160) return fail("That's too long.");
+    const { nomineeName: name, nomineeContact: contact } = formInput(
+      z
+        .object({
+          nomineeName: z.string().trim().max(120, "That's too long.").default(""),
+          nomineeContact: z.string().trim().max(160, "That's too long.").default(""),
+        })
+        .refine((n) => !n.nomineeName || n.nomineeContact, { message: "Add a way to reach your nominee." }),
+      formData
+    );
 
     const sql = getSql();
     await sql`

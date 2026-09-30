@@ -38,10 +38,10 @@ export default async function AuditLogPage({
   const where = filter ? { action: `${filter}%` } : null;
 
   const entries = (await sql`
-    select id, actor_label, action, subject_type, subject_id, before, after, created_at
+    select id, actor_label, action, subject_type, subject_id, before, after, at as created_at
     from pw_audit_log
     ${where ? sql`where action like ${where.action}` : sql``}
-    order by created_at desc
+    order by at desc
     limit ${PAGE_SIZE + 1} offset ${offset}
   `) as {
     id: string;
@@ -49,8 +49,9 @@ export default async function AuditLogPage({
     action: string;
     subject_type: string;
     subject_id: string | null;
-    before: string | null;
-    after: string | null;
+    // jsonb: pg hands these back parsed, so they are objects, not strings.
+    before: unknown;
+    after: unknown;
     created_at: Date;
   }[];
 
@@ -113,16 +114,16 @@ export default async function AuditLogPage({
                       {entry.subject_id ? ` · ${entry.subject_id}` : ""}
                     </dd>
                   </div>
-                  {entry.before && (
+                  {entry.before != null && (
                     <div>
                       <dt className="inline font-medium">Before: </dt>
-                      <dd className="inline break-all font-mono">{entry.before}</dd>
+                      <dd className="inline break-all font-mono">{JSON.stringify(entry.before)}</dd>
                     </div>
                   )}
-                  {entry.after && (
+                  {entry.after != null && (
                     <div>
                       <dt className="inline font-medium">After: </dt>
-                      <dd className="inline break-all font-mono">{entry.after}</dd>
+                      <dd className="inline break-all font-mono">{JSON.stringify(entry.after)}</dd>
                     </div>
                   )}
                 </dl>

@@ -17,7 +17,7 @@ export default async function ProvenancePage() {
         <div className="studio-card">
           <StudioEmptyState
             title="No provenance records yet"
-            description="Issue a certificate or add a provenance event to start building your artwork's history."
+            description="Issuing a certificate records the first event in a work's history."
           />
         </div>
       ) : (

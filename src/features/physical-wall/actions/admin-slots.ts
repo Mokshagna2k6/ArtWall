@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -7,7 +9,7 @@ import { requireRole } from "@/features/physical-wall/authorize";
 import { getRefundPolicyVersion } from "@/features/physical-wall/data/catalogs";
 import { refundAmountPaise } from "@/features/physical-wall/pricing";
 import { formatINR } from "@/features/physical-wall/money";
-import { createRefund, isRazorpayConfigured } from "@/features/physical-wall/razorpay";
+import { processRefund, queueRefundIn } from "@/features/physical-wall/refunds";
 import {
   assertTransition,
   isOccupied,
@@ -15,8 +17,10 @@ import {
 } from "@/features/physical-wall/state-machine";
 import { forceReleaseSchema, transitionSchema } from "@/features/physical-wall/schema";
 import {
+  type ActionState,
   fail,
   firstIssue,
+  formInput,
   inTransaction,
   LEDGER_TAG,
   newId,
@@ -25,7 +29,6 @@ import {
   StaleWriteError,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 
 /**
@@ -151,6 +154,7 @@ export async function forceRelease(
       );
 
       let refundPaise = 0;
+      let refundId: string | null = null;
       let policyLabel = "no policy on file";
       const affected = booking.rows[0];
 
@@ -176,35 +180,24 @@ export async function forceRelease(
         );
 
         if (refundPaise > 0) {
-          // Execute the refund through Razorpay if the booking was paid online.
-          let razorpayRefundId: string | null = null;
-          if (isRazorpayConfigured()) {
-            const payment = await client.query<{ payment_id: string }>(
-              `select payment_id from pw_payments
-               where booking_id = $1 and provider = 'razorpay' and status = 'captured' and payment_id is not null
-               order by created_at desc limit 1`,
-              [affected.id]
-            );
-            if (payment.rows[0]?.payment_id) {
-              const refund = await createRefund(
-                payment.rows[0].payment_id,
-                refundPaise,
-                affected.id
-              );
-              razorpayRefundId = refund.id;
-            }
-          }
+          ({ refundId } = await queueRefundIn(client, {
+            bookingId: affected.id,
+            amountPaise: refundPaise,
+            reason,
+            actorId: actor.id,
+          }));
 
           await client.query(
-            `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by)
-             values ($1, 'expense', 'refund', $2, $3, current_date, $4, $5)
+            `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by, booking_id)
+             values ($1, 'expense', 'refund', $2, $3, current_date, $4, $5, $6)
              on conflict (source_ref) where source_ref is not null do nothing`,
             [
               newId("led"),
               refundPaise,
-              `Refund for ${affected.id} — ${policyLabel}${razorpayRefundId ? ` (${razorpayRefundId})` : ""}. ${reason}`,
+              `Refund for ${affected.id} — ${policyLabel} (${refundId}). ${reason}`,
               `refund:${affected.id}`,
               actor.id,
+              affected.id,
             ]
           );
         }
@@ -261,8 +254,11 @@ export async function forceRelease(
         },
       });
 
-      return { refundPaise, policyLabel, wasLive, hadBooking: Boolean(affected) };
+      return { refundPaise, refundId, policyLabel, wasLive, hadBooking: Boolean(affected) };
     });
+
+    // After commit: the refund row is durable; /api/cron/refunds retries failures.
+    if (outcome.refundId) await processRefund(outcome.refundId);
 
     updateTag(WALL_TAG);
     updateTag(LEDGER_TAG);
@@ -295,13 +291,13 @@ export async function setSlotServiceState(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("admin");
-    const slotId = String(formData.get("slotId") ?? "");
-    const to = String(formData.get("to") ?? "") as SlotState;
-
-    if (!slotId) return fail("Which slot?");
-    if (!["maintenance", "blocked", "available"].includes(to)) {
-      return fail("That isn't a service state.");
-    }
+    const { slotId, to } = formInput(
+      z.object({
+        slotId: z.string({ error: "Which slot?" }).min(1, "Which slot?").max(64),
+        to: z.enum(["maintenance", "blocked", "available"], { error: "That isn't a service state." }),
+      }),
+      formData
+    );
 
     await inTransaction(async (client) => {
       const current = await client.query<{ state: SlotState; label: string }>(

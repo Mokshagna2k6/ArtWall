@@ -1,11 +1,10 @@
-import { ArrowRight } from "lucide-react";
 import { getSales } from "@/app/actions/workspaces";
 import {
-  StudioButton,
   StudioEmptyState,
   StudioPageHeader,
 } from "@/components/dashboard/studio-shell";
 import { WorkspaceCreateForm } from "@/components/dashboard/workspace-create-form";
+import { formatINR } from "@/features/physical-wall/money";
 export default async function SalesPage() {
   const opportunities = await getSales();
   return (
@@ -21,12 +20,6 @@ export default async function SalesPage() {
           <StudioEmptyState
             title="Your pipeline is clear"
             description="When a collector asks about a work, add the opportunity here to keep the next step visible."
-            action={
-              <StudioButton>
-                <ArrowRight data-icon="inline-start" />
-                Add first opportunity
-              </StudioButton>
-            }
           />
         </div>
       ) : (
@@ -35,8 +28,8 @@ export default async function SalesPage() {
             <article key={item.id} className="studio-card p-5">
               <p className="studio-eyebrow">{item.status}</p>
               <p className="text-studio-ink text-card mt-4">
-                {item.amount
-                  ? `₹${item.amount.toLocaleString()}`
+                {item.amountPaise
+                  ? formatINR(item.amountPaise)
                   : "Amount pending"}
               </p>
             </article>

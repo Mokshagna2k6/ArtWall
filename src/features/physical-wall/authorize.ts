@@ -2,6 +2,7 @@ import "server-only";
 
 import { redirect } from "next/navigation";
 
+import { features } from "@/config/site";
 import { getSessionUser, type SessionUser } from "@/lib/session";
 import { getSql } from "@/lib/db";
 
@@ -41,6 +42,33 @@ export class NotAuthorisedError extends Error {
   }
 }
 
+/**
+ * SEC-1.13: while `PHYSICAL_WALL_ENABLED` is off, the page layout hides every
+ * route with `notFound()` — but a server action or an `/api/physical-wall/*`
+ * route handler is not a page and is never gated by a layout, so it stays
+ * reachable by anyone who calls it directly. Same "invisible, not merely
+ * inaccessible" status (404) as the layout, so a disabled feature does not
+ * even confirm its own existence.
+ */
+export class PhysicalWallDisabledError extends Error {
+  readonly status = 404;
+  constructor() {
+    super("Not found.");
+    this.name = "PhysicalWallDisabledError";
+  }
+}
+
+/**
+ * Call first, before any other work, in every physical-wall server action and
+ * every `/api/physical-wall/*` route handler — the layout's `notFound()` only
+ * covers pages, not these. `requireRole`/`getActor` call this too, so anything
+ * that already checks a role gets it for free; call it directly in the few
+ * actions and routes that do not (public search, QR scans, webhooks, …).
+ */
+export function requirePhysicalWallEnabled(): void {
+  if (!features.physicalWall) throw new PhysicalWallDisabledError();
+}
+
 function isRole(value: unknown): value is Role {
   return typeof value === "string" && (ROLES as readonly string[]).includes(value);
 }
@@ -59,11 +87,14 @@ export async function getActor(): Promise<Actor | null> {
   try {
     const sql = getSql();
     const rows = (await sql`
-      select role from "user" where id = ${user.id} limit 1
-    `) as { role: string }[];
+      select role, "emailVerified" from "user" where id = ${user.id} limit 1
+    `) as { role: string; emailVerified: boolean }[];
 
     const role = rows[0]?.role;
-    if (role !== "admin" && isAllowlisted(user.email)) {
+    // KB-C01: an email match alone is not proof of ownership — anyone can put
+    // an admin's address in a sign-up form. Only a *verified* email (proven
+    // via the auth provider) may claim the allowlisted admin identity.
+    if (role !== "admin" && rows[0]?.emailVerified && isAllowlisted(user.email)) {
       await promoteToAdmin(user.id);
       return { ...user, role: "admin" };
     }
@@ -142,6 +173,7 @@ export async function requireOnboardedPage(
  * trustworthy.
  */
 export async function requireRole(required: Role): Promise<Actor> {
+  requirePhysicalWallEnabled();
   const actor = await getActor();
   if (!hasRole(actor, required)) throw new NotAuthorisedError(required);
   return actor as Actor;

@@ -1,9 +1,10 @@
 "use server";
 
-import { headers } from "next/headers";
+import { z } from "zod";
 
 import { createUploadSignature } from "@/lib/cloudinary";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { limitRequest, retryIn } from "@/lib/rate-limit";
+import { getSessionUser } from "@/lib/session";
 
 export type SignatureResult =
   | {
@@ -15,15 +16,6 @@ export type SignatureResult =
       folder: string;
     }
   | { ok: false; message: string };
-
-async function clientKey(): Promise<string> {
-  const headerList = await headers();
-  return (
-    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headerList.get("x-real-ip") ||
-    "unknown"
-  );
-}
 
 /**
  * Mint a short-lived signature so the browser can upload straight to Cloudinary.
@@ -39,20 +31,29 @@ async function clientKey(): Promise<string> {
 export async function getUploadSignature(
   kind: "artwork" | "selfie"
 ): Promise<SignatureResult> {
-  const limit = checkRateLimit(`upload:${await clientKey()}`, {
-    limit: 10,
-    windowMs: 10 * 60 * 1000,
-  });
+  // The folder is built from this argument, and a Server Action argument is
+  // whatever the caller sends: without the enum, getUploadSignature("wall")
+  // or ("ugc/<someone's folder>") signed uploads into folders this action was
+  // never meant to reach.
+  const parsed = z.enum(["artwork", "selfie"]).safeParse(kind);
+  if (!parsed.success) return { ok: false, message: "Unknown upload type." };
+
+  const user = await getSessionUser();
+  const limit = await limitRequest(
+    "upload-signature",
+    { limit: 10, windowMs: 10 * 60 * 1000 },
+    user?.id
+  );
 
   if (!limit.ok) {
     return {
       ok: false,
-      message: `Too many uploads. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.`,
+      message: `Too many uploads. Try again in ${retryIn(limit)}.`,
     };
   }
 
   try {
-    const signed = createUploadSignature(`artwall/${kind}`);
+    const signed = createUploadSignature(`artwall/${parsed.data}`);
     return { ok: true, ...signed };
   } catch (error) {
     console.error("[upload] Could not create signature", error);

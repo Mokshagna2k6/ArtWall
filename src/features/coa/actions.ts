@@ -3,8 +3,10 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { eq, and, desc } from "drizzle-orm";
+import { z } from "zod";
 
 import { auth } from "@/lib/auth";
+import { expireCatalog, getCertificateForVerify } from "@/lib/catalog-cache";
 import { db } from "@/lib/db/index";
 import {
   artworks,
@@ -15,10 +17,17 @@ import {
   artistProfiles,
 } from "@/lib/db/schema";
 import { computeMetadataHash, computeLeafHash } from "@/features/coa/hash";
+import {
+  attempt,
+  parseInput,
+  PreconditionError,
+  readSafely,
+  type Result,
+} from "@/features/physical-wall/actions/shared";
 
 async function getUserId() {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session?.user) throw new Error("Unauthorized");
+  if (!session?.user) throw new PreconditionError("Sign in first.");
   return session.user.id;
 }
 
@@ -28,270 +37,342 @@ function newId(prefix: string): string {
   return `${prefix}_${Buffer.from(bytes).toString("base64url")}`;
 }
 
+const id = z.string().trim().min(1).max(128);
+
 /* ── Editions ────────────────────────────────────────────────────────────── */
 
 export async function getEditions() {
-  const userId = await getUserId();
-  return db
-    .select({
-      id: editions.id,
-      artworkId: editions.artworkId,
-      editionType: editions.editionType,
-      editionNumber: editions.editionNumber,
-      totalEditions: editions.totalEditions,
-      isAp: editions.isAp,
-      status: editions.status,
-      createdAt: editions.createdAt,
-      artworkTitle: artworks.title,
-      artworkImage: artworks.imageUrl,
-    })
-    .from(editions)
-    .innerJoin(artworks, eq(editions.artworkId, artworks.id))
-    .where(eq(editions.userId, userId))
-    .orderBy(desc(editions.createdAt));
+  return readSafely("getEditions", [], async () => {
+    const userId = await getUserId();
+    return db
+      .select({
+        id: editions.id,
+        artworkId: editions.artworkId,
+        editionType: editions.editionType,
+        editionNumber: editions.editionNumber,
+        totalEditions: editions.totalEditions,
+        isAp: editions.isAp,
+        status: editions.status,
+        createdAt: editions.createdAt,
+        artworkTitle: artworks.title,
+        artworkImage: artworks.imageUrl,
+      })
+      .from(editions)
+      .innerJoin(artworks, eq(editions.artworkId, artworks.id))
+      .where(eq(editions.userId, userId))
+      .orderBy(desc(editions.createdAt));
+  });
 }
 
-export async function createEdition(input: {
-  artworkId: string;
-  editionType: "unique" | "limited" | "open";
-  totalEditions?: number;
-  isAp?: boolean;
-}) {
-  const userId = await getUserId();
-  const [artwork] = await db
-    .select({ id: artworks.id })
-    .from(artworks)
-    .where(and(eq(artworks.id, input.artworkId), eq(artworks.userId, userId)));
-  if (!artwork) throw new Error("Artwork not found");
-
-  const id = newId("ed");
-  await db.insert(editions).values({
-    id,
-    artworkId: input.artworkId,
-    userId,
-    editionType: input.editionType,
-    totalEditions: input.editionType === "limited" ? input.totalEditions : null,
-    isAp: input.isAp ?? false,
-    status: "active",
+const editionSchema = z
+  .object({
+    artworkId: id,
+    editionType: z.enum(["unique", "limited", "open"]),
+    totalEditions: z.number().int().min(1).max(10_000).optional(),
+    isAp: z.boolean().optional(),
+  })
+  .refine((e) => e.editionType !== "limited" || e.totalEditions, {
+    message: "A limited edition needs a size.",
   });
 
-  revalidatePath("/studio/editions");
-  return id;
+export async function createEdition(raw: z.input<typeof editionSchema>): Promise<Result<string>> {
+  return attempt("createEdition", async () => {
+    const input = parseInput(editionSchema, raw);
+    const userId = await getUserId();
+    const [artwork] = await db
+      .select({ id: artworks.id })
+      .from(artworks)
+      .where(and(eq(artworks.id, input.artworkId), eq(artworks.userId, userId)));
+    if (!artwork) throw new PreconditionError("Artwork not found");
+
+    const editionId = newId("ed");
+    await db.insert(editions).values({
+      id: editionId,
+      artworkId: input.artworkId,
+      userId,
+      editionType: input.editionType,
+      totalEditions: input.editionType === "limited" ? input.totalEditions : null,
+      isAp: input.isAp ?? false,
+      status: "active",
+    });
+
+    revalidatePath("/studio/editions");
+    return editionId;
+  });
 }
 
 /* ── Certificates ────────────────────────────────────────────────────────── */
 
 export async function getCertificates() {
-  const userId = await getUserId();
-  return db
-    .select({
-      id: coaCertificates.id,
-      artworkId: coaCertificates.artworkId,
-      metadataHash: coaCertificates.metadataHash,
-      status: coaCertificates.status,
-      issuedAt: coaCertificates.issuedAt,
-      createdAt: coaCertificates.createdAt,
-      artworkTitle: artworks.title,
-      artworkImage: artworks.imageUrl,
-    })
-    .from(coaCertificates)
-    .innerJoin(artworks, eq(coaCertificates.artworkId, artworks.id))
-    .where(eq(coaCertificates.userId, userId))
-    .orderBy(desc(coaCertificates.createdAt));
+  return readSafely("getCertificates", [], async () => {
+    const userId = await getUserId();
+    return db
+      .select({
+        id: coaCertificates.id,
+        artworkId: coaCertificates.artworkId,
+        metadataHash: coaCertificates.metadataHash,
+        status: coaCertificates.status,
+        issuedAt: coaCertificates.issuedAt,
+        createdAt: coaCertificates.createdAt,
+        artworkTitle: artworks.title,
+        artworkImage: artworks.imageUrl,
+      })
+      .from(coaCertificates)
+      .innerJoin(artworks, eq(coaCertificates.artworkId, artworks.id))
+      .where(eq(coaCertificates.userId, userId))
+      .orderBy(desc(coaCertificates.createdAt));
+  });
 }
 
-export async function issueCertificate(artworkId: string, editionId?: string) {
-  const userId = await getUserId();
-  const [artwork] = await db
-    .select()
-    .from(artworks)
-    .where(and(eq(artworks.id, artworkId), eq(artworks.userId, userId)));
-  if (!artwork) throw new Error("Artwork not found");
+export async function issueCertificate(
+  artworkId: string,
+  editionId?: string
+): Promise<Result<{ id: string; hash: string }>> {
+  return attempt("issueCertificate", async () => {
+    const input = parseInput(z.object({ artworkId: id, editionId: id.optional() }), { artworkId, editionId });
+    const userId = await getUserId();
+    const [artwork] = await db
+      .select()
+      .from(artworks)
+      .where(and(eq(artworks.id, input.artworkId), eq(artworks.userId, userId)));
+    if (!artwork) throw new PreconditionError("Artwork not found");
 
-  const [profile] = await db
-    .select({ displayName: artistProfiles.displayName })
-    .from(artistProfiles)
-    .where(eq(artistProfiles.userId, userId));
+    const [profile] = await db
+      .select({ displayName: artistProfiles.displayName })
+      .from(artistProfiles)
+      .where(eq(artistProfiles.userId, userId));
 
-  const hash = computeMetadataHash({
-    title: artwork.title,
-    artist: profile?.displayName ?? "Unknown",
-    medium: artwork.medium,
-    dimensions: artwork.dimensions,
-    year: artwork.year,
-    imagePublicId: artwork.imagePublicId,
+    const hash = computeMetadataHash({
+      title: artwork.title,
+      artist: profile?.displayName ?? "Unknown",
+      medium: artwork.medium,
+      dimensions: artwork.dimensions,
+      year: artwork.year,
+      imagePublicId: artwork.imagePublicId,
+    });
+
+    const certId = newId("coa");
+    await db.insert(coaCertificates).values({
+      id: certId,
+      artworkId: input.artworkId,
+      editionId: input.editionId ?? null,
+      userId,
+      metadataHash: hash,
+      status: "issued",
+      issuedAt: new Date(),
+    });
+
+    await db.insert(provenanceEvents).values({
+      id: newId("prov"),
+      artworkId: input.artworkId,
+      eventType: "certified",
+      actorId: userId,
+      label: `Certificate of Authenticity issued`,
+      metadata: { certificateId: certId, metadataHash: hash },
+    });
+
+    expireCatalog();
+    revalidatePath("/studio/certificates");
+    return { id: certId, hash };
   });
-
-  const id = newId("coa");
-  await db.insert(coaCertificates).values({
-    id,
-    artworkId,
-    editionId: editionId ?? null,
-    userId,
-    metadataHash: hash,
-    status: "issued",
-    issuedAt: new Date(),
-  });
-
-  await db.insert(provenanceEvents).values({
-    id: newId("prov"),
-    artworkId,
-    eventType: "certified",
-    actorId: userId,
-    label: `Certificate of Authenticity issued`,
-    metadata: { certificateId: id, metadataHash: hash },
-  });
-
-  revalidatePath("/studio/certificates");
-  return { id, hash };
 }
 
-export async function revokeCertificate(certId: string, reason: string) {
-  const userId = await getUserId();
-  const [cert] = await db
-    .select()
-    .from(coaCertificates)
-    .where(and(eq(coaCertificates.id, certId), eq(coaCertificates.userId, userId)));
-  if (!cert) throw new Error("Certificate not found");
-  if (cert.status === "revoked") throw new Error("Already revoked");
+export async function revokeCertificate(certId: string, reason: string): Promise<Result> {
+  return attempt("revokeCertificate", async () => {
+    const input = parseInput(
+      z.object({ certId: id, reason: z.string({ error: "Give a reason." }).trim().min(1, "Give a reason.").max(500) }),
+      { certId, reason }
+    );
+    const userId = await getUserId();
+    const [cert] = await db
+      .select()
+      .from(coaCertificates)
+      .where(and(eq(coaCertificates.id, input.certId), eq(coaCertificates.userId, userId)));
+    if (!cert) throw new PreconditionError("Certificate not found");
+    if (cert.status === "revoked") throw new PreconditionError("Already revoked");
 
-  await db
-    .update(coaCertificates)
-    .set({ status: "revoked", revokedAt: new Date(), revokeReason: reason })
-    .where(eq(coaCertificates.id, certId));
+    await db
+      .update(coaCertificates)
+      .set({ status: "revoked", revokedAt: new Date(), revokeReason: input.reason })
+      .where(eq(coaCertificates.id, input.certId));
 
-  revalidatePath("/studio/certificates");
+    // A revoked certificate must stop verifying as issued immediately (PERF-2.07).
+    expireCatalog();
+    revalidatePath("/studio/certificates");
+    return null;
+  });
 }
 
 /* ── Provenance ──────────────────────────────────────────────────────────── */
 
 export async function getProvenance(artworkId?: string) {
-  const userId = await getUserId();
-  const query = db
-    .select({
-      id: provenanceEvents.id,
-      artworkId: provenanceEvents.artworkId,
-      eventType: provenanceEvents.eventType,
-      label: provenanceEvents.label,
-      metadata: provenanceEvents.metadata,
-      txHash: provenanceEvents.txHash,
-      occurredAt: provenanceEvents.occurredAt,
-      artworkTitle: artworks.title,
-    })
-    .from(provenanceEvents)
-    .innerJoin(artworks, eq(provenanceEvents.artworkId, artworks.id))
-    .where(
-      artworkId
-        ? and(eq(artworks.userId, userId), eq(provenanceEvents.artworkId, artworkId))
-        : eq(artworks.userId, userId)
-    )
-    .orderBy(desc(provenanceEvents.occurredAt));
-
-  return query;
+  return readSafely("getProvenance", [], async () => {
+    const artId = parseInput(id.optional(), artworkId);
+    const userId = await getUserId();
+    return db
+      .select({
+        id: provenanceEvents.id,
+        artworkId: provenanceEvents.artworkId,
+        eventType: provenanceEvents.eventType,
+        label: provenanceEvents.label,
+        metadata: provenanceEvents.metadata,
+        txHash: provenanceEvents.txHash,
+        occurredAt: provenanceEvents.occurredAt,
+        artworkTitle: artworks.title,
+      })
+      .from(provenanceEvents)
+      .innerJoin(artworks, eq(provenanceEvents.artworkId, artworks.id))
+      .where(
+        artId
+          ? and(eq(artworks.userId, userId), eq(provenanceEvents.artworkId, artId))
+          : eq(artworks.userId, userId)
+      )
+      .orderBy(desc(provenanceEvents.occurredAt));
+  });
 }
 
-export async function addProvenanceEvent(input: {
-  artworkId: string;
-  eventType: string;
-  label: string;
-  metadata?: Record<string, unknown>;
-}) {
-  const userId = await getUserId();
-  const [artwork] = await db
-    .select({ id: artworks.id })
-    .from(artworks)
-    .where(and(eq(artworks.id, input.artworkId), eq(artworks.userId, userId)));
-  if (!artwork) throw new Error("Artwork not found");
+const provenanceSchema = z.object({
+  artworkId: id,
+  // What an artist may record by hand; certified/bound/minted are written by the system.
+  eventType: z.enum(["created", "exhibited", "sold", "transferred"], { error: "Choose an event type." }),
+  label: z.string({ error: "Describe the event." }).trim().min(1, "Describe the event.").max(300),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
 
-  const id = newId("prov");
-  await db.insert(provenanceEvents).values({
-    id,
-    artworkId: input.artworkId,
-    eventType: input.eventType,
-    actorId: userId,
-    label: input.label,
-    metadata: input.metadata ?? null,
+export async function addProvenanceEvent(raw: z.input<typeof provenanceSchema>): Promise<Result<string>> {
+  return attempt("addProvenanceEvent", async () => {
+    const input = parseInput(provenanceSchema, raw);
+    const userId = await getUserId();
+    const [artwork] = await db
+      .select({ id: artworks.id })
+      .from(artworks)
+      .where(and(eq(artworks.id, input.artworkId), eq(artworks.userId, userId)));
+    if (!artwork) throw new PreconditionError("Artwork not found");
+
+    const eventId = newId("prov");
+    await db.insert(provenanceEvents).values({
+      id: eventId,
+      artworkId: input.artworkId,
+      eventType: input.eventType,
+      actorId: userId,
+      label: input.label,
+      metadata: input.metadata ?? null,
+    });
+
+    expireCatalog();
+    revalidatePath("/studio/provenance");
+    return eventId;
   });
-
-  revalidatePath("/studio/provenance");
-  return id;
 }
 
 /* ── Mint Commitments ────────────────────────────────────────────────────── */
 
-export async function createMintCommitment(artworkId: string) {
-  const userId = await getUserId();
-  const [cert] = await db
-    .select()
-    .from(coaCertificates)
-    .where(and(eq(coaCertificates.artworkId, artworkId), eq(coaCertificates.userId, userId)));
-  if (!cert) throw new Error("Issue a certificate first");
+/**
+ * ERC-2981 royalty for new mints, in basis points. Interim: one platform-wide
+ * value from MINT_ROYALTY_BPS (default 400 = 4%) until per-artist royalty
+ * policy exists. Misconfiguration refuses rather than minting a wrong royalty.
+ */
+function mintRoyaltyBps(): number {
+  const raw = process.env.MINT_ROYALTY_BPS ?? "400";
+  const bps = Number(raw);
+  if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) {
+    throw new PreconditionError(`Minting is misconfigured (MINT_ROYALTY_BPS "${raw}"). Contact ArtWall.`);
+  }
+  return bps;
+}
 
-  const [profile] = await db
-    .select({ walletAddress: artistProfiles.walletAddress })
-    .from(artistProfiles)
-    .where(eq(artistProfiles.userId, userId));
+export async function createMintCommitment(artworkId: string): Promise<Result<{ id: string; leafHash: string }>> {
+  return attempt("createMintCommitment", async () => {
+    const artId = parseInput(id, artworkId);
+    const userId = await getUserId();
+    const [cert] = await db
+      .select()
+      .from(coaCertificates)
+      .where(and(eq(coaCertificates.artworkId, artId), eq(coaCertificates.userId, userId)));
+    if (!cert) throw new PreconditionError("Issue a certificate first");
 
-  const wallet = profile?.walletAddress ?? "0x0000000000000000000000000000000000000000";
-  const leafHash = computeLeafHash({
-    artworkId,
-    metadataHash: cert.metadataHash,
-    walletAddress: wallet,
-    royaltyBps: 400,
+    const [profile] = await db
+      .select({ walletAddress: artistProfiles.walletAddress })
+      .from(artistProfiles)
+      .where(eq(artistProfiles.userId, userId));
+
+    // The wallet is both the mint recipient and the ERC-2981 royalty receiver.
+    // Never fall back to the zero address: tokens and royalties sent there are burned.
+    const wallet = profile?.walletAddress?.trim() ?? "";
+    if (!/^0x[0-9a-fA-F]{40}$/.test(wallet) || /^0x0{40}$/.test(wallet)) {
+      throw new PreconditionError("Connect a wallet before minting: it receives the token and your royalties.");
+    }
+    const royaltyBps = mintRoyaltyBps();
+    const leafHash = computeLeafHash({
+      artworkId: artId,
+      metadataHash: cert.metadataHash,
+      walletAddress: wallet,
+      royaltyBps,
+    });
+
+    const commitmentId = newId("mint");
+    await db.insert(mintCommitments).values({
+      id: commitmentId,
+      artworkId: artId,
+      editionId: cert.editionId,
+      userId,
+      leafHash,
+      walletAddress: wallet,
+      erc2981RoyaltyBps: royaltyBps,
+      status: "pending",
+    });
+
+    await db.insert(provenanceEvents).values({
+      id: newId("prov"),
+      artworkId: artId,
+      eventType: "bound",
+      actorId: userId,
+      label: "Mint commitment created",
+      metadata: { mintCommitmentId: commitmentId, leafHash },
+    });
+
+    expireCatalog();
+    revalidatePath("/studio/certificates");
+    return { id: commitmentId, leafHash };
   });
-
-  const id = newId("mint");
-  await db.insert(mintCommitments).values({
-    id,
-    artworkId,
-    editionId: cert.editionId,
-    userId,
-    leafHash,
-    walletAddress: wallet,
-    erc2981RoyaltyBps: 400,
-    status: "pending",
-  });
-
-  await db.insert(provenanceEvents).values({
-    id: newId("prov"),
-    artworkId,
-    eventType: "bound",
-    actorId: userId,
-    label: "Mint commitment created",
-    metadata: { mintCommitmentId: id, leafHash },
-  });
-
-  revalidatePath("/studio/certificates");
-  return { id, leafHash };
 }
 
 /* ── Public verify ───────────────────────────────────────────────────────── */
 
 export async function verifyCertificateByHash(hash: string) {
-  const [cert] = await db
-    .select({
-      id: coaCertificates.id,
-      status: coaCertificates.status,
-      issuedAt: coaCertificates.issuedAt,
-      artworkTitle: artworks.title,
-      artworkImage: artworks.imageUrl,
-      medium: artworks.medium,
-      dimensions: artworks.dimensions,
-      year: artworks.year,
-      artistName: artistProfiles.displayName,
-    })
-    .from(coaCertificates)
-    .innerJoin(artworks, eq(coaCertificates.artworkId, artworks.id))
-    .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
-    .where(eq(coaCertificates.metadataHash, hash));
+  return readSafely("verifyCertificateByHash", null, async () => {
+    const key = parseInput(id, hash);
+    // The certificate itself comes from the shared catalogue cache (PERF-2.07);
+    // only the viewer check below is per request.
+    const cert = await getCertificateForVerify(key);
+    if (!cert) return null;
 
-  return cert ?? null;
+    // Callable as a public server action, so never hand back the owner's user id;
+    // just whether the current viewer is that owner (gates the mint panel).
+    const { ownerId, ...rest } = cert;
+    const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
+    return { ...rest, viewerIsOwner: session?.user.id === ownerId };
+  });
 }
 
+/**
+ * Public provenance for a verified certificate's artwork, newest first. Keyed
+ * on the ARTWORK id (provenance_events.artwork_id), not the certificate id.
+ * Public fields only: no actor ids or internal metadata.
+ */
 export async function getProvenanceTimeline(artworkId: string) {
-  return db
-    .select()
-    .from(provenanceEvents)
-    .where(eq(provenanceEvents.artworkId, artworkId))
-    .orderBy(desc(provenanceEvents.occurredAt));
+  return readSafely("getProvenanceTimeline", [], async () => {
+    const artId = parseInput(id, artworkId);
+    return db
+      .select({
+        id: provenanceEvents.id,
+        eventType: provenanceEvents.eventType,
+        label: provenanceEvents.label,
+        txHash: provenanceEvents.txHash,
+        occurredAt: provenanceEvents.occurredAt,
+      })
+      .from(provenanceEvents)
+      .where(eq(provenanceEvents.artworkId, artId))
+      .orderBy(desc(provenanceEvents.occurredAt));
+  });
 }

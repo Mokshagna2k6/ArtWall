@@ -62,3 +62,13 @@ export function portraitSrc(url: string, size = 400): string {
 export function blurSrc(url: string): string {
   return transform(url, "f_auto,q_auto:low,e_blur:1200,w_40");
 }
+
+/**
+ * next/image loader for Cloudinary sources (PERF-2.10): each srcset width is a
+ * Cloudinary derivative (`w_<width>`, never upscaled), so the browser gets a
+ * list-sized file straight from Cloudinary's CDN. The default loader would have
+ * our optimizer pull the multi-megabyte original first, on our quota.
+ */
+export function cloudinaryLoader({ src, width }: { src: string; width: number }): string {
+  return transform(src, `f_auto,q_auto,c_limit,w_${width}`);
+}

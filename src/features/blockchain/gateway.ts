@@ -1,24 +1,21 @@
 import "server-only";
 
+import { createWalletClient, http, type Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { merkleRoots, mintCommitments, provenanceEvents } from "@/lib/db/schema";
+import { publicClientFor } from "@/lib/blockchain/chain";
+import { expireCatalog } from "@/lib/catalog-cache";
 
-/**
- * Submit a Merkle root on-chain via the platform deployer.
- * No-ops if DEPLOYER_PRIVATE_KEY or ARTWORK_REGISTRY_ADDRESS is not set.
- *
- * ponytail: uses fetch to Base Sepolia RPC directly instead of viem/ethers.
- * Add viem when the contract is deployed and you need proper ABI encoding.
- */
 export async function submitRootOnChain(rootId: string): Promise<{
   submitted: boolean;
   txHash?: string;
   error?: string;
 }> {
   const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
-  const registryAddress = process.env.ARTWORK_REGISTRY_ADDRESS;
+  const registryAddress = process.env.ARTWORK_REGISTRY_ADDRESS as `0x${string}` | undefined;
   const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL;
 
   if (!privateKey || !registryAddress || !rpcUrl) {
@@ -36,26 +33,32 @@ export async function submitRootOnChain(rootId: string): Promise<{
   if (!root) return { submitted: false, error: "Root not found" };
   if (root.status === "confirmed") return { submitted: false, error: "Already confirmed" };
 
-  // ponytail: raw RPC call placeholder. Replace with viem when ready:
-  //   import { createWalletClient, http } from "viem";
-  //   import { baseSepolia } from "viem/chains";
-  //   import { privateKeyToAccount } from "viem/accounts";
-  //   const account = privateKeyToAccount(privateKey as `0x${string}`);
-  //   const client = createWalletClient({ account, chain: baseSepolia, transport: http(rpcUrl) });
-  //   const txHash = await client.writeContract({ address: registryAddress, abi, functionName: "commitRoot", args: [`0x${root.rootHash}`] });
+  const account = privateKeyToAccount(`0x${privateKey}` as Hex);
+  const chain = publicClientFor(84532).chain;
+  const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
 
-  console.log(`[blockchain] Would submit root ${root.rootHash} to ${registryAddress} on ${rpcUrl}`);
+  // ponytail: ABI for commitRoot — single bytes32 arg
+  const txHash = await client.writeContract({
+    address: registryAddress,
+    abi: [{
+      type: "function",
+      name: "commitRoot",
+      stateMutability: "nonpayable",
+      inputs: [{ name: "root", type: "bytes32" }],
+      outputs: [],
+    }] as const,
+    functionName: "commitRoot",
+    args: [`0x${root.rootHash}` as Hex],
+  });
 
-  // Mark as submitted (actual tx hash comes from viem call above)
   await db
     .update(merkleRoots)
-    .set({ status: "submitted", chainId: 84532 })
+    .set({ status: "submitted", chainId: 84532, txHash })
     .where(eq(merkleRoots.id, rootId));
 
-  return { submitted: true, txHash: undefined };
+  return { submitted: true, txHash };
 }
 
-/** After a root is confirmed on-chain, record provenance events for all its commitments. */
 export async function recordOnChainProvenance(rootId: string, txHash: string, blockNumber: number) {
   await db
     .update(merkleRoots)
@@ -79,4 +82,5 @@ export async function recordOnChainProvenance(rootId: string, txHash: string, bl
       txHash,
     });
   }
+  expireCatalog(); // provenance timelines on /artwork and /verify
 }

@@ -1,7 +1,5 @@
-import { ClipboardList, Plus } from "lucide-react";
 import { getTasks } from "@/app/actions/organization";
 import {
-  StudioButton,
   StudioEmptyState,
   StudioPageHeader,
 } from "@/components/dashboard/studio-shell";
@@ -13,24 +11,12 @@ export default async function TasksPage() {
         eyebrow="Operations"
         title="Tasks"
         description="Keep the small, consequential work of a practice moving."
-        action={
-          <StudioButton>
-            <Plus data-icon="inline-start" />
-            Add task
-          </StudioButton>
-        }
       />
       {tasks.length === 0 ? (
         <div className="studio-card">
           <StudioEmptyState
             title="No open tasks"
-            description="Add a task when something deserves a place outside your head."
-            action={
-              <StudioButton>
-                <ClipboardList data-icon="inline-start" />
-                Add first task
-              </StudioButton>
-            }
+            description="Creating tasks from the studio is not yet available. Tasks recorded for you will be listed here."
           />
         </div>
       ) : (

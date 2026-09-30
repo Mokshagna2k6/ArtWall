@@ -6,8 +6,8 @@ import Link from "next/link";
 import { IDLE } from "@/features/physical-wall/action-state";
 import { cancelBooking } from "@/features/physical-wall/actions/booking";
 import { chooseInstallWindow, issueBookingToken } from "@/features/physical-wall/actions/ops";
-import { startPayment } from "@/features/physical-wall/actions/payment";
 import { AgreementPanel } from "@/features/physical-wall/components/agreement-panel";
+import { RazorpayPayButton } from "@/features/physical-wall/components/razorpay-pay-button";
 import {
   Field,
   FormStatus,
@@ -39,7 +39,6 @@ export function BookingCard({
   /** Null until the artist signs. Gates install scheduling and go-live (F20). */
   agreement: { signedAt: string; termsHash: string } | null;
 }) {
-  const [payState, payAction] = useActionState(startPayment, IDLE);
   const [cancelState, cancelAction] = useActionState(cancelBooking, IDLE);
   const [windowState, windowAction] = useActionState(chooseInstallWindow, IDLE);
   const [tokenState, tokenAction] = useActionState(issueBookingToken, IDLE);
@@ -93,11 +92,10 @@ export function BookingCard({
             .
           </p>
           {paymentsEnabled ? (
-            <form action={payAction} className="mt-4 flex flex-col gap-3">
-              <input type="hidden" name="bookingId" value={booking.id} />
-              <SubmitButton>Pay {formatINR(booking.totalAmountPaise)}</SubmitButton>
-              <FormStatus state={payState} />
-            </form>
+            <RazorpayPayButton
+              bookingId={booking.id}
+              label={`Pay ${formatINR(booking.totalAmountPaise)}`}
+            />
           ) : (
             <p className="border-hairline text-ink-muted mt-4 rounded-md border border-dashed p-3 text-xs leading-5">
               Online payment isn&rsquo;t switched on yet. Pay at the venue or by

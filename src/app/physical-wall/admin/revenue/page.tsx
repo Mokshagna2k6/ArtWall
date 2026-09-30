@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import { requireRolePage } from "@/features/physical-wall/authorize";
-import { getSql } from "@/lib/db";
+import { getRevenueReport } from "@/features/physical-wall/data/ledger";
 import { formatINR } from "@/features/physical-wall/money";
 
 export const metadata: Metadata = {
@@ -10,12 +10,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-interface RevRow {
-  period: string;
-  revenue_paise: number;
-  bookings: number;
-}
 
 export default async function RevenuePage({
   searchParams,
@@ -26,59 +20,69 @@ export default async function RevenuePage({
   const params = await searchParams;
   const range = params.range ?? "month";
 
-  const sql = getSql();
-
   const trunc = range === "day" ? "day" : range === "week" ? "week" : "month";
-
-  const rows = (await sql.query(
-    `select date_trunc($1, l.created_at)::date as period,
-            sum(l.amount_paise) as revenue_paise,
-            count(distinct l.booking_id)::int as bookings
-     from pw_ledger l
-     where l.type = 'payment' and l.amount_paise > 0
-     group by 1
-     order by 1 desc
-     limit 24`,
-    [trunc]
-  )) as RevRow[];
-
-  const totalPaise = rows.reduce((sum, r) => sum + Number(r.revenue_paise), 0);
-  const totalBookings = rows.reduce((sum, r) => sum + Number(r.bookings), 0);
-
-  const pendingRows = (await sql`
-    select count(*)::int as n, coalesce(sum(total_paise), 0)::int as paise
-    from pw_bookings
-    where status = 'paid' and id not in (
-      select booking_id from pw_ledger where type = 'settlement'
-    )
-  `) as { n: number; paise: number }[];
-  const pending = pendingRows[0] ?? { n: 0, paise: 0 };
+  let report: Awaited<ReturnType<typeof getRevenueReport>>;
+  try {
+    report = await getRevenueReport(trunc);
+  } catch (error) {
+    // Show a failure as a failure: an empty table or ₹0 would read as "no revenue".
+    console.error("[admin/revenue] report query failed", error);
+    return (
+      <div className="flex flex-col gap-6">
+        <h1 className="font-heading text-display">Revenue</h1>
+        <div
+          role="alert"
+          className="border-destructive/40 text-destructive rounded-md border p-5 text-sm leading-6"
+        >
+          <p className="font-medium">The revenue report could not be loaded.</p>
+          <p className="mt-1">
+            The ledger query failed, so no figures are shown rather than wrong
+            ones. The error has been logged.{" "}
+            <a href={`?range=${trunc}`} className="underline underline-offset-4">
+              Try again
+            </a>
+            .
+          </p>
+        </div>
+      </div>
+    );
+  }
+  const { rows, totals, awaitingInvoice, unreconciled } = report;
 
   return (
     <div className="flex flex-col gap-8">
       <div>
         <h1 className="font-heading text-display">Revenue</h1>
         <p className="text-ink-muted mt-2 text-sm">
-          Wall rental revenue from the ledger. All amounts in paise, displayed as
-          rupees.
+          Booking revenue from the ledger, net of refunds, by accounting date.
         </p>
       </div>
 
       {/* Summary cards */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div className="border-hairline rounded-md border p-5">
-          <p className="text-ink-muted text-xs uppercase tracking-wider">Total revenue</p>
-          <p className="font-heading text-section mt-1">{formatINR(totalPaise)}</p>
-        </div>
-        <div className="border-hairline rounded-md border p-5">
-          <p className="text-ink-muted text-xs uppercase tracking-wider">Bookings</p>
-          <p className="font-heading text-section mt-1">{totalBookings}</p>
-        </div>
-        <div className="border-hairline rounded-md border p-5">
-          <p className="text-ink-muted text-xs uppercase tracking-wider">Pending settlement</p>
-          <p className="font-heading text-section mt-1">
-            {formatINR(Number(pending.paise))} ({pending.n})
+          <p className="text-ink-muted text-xs uppercase tracking-wider">Net revenue</p>
+          <p className="font-heading text-section mt-1">{formatINR(totals.netPaise)}</p>
+          <p className="text-ink-muted mt-1 text-xs">
+            {formatINR(totals.grossPaise)} gross − {formatINR(totals.refundPaise)} refunds
           </p>
+        </div>
+        <div className="border-hairline rounded-md border p-5">
+          <p className="text-ink-muted text-xs uppercase tracking-wider">Paid bookings</p>
+          <p className="font-heading text-section mt-1">{totals.bookings}</p>
+        </div>
+        <div className="border-hairline rounded-md border p-5">
+          <p className="text-ink-muted text-xs uppercase tracking-wider">Awaiting invoice</p>
+          <p className="font-heading text-section mt-1">
+            {formatINR(awaitingInvoice.paise)} ({awaitingInvoice.count})
+          </p>
+        </div>
+        <div className="border-hairline rounded-md border p-5">
+          <p className="text-ink-muted text-xs uppercase tracking-wider">Unreconciled</p>
+          <p className="font-heading text-section mt-1">
+            {formatINR(unreconciled.paise)} ({unreconciled.count})
+          </p>
+          <p className="text-ink-muted mt-1 text-xs">Paid, but no ledger entry. Should be 0.</p>
         </div>
       </div>
 
@@ -110,7 +114,9 @@ export default async function RevenuePage({
             <thead>
               <tr className="border-hairline border-b text-left">
                 <th className="pb-3 pr-4 font-medium">Period</th>
-                <th className="pb-3 pr-4 text-right font-medium">Revenue</th>
+                <th className="pb-3 pr-4 text-right font-medium">Gross</th>
+                <th className="pb-3 pr-4 text-right font-medium">Refunds</th>
+                <th className="pb-3 pr-4 text-right font-medium">Net</th>
                 <th className="pb-3 text-right font-medium">Bookings</th>
               </tr>
             </thead>
@@ -118,14 +124,20 @@ export default async function RevenuePage({
               {rows.map((row) => (
                 <tr key={row.period} className="border-hairline border-b">
                   <td className="py-3 pr-4 tabular-nums">
-                    {new Date(row.period).toLocaleDateString("en-IN", {
+                    {new Date(`${row.period}T00:00:00`).toLocaleDateString("en-IN", {
                       year: "numeric",
                       month: "short",
                       day: trunc === "day" ? "numeric" : undefined,
                     })}
                   </td>
                   <td className="py-3 pr-4 text-right tabular-nums">
-                    {formatINR(Number(row.revenue_paise))}
+                    {formatINR(row.grossPaise)}
+                  </td>
+                  <td className="py-3 pr-4 text-right tabular-nums">
+                    {formatINR(row.refundPaise)}
+                  </td>
+                  <td className="py-3 pr-4 text-right tabular-nums">
+                    {formatINR(row.netPaise)}
                   </td>
                   <td className="py-3 text-right tabular-nums">{row.bookings}</td>
                 </tr>

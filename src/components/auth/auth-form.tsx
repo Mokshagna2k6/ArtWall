@@ -67,7 +67,16 @@ function humanError(
     return { text: "That password is too short — use at least 8 characters." };
   }
   if (normalised.includes("RATE") || normalised.includes("TOO_MANY")) {
-    return { text: "Too many attempts. Wait a minute and try again." };
+    // Our limiter's message carries the real wait ("Try again in 12 minutes.").
+    return {
+      text: message?.startsWith("Too many")
+        ? message
+        : "Too many attempts. Wait a minute and try again.",
+    };
+  }
+  if (normalised.includes("SERVICE_UNAVAILABLE")) {
+    // Rate-limit store down, auth fails closed (PERF-2.03): not the user's fault.
+    return { text: "Something's briefly down on our side, not yours. Try again in a moment." };
   }
 
   return {
@@ -161,6 +170,10 @@ export function AuthForm({
   const [pendingMethod, setPendingMethod] = useState<PendingMethod>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState("");
+  // Controlled on purpose: a form `action` resets uncontrolled fields when it
+  // settles, which wiped the email after every failed sign-in.
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
 
   const destination = destinationFor(callbackUrl);
   const isPending = pendingMethod !== null;
@@ -273,6 +286,8 @@ export function AuthForm({
           <input
             className="border-input focus:border-foreground h-11 border bg-white px-3 text-base transition-colors outline-none"
             name="name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
             autoComplete="name"
             placeholder="How should we know you?"
             disabled={isPending}
@@ -287,6 +302,8 @@ export function AuthForm({
           className="border-input focus:border-foreground h-11 border bg-white px-3 text-base transition-colors outline-none"
           type="email"
           name="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
           autoComplete="email"
           inputMode="email"
           placeholder="you@example.com"

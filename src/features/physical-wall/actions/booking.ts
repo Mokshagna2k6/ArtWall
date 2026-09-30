@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -13,16 +15,18 @@ import {
 import { getActiveGrid, getOccupancyPct } from "@/features/physical-wall/data/wall";
 import { formatINR } from "@/features/physical-wall/money";
 import { quote, refundAmountPaise, type Quote } from "@/features/physical-wall/pricing";
-import { createRefund, isRazorpayConfigured } from "@/features/physical-wall/razorpay";
+import { processRefund, queueRefundIn } from "@/features/physical-wall/refunds";
 import {
   cancelBookingSchema,
   quoteRequestSchema,
   reserveSchema,
 } from "@/features/physical-wall/schema";
 import {
+  type ActionState,
   addDays,
   fail,
   firstIssue,
+  formInput,
   inTransaction,
   LEDGER_TAG,
   newId,
@@ -30,7 +34,6 @@ import {
   PreconditionError,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { releaseLapsedHoldsIn } from "@/features/physical-wall/expiry";
 import { getSql } from "@/lib/db";
@@ -186,7 +189,10 @@ export async function reserveBooking(
          join pw_size_catalog z on z.id = s.size_id
          join pw_slot_types   t on t.id = s.type_id
          where s.id = any($1::text[]) and s.grid_id = $2
+         order by s.id
          for update of s`,
+        // order by: every reservation locks in the same order, so two baskets
+        // sharing slots queue behind each other instead of deadlocking.
         [slotIds, grid.id]
       );
 
@@ -362,9 +368,13 @@ export async function attachArtwork(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("artist");
-    const bookingId = String(formData.get("bookingId") ?? "");
-    const artworkId = String(formData.get("artworkId") ?? "");
-    if (!bookingId || !artworkId) return fail("Choose an artwork.");
+    const { bookingId, artworkId } = formInput(
+      z.object({
+        bookingId: z.string({ error: "Choose an artwork." }).min(1, "Choose an artwork.").max(64),
+        artworkId: z.string({ error: "Choose an artwork." }).min(1, "Choose an artwork.").max(64),
+      }),
+      formData
+    );
 
     const sql = getSql();
 
@@ -493,35 +503,27 @@ export async function cancelBooking(
         ]
       );
 
+      let refundId: string | null = null;
       if (refundPaise > 0) {
-        let razorpayRefundId: string | null = null;
-        if (isRazorpayConfigured()) {
-          const payment = await client.query<{ payment_id: string }>(
-            `select payment_id from pw_payments
-             where booking_id = $1 and provider = 'razorpay' and status = 'captured' and payment_id is not null
-             order by created_at desc limit 1`,
-            [booking.id]
-          );
-          if (payment.rows[0]?.payment_id) {
-            const refund = await createRefund(
-              payment.rows[0].payment_id,
-              refundPaise,
-              booking.id
-            );
-            razorpayRefundId = refund.id;
-          }
-        }
+        const note = reason ?? "Artist-initiated cancellation";
+        ({ refundId } = await queueRefundIn(client, {
+          bookingId: booking.id,
+          amountPaise: refundPaise,
+          reason: note,
+          actorId: actor.id,
+        }));
 
         await client.query(
-          `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by)
-           values ($1, 'expense', 'refund', $2, $3, current_date, $4, $5)
+          `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by, booking_id)
+           values ($1, 'expense', 'refund', $2, $3, current_date, $4, $5, $6)
            on conflict (source_ref) where source_ref is not null do nothing`,
           [
             newId("led"),
             refundPaise,
-            `Refund for ${booking.id} — ${policyLabel}${razorpayRefundId ? ` (${razorpayRefundId})` : ""}. Artist-initiated.`,
+            `Refund for ${booking.id} — ${policyLabel} (${refundId}). Artist-initiated.`,
             `refund:${booking.id}`,
             actor.id,
+            booking.id,
           ]
         );
       }
@@ -557,8 +559,12 @@ export async function cancelBooking(
         },
       });
 
-      return { refundPaise, policyLabel };
+      return { refundPaise, policyLabel, refundId };
     });
+
+    // After commit, outside the transaction: the refund row is durable, so a
+    // failure or crash here is retried by /api/cron/refunds.
+    if (outcome.refundId) await processRefund(outcome.refundId);
 
     updateTag(WALL_TAG);
     updateTag(LEDGER_TAG);

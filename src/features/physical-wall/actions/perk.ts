@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 
 import { recordAuditIn } from "@/features/physical-wall/audit";
@@ -54,9 +56,11 @@ export async function previewPerk(
   token: string
 ): Promise<{ ok: true; preview: PerkPreview } | { ok: false; message: string }> {
   try {
+    const parsed = z.string().trim().min(1).max(200).safeParse(token);
+    if (!parsed.success) return { ok: false, message: "That code isn't valid." };
     await requireRole("staff");
 
-    const resolved = await resolveToken(token);
+    const resolved = await resolveToken(parsed.data);
     if (!resolved.ok) {
       return {
         ok: false,
@@ -275,8 +279,8 @@ export async function redeemPerk(
 
       if (ourCost > 0) {
         await client.query(
-          `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by)
-           values ($1, 'expense', 'platter-perk', $2, $3, current_date, $4, $5)
+          `insert into pw_ledger (id, type, category, amount_paise, note, entry_date, source_ref, created_by, booking_id)
+           values ($1, 'expense', 'platter-perk', $2, $3, current_date, $4, $5, $6)
            on conflict (source_ref) where source_ref is not null do nothing`,
           [
             newId("led"),
@@ -284,6 +288,7 @@ export async function redeemPerk(
             `Platter perk for ${principalType} — bill ${formatINR(billPaise)}`,
             `perk:${inserted.rows[0].id}`,
             actor.id,
+            bookingRef,
           ]
         );
       }

@@ -9,7 +9,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { neon, Pool } from "@neondatabase/serverless";
+import pg from "pg";
 
 const DIR = join(import.meta.dirname, "..", "db", "migrations");
 
@@ -20,19 +20,18 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-// HTTP driver for simple reads; Pool (WebSocket) for transactional writes.
-const sql = neon(process.env.DATABASE_URL);
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Plain TCP (pg), so the same script migrates Neon and a CI Postgres container.
+const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
 
-await sql`
+await pool.query(`
   create table if not exists _migrations (
     name       text primary key,
     applied_at timestamptz not null default now()
   )
-`;
+`);
 
 const applied = new Set(
-  (await sql`select name from _migrations`).map((row) => row.name)
+  (await pool.query("select name from _migrations")).rows.map((row) => row.name)
 );
 
 const files = (await readdir(DIR)).filter((f) => f.endsWith(".sql")).sort();
@@ -44,18 +43,16 @@ for (const file of files) {
     continue;
   }
 
-  const statements = (await readFile(join(DIR, file), "utf8"))
-    .replace(/^\s*--.*$/gm, "")
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  // The whole file goes to the server as one simple-protocol query. Postgres
+  // parses it itself, so dollar-quoted ($$) function/trigger bodies, semicolons
+  // inside string literals and trailing comments all just work. Splitting on
+  // ";" client-side (the old approach) broke every PL/pgSQL body.
+  const body = await readFile(join(DIR, file), "utf8");
 
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    for (const statement of statements) {
-      await client.query(statement);
-    }
+    await client.query(body);
     await client.query("INSERT INTO _migrations (name) VALUES ($1)", [file]);
     await client.query("COMMIT");
     console.log(`✓ ${file}`);

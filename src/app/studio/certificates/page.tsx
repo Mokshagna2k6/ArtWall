@@ -2,10 +2,18 @@ import {
   StudioEmptyState,
   StudioPageHeader,
 } from "@/components/dashboard/studio-shell";
+import { getArtworks } from "@/app/actions/artworks";
+import {
+  IssueCertificateForm,
+  RevokeCertificateButton,
+} from "@/components/dashboard/certificate-actions";
 import { getCertificates } from "@/features/coa/actions";
 
 export default async function CertificatesPage() {
-  const items = await getCertificates();
+  const [items, artworks] = await Promise.all([
+    getCertificates(),
+    getArtworks(),
+  ]);
   return (
     <div className="flex flex-col gap-8">
       <StudioPageHeader
@@ -13,18 +21,25 @@ export default async function CertificatesPage() {
         title="Certificates"
         description="Issue and verify certificates of authenticity for works in your catalogue."
       />
+      <IssueCertificateForm
+        artworks={artworks.map((a) => ({ id: a.id, title: a.title }))}
+      />
       {items.length === 0 ? (
         <div className="studio-card">
           <StudioEmptyState
             title="No certificates yet"
-            description="Go to Artworks, pick a work and issue a Certificate of Authenticity."
+            description={
+              artworks.length
+                ? "Choose a work above to issue its Certificate of Authenticity."
+                : "Add an artwork first, then issue its Certificate of Authenticity here."
+            }
           />
         </div>
       ) : (
         <>
           <p className="text-studio-muted text-sm">
-            {items.length}{" "}
-            {items.length === 1 ? "certificate" : "certificates"} issued
+            {items.length} {items.length === 1 ? "certificate" : "certificates"}{" "}
+            issued
           </p>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {items.map((item) => (
@@ -50,6 +65,9 @@ export default async function CertificatesPage() {
                   >
                     Verify page →
                   </a>
+                  {item.status !== "revoked" && (
+                    <RevokeCertificateButton certId={item.id} />
+                  )}
                 </div>
               </article>
             ))}

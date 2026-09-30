@@ -7,9 +7,12 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
+import { expireCatalog } from "@/lib/catalog-cache";
 import { isOwnAsset } from "@/lib/cloudinary";
 import { db } from "@/lib/db/index";
 import { artworks } from "@/lib/db/schema";
+import { ARTWORK_CATEGORIES } from "@/features/marketplace/categories";
+import { toPaise } from "@/features/physical-wall/money";
 
 async function getUserId() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -38,6 +41,24 @@ const artworkSchema = z.object({
   imagePublicId: optionalText(500),
   isPublic: z.boolean().default(true),
   status: z.enum(["available", "sold", "reserved"]).default("available"),
+  category: z
+    .union([z.enum(ARTWORK_CATEGORIES), z.literal("")])
+    .optional()
+    .transform((value) => value || null),
+  /** Rupees as typed -> integer paise. Blank = price on request (null). */
+  // ponytail: price_paise is int4, so ₹2 crore is the ceiling; move to bigint if that bites.
+  price: z
+    .union([z.string(), z.number()])
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined || String(value).trim() === "") return null;
+      const paise = toPaise(value);
+      if (paise === null || paise > 2_000_000_000) {
+        ctx.addIssue({ code: "custom", message: "Enter a price between ₹0 and ₹2,00,00,000." });
+        return z.NEVER;
+      }
+      return paise;
+    }),
 });
 export async function getArtworks() {
   const userId = await getUserId();
@@ -49,19 +70,37 @@ export async function getArtworks() {
 }
 export async function createArtwork(input: unknown) {
   const userId = await getUserId();
-  const data = artworkSchema.parse(input);
+  const { price, ...data } = artworkSchema.parse(input);
   if (data.imageUrl && !isOwnAsset(data.imageUrl, "artwall/artwork"))
     throw new Error(
       "That artwork image could not be verified. Please upload it again."
     );
-  await db.insert(artworks).values({ id: randomUUID(), userId, ...data });
+  await db
+    .insert(artworks)
+    .values({ id: randomUUID(), userId, ...data, pricePaise: price });
+  expireCatalog();
   revalidatePath("/studio");
   revalidatePath("/studio/artworks");
+}
+export async function setArtworkPublic(id: string, isPublic: boolean) {
+  const userId = await getUserId();
+  const [row] = await db
+    .update(artworks)
+    .set({ isPublic: Boolean(isPublic), updatedAt: new Date() })
+    .where(and(eq(artworks.id, id), eq(artworks.userId, userId)))
+    .returning({ id: artworks.id, isPublic: artworks.isPublic });
+  if (!row) throw new Error("Artwork not found");
+  expireCatalog();
+  revalidatePath("/studio/artworks");
+  revalidatePath("/studio/tags");
+  revalidatePath(`/artwork/${id}`);
+  return row;
 }
 export async function deleteArtwork(id: string) {
   const userId = await getUserId();
   await db
     .delete(artworks)
     .where(and(eq(artworks.id, id), eq(artworks.userId, userId)));
+  expireCatalog();
   revalidatePath("/studio/artworks");
 }

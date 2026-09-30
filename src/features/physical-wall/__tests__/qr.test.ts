@@ -52,7 +52,8 @@ describe("verifyQrToken", () => {
     const { mintQrToken, verifyQrToken } = await import("../qr");
     const token = mintQrToken();
     const [id, sig] = token.split(".");
-    const tampered = `X${id.slice(1)}.${sig}`;
+    // Must actually change the id: a random id starts with "X" 1 time in 64.
+    const tampered = `${id[0] === "X" ? "Y" : "X"}${id.slice(1)}.${sig}`;
     expect(verifyQrToken(tampered)).toBe(false);
   });
 

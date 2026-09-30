@@ -158,25 +158,32 @@ function ConsentSection({
 function ExportSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
 
   async function download() {
     setBusy(true);
     setError(null);
-    const result = await exportMyData();
-    setBusy(false);
+    setDone(null);
+    try {
+      const result = await exportMyData();
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
 
-    if (!result.ok) {
-      setError(result.message);
-      return;
+      const blob = new Blob([result.json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = result.filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setDone(`Saved ${result.filename} (${Math.ceil(blob.size / 1024)} KB).`);
+    } catch {
+      setError("Could not reach the server. Nothing was exported; try again.");
+    } finally {
+      setBusy(false);
     }
-
-    const blob = new Blob([result.json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = result.filename;
-    anchor.click();
-    URL.revokeObjectURL(url);
   }
 
   return (
@@ -196,7 +203,16 @@ function ExportSection() {
         <Download className="size-4" aria-hidden />
         {busy ? "Building…" : "Download my data"}
       </button>
-      {error && <p className="text-destructive mt-2 text-sm">{error}</p>}
+      {error && (
+        <p role="alert" className="text-destructive mt-2 text-sm">
+          {error}
+        </p>
+      )}
+      {done && (
+        <p role="status" className="text-signal mt-2 text-sm">
+          {done}
+        </p>
+      )}
     </section>
   );
 }

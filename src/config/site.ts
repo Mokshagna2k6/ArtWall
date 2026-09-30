@@ -46,18 +46,13 @@ export const siteConfig = {
 /**
  * Feature flags.
  *
- * `studio` is the artist workspace at /studio. It is built but not ready to be
- * shown, so it is switched off here rather than deleted: every route, action,
- * and component stays in the tree and compiles, and turning it back on is a
- * one-line change instead of a revert.
- *
- * While it is off:
- *  - no link to it appears anywhere in the site chrome,
- *  - signing in lands on the wall rather than the workspace,
- *  - /studio and everything under it redirect away.
+ * `studio` is the artist workspace at /studio. On: a signed-in user reaching
+ * /studio gets the workspace (the layout sends anonymous visitors to sign-in),
+ * and signing in lands there when no callback was requested. Kept as a flag so
+ * it can be switched off again in one line if needed.
  */
 export const features = {
-  studio: false,
+  studio: true,
 
   /**
    * `physicalWall` is the Wall Management System at /physical-wall - the real

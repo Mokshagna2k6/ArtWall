@@ -1,14 +1,17 @@
 "use server";
 
+import { z } from "zod";
+
 import { recordAudit } from "@/features/physical-wall/audit";
 import { requireRole } from "@/features/physical-wall/authorize";
-import { queueNotification } from "@/features/physical-wall/notifications";
+import { notify } from "@/features/physical-wall/notifications";
 import {
-  fail,
-  newId,
-  ok,
-  toActionError,
   type ActionState,
+  fail,
+  formInput,
+  ok,
+  readSafely,
+  toActionError,
 } from "@/features/physical-wall/actions/shared";
 import { getSql } from "@/lib/db";
 
@@ -18,12 +21,14 @@ export async function reviewIdentity(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("admin");
-    const verificationId = String(formData.get("verificationId") ?? "");
-    const verdict = String(formData.get("verdict") ?? "");
-    const note = String(formData.get("note") ?? "").trim();
-
-    if (!verificationId) return fail("Which verification?");
-    if (verdict !== "approved" && verdict !== "rejected") return fail("Approve or reject.");
+    const { verificationId, verdict, note } = formInput(
+      z.object({
+        verificationId: z.string({ error: "Which verification?" }).min(1, "Which verification?").max(64),
+        verdict: z.enum(["approved", "rejected"], { error: "Approve or reject." }),
+        note: z.string().trim().max(1000).default(""),
+      }),
+      formData
+    );
 
     const sql = getSql();
 
@@ -48,17 +53,9 @@ export async function reviewIdentity(
     `) as { email: string; name: string }[];
 
     if (user.length > 0) {
-      await queueNotification({
-        userId,
-        recipient: user[0].email,
-        subject: verdict === "approved"
-          ? "Identity verified — payouts are now enabled"
-          : "Identity verification needs attention",
-        body: verdict === "approved"
-          ? `Hi ${user[0].name},\n\nYour identity has been verified. You can now receive payouts for your exhibitions.\n\n— Artwall Labs`
-          : `Hi ${user[0].name},\n\nWe could not verify your identity from the document you submitted.${note ? `\n\nNote: ${note}` : ""}\n\nPlease upload a clearer image and try again.\n\n— Artwall Labs`,
-        kind: verdict === "approved" ? "identity.approved" : "identity.rejected",
-      });
+      const to = { userId, email: user[0].email };
+      if (verdict === "approved") await notify("identity.approved", to, { name: user[0].name });
+      else await notify("identity.rejected", to, { name: user[0].name, note: note || null });
     }
 
     await recordAudit({
@@ -76,6 +73,14 @@ export async function reviewIdentity(
 }
 
 export async function listPendingVerifications() {
+  return readSafely("listPendingVerifications", [], loadPendingVerifications);
+}
+
+// Staff only: this returns names, emails and identity-document ids, and an
+// exported server action is callable by anyone who has its id. The admin page
+// gates itself, but the action must not rely on that.
+async function loadPendingVerifications() {
+  await requireRole("staff");
   const sql = getSql();
   return (await sql`
     select v.id, v.user_id, v.doc_cloudinary_id, v.doc_kind, v.created_at,
