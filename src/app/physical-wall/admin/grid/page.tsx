@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { GridEditor } from "@/features/physical-wall/components/grid-editor";
+import { requireRolePage } from "@/features/physical-wall/authorize";
 import { listSizes, listSlotTypes } from "@/features/physical-wall/data/catalogs";
 import { getActiveGrid, listSlots } from "@/features/physical-wall/data/wall";
 
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AdminGridPage() {
+  await requireRolePage("admin", "/physical-wall/admin/grid");
   const grid = await getActiveGrid();
 
   if (!grid) {

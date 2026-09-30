@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AdminBookings } from "@/features/physical-wall/components/admin-bookings";
+import { requireRolePage } from "@/features/physical-wall/authorize";
 import { listAllBookings } from "@/features/physical-wall/data/bookings";
 import { isRazorpayConfigured } from "@/features/physical-wall/razorpay";
 
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AdminBookingsPage() {
+  await requireRolePage("admin", "/physical-wall/admin/bookings");
   const bookings = await listAllBookings();
 
   return (

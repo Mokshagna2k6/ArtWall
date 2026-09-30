@@ -8,6 +8,7 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { requireRolePage } from "@/features/physical-wall/authorize";
 import { formatINR } from "@/features/physical-wall/money";
 import { listInstallQueue } from "@/features/physical-wall/data/bookings";
 import { getCurrentRefundPolicy, getSettings } from "@/features/physical-wall/data/catalogs";
@@ -25,6 +26,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AdminOverviewPage() {
+  await requireRolePage("admin", "/physical-wall/admin");
   const grid = await getActiveGrid();
   const month = new Date().toISOString().slice(0, 7);
 

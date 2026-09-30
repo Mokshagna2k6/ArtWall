@@ -47,7 +47,12 @@ export const auth = betterAuth({
       // Equivalent to NextAuth's `allowDangerousEmailAccountLinking` for Google.
       // Google must still return a verified email address before it is linked.
       trustedProviders: ["google"],
-      requireLocalEmailVerified: false,
+      // KB-C03: `false` let an OAuth sign-in silently link onto ANY existing
+      // local account with a matching email, even one that never verified it
+      // (e.g. an attacker's own unverified sign-up in someone else's address).
+      // The default (true) requires the existing local account's email to
+      // already be verified before a new provider can attach to it.
+      requireLocalEmailVerified: true,
     },
   },
   ...(googleClientId && googleClientSecret
