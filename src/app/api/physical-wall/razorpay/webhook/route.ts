@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { features } from "@/config/site";
 import { settleFromWebhook } from "@/features/physical-wall/settlement";
 import { validateRazorpayConfig, verifyWebhookSignature } from "@/features/physical-wall/razorpay";
 
@@ -32,6 +33,7 @@ validateRazorpayConfig();
  *    "this event isn't one we care about".
  */
 export async function POST(request: Request) {
+  if (!features.physicalWall) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const rawBody = await request.text();
   const signature = request.headers.get("x-razorpay-signature");
 

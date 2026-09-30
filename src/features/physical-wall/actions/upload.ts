@@ -1,5 +1,6 @@
 "use server";
 
+import { features } from "@/config/site";
 import { limitRequest, retryIn, type RateLimitResult } from "@/lib/rate-limit";
 import { getSessionUser } from "@/lib/session";
 import {
@@ -18,6 +19,7 @@ const UGC_SIGNATURE_LIMIT = { limit: 10, windowMs: 60 * 60 * 1000 };
 export async function requestUgcUploadSignature(): Promise<
   { ok: true; signature: UgcUploadSignature } | { ok: false; message: string; rateLimit?: RateLimitResult }
 > {
+  if (!features.physicalWall) return { ok: false, message: "Uploads are unavailable right now." };
   const user = await getSessionUser();
   const limit = await limitRequest("pw-ugc-upload", UGC_SIGNATURE_LIMIT, user?.id);
   if (!limit.ok) {

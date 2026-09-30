@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { getSql } from "@/lib/db";
+import { requirePhysicalWallEnabled } from "@/features/physical-wall/authorize";
 import { type ActionState, fail, firstIssue, newId } from "@/features/physical-wall/actions/shared";
 
 export async function searchArtworks(
@@ -10,6 +11,7 @@ export async function searchArtworks(
   formData: FormData
 ): Promise<ActionState & { results?: unknown[] }> {
   try {
+    requirePhysicalWallEnabled();
     const parsed = z
       .object({ q: z.string({ error: "Type at least 2 characters to search." }).trim().min(2, "Type at least 2 characters to search.").max(200) })
       .safeParse({ q: formData.get("q") ?? "" });

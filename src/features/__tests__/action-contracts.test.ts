@@ -93,6 +93,8 @@ vi.mock("@/features/physical-wall/authorize", () => {
   const actor = { id: "u1", name: "Asha", email: "a@example.test", role: "admin" };
   return {
     NotAuthorisedError: class extends Error {},
+    PhysicalWallDisabledError: class extends Error {},
+    requirePhysicalWallEnabled: vi.fn(),
     getActor: vi.fn(async () => actor),
     requireRole: vi.fn(async () => actor),
     hasRole: () => true,

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { CatalogEditor } from "@/features/physical-wall/components/catalog-editor";
+import { requireRolePage } from "@/features/physical-wall/authorize";
 import {
   getCurrentRefundPolicy,
   getSettings,
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AdminCatalogsPage() {
+  await requireRolePage("admin", "/physical-wall/admin/catalogs");
   const [sizes, types, addons, policy, policyHistory, settings] =
     await Promise.all([
       listSizes(true),

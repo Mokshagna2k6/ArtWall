@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
 import type { z } from "zod";
 
-import { NotAuthorisedError } from "@/features/physical-wall/authorize";
+import { NotAuthorisedError, PhysicalWallDisabledError } from "@/features/physical-wall/authorize";
 import {
   ForbiddenTransitionError,
   IllegalTransitionError,
@@ -77,6 +77,7 @@ export function toActionError(scope: string, error: unknown): ActionState {
   if (error instanceof IllegalTransitionError) return fail(error.message);
   if (error instanceof ForbiddenTransitionError) return fail(error.message);
   if (error instanceof NotAuthorisedError) return fail(error.message);
+  if (error instanceof PhysicalWallDisabledError) return fail(error.message);
   if (error instanceof StaleWriteError) return fail(error.message);
   if (error instanceof PreconditionError) return fail(error.message);
 
