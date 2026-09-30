@@ -909,6 +909,38 @@ export const artTags = pgTable("art_tags", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/* ── PolicyEngine (Phase 3) ───────────────────────────────────────────────── */
+
+/** Append-only audit trail of PolicyEngine gate calls (BE-3.06). */
+export const policyDecisions = pgTable("policy_decisions", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  gate: text("gate").notNull(),
+  subjectType: text("subject_type").notNull(),
+  subjectId: text("subject_id"),
+  actorId: text("actor_id"),
+  allowed: boolean("allowed").notNull(),
+  reasons: jsonb("reasons").notNull().default([]),
+  inputs: jsonb("inputs").notNull().default({}),
+  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Versioned commission/royalty rates (BE-3.09, BE-3.10). Only one row per
+ * `kind` may be `active` (partial unique index in the migration). A
+ * transaction reads the active row's id at the moment it runs and stores that
+ * id on the ledger entry it produces, so a later rate change never re-prices
+ * a past transaction.
+ */
+export const commissionPolicies = pgTable("commission_policies", {
+  id: text("id").primaryKey(),
+  kind: text("kind").notNull(),
+  rateBps: integer("rate_bps").notNull(),
+  active: boolean("active").notNull().default(false),
+  note: text("note"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const artTagScans = pgTable("art_tag_scans", {
   id: text("id").primaryKey(),
   tagId: text("tag_id").notNull(),
