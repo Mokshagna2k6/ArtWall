@@ -1,7 +1,7 @@
-import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 import { actAs } from "@/test/db-setup";
-import { makeArtwork, makeProfile, makeUser, purgeTestData, q } from "@/test/fixtures";
+import { makeArtwork, makeProfile, makeUser, purgeTestData, q, tid } from "@/test/fixtures";
 import {
   addProvenanceEvent,
   createEdition,
@@ -12,9 +12,6 @@ import {
 } from "@/features/coa/actions";
 
 afterAll(purgeTestData);
-afterEach(() => {
-  delete process.env.MINT_ROYALTY_BPS;
-});
 
 const WALLET = "0x1111111111111111111111111111111111111111";
 
@@ -49,7 +46,7 @@ describe("COA / provenance (BE-1.17 – 1.20)", () => {
     expect((await addProvenanceEvent({ artworkId: art, eventType: "x" as never, label: "x" })).ok).toBe(false);
   });
 
-  it("mint commitment reads royalty bps from MINT_ROYALTY_BPS and refuses a missing/zero wallet", async () => {
+  it("mint commitment reads royalty bps from the active commission_policies row and refuses a missing/zero wallet", async () => {
     const noWallet = await makeUser();
     await makeProfile(noWallet.id, { wallet: null });
     const art1 = await makeArtwork(noWallet.id);
@@ -69,17 +66,38 @@ describe("COA / provenance (BE-1.17 – 1.20)", () => {
     const art3 = await makeArtwork(ok.id);
     actAs(ok);
     await issueCertificate(art3);
-    process.env.MINT_ROYALTY_BPS = "750";
-    const created = await createMintCommitment(art3);
-    if (!created.ok) throw new Error(created.error);
-    const { id } = created.data;
-    const [row] = await q<{ erc2981_royalty_bps: number; wallet_address: string }>(
-      `select erc2981_royalty_bps, wallet_address from mint_commitments where id = $1`,
-      [id]
-    );
-    expect(row).toEqual({ erc2981_royalty_bps: 750, wallet_address: WALLET });
 
-    process.env.MINT_ROYALTY_BPS = "20000";
-    expect(await createMintCommitment(art3)).toMatchObject({ ok: false, error: expect.stringMatching(/MINT_ROYALTY_BPS/) });
+    // BE-3.09/3.10: the rate comes from the active commission_policies row,
+    // not an env var. Swap "active" to a fresh betest rate, restore after.
+    const policyId = tid("cpol");
+    await q(`update commission_policies set active = false where kind = 'mint_royalty' and active`);
+    await q(
+      `insert into commission_policies (id, kind, rate_bps, active, note) values ($1, 'mint_royalty', 750, true, 'betest override')`,
+      [policyId]
+    );
+    try {
+      const created = await createMintCommitment(art3);
+      if (!created.ok) throw new Error(created.error);
+      const { id } = created.data;
+      const [row] = await q<{ erc2981_royalty_bps: number; wallet_address: string }>(
+        `select erc2981_royalty_bps, wallet_address from mint_commitments where id = $1`,
+        [id]
+      );
+      expect(row).toEqual({ erc2981_royalty_bps: 750, wallet_address: WALLET });
+    } finally {
+      await q(`delete from commission_policies where id = $1`, [policyId]);
+      await q(`update commission_policies set active = true where kind = 'mint_royalty' and id = 'cpol_mint_v1'`);
+    }
+
+    // No active policy at all -> refuses rather than minting an undefined royalty.
+    await q(`update commission_policies set active = false where kind = 'mint_royalty' and active`);
+    try {
+      expect(await createMintCommitment(art3)).toMatchObject({
+        ok: false,
+        error: expect.stringMatching(/no active commission policy/i),
+      });
+    } finally {
+      await q(`update commission_policies set active = true where kind = 'mint_royalty' and id = 'cpol_mint_v1'`);
+    }
   });
 });
