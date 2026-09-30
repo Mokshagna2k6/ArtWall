@@ -77,5 +77,10 @@ export default defineConfig({
     globals: true,
     exclude: [...worktreeExcludes, "**/*.db.test.ts"],
     coverage,
+    // Hermetic: no .env is loaded, so anything the app reads from process.env
+    // needs a default here. SEC-1.13 gated every physical-wall action and
+    // route on this flag; the unit suite exercises that feature's logic, so it
+    // needs to run "on" here the same way it does in dev and CI's env block.
+    env: { PHYSICAL_WALL_ENABLED: "true" },
   },
 });

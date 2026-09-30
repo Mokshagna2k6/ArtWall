@@ -2,7 +2,7 @@
 
 import { updateTag } from "next/cache";
 import { headers } from "next/headers";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 import { ROSTER_TAG } from "@/features/waitlist/roster";
@@ -14,19 +14,25 @@ export type AdminState =
   | { status: "error"; message: string }
   | { status: "ok"; message: string };
 
+/** SEC-1.16: below this, ADMIN_PASSWORD is not the ~32 random bytes this
+ * single shared-password mechanism needs to resist offline guessing. */
+const ADMIN_PASSWORD_MIN_LENGTH = 32;
+
 /**
  * Constant-time password comparison.
  *
  * A plain `===` on a secret leaks its length and, in principle, its prefix
- * through timing. Hashing both sides to a fixed width first also stops
- * `timingSafeEqual` throwing on mismatched lengths.
+ * through timing. SHA-256 hashing both sides first gives `timingSafeEqual` a
+ * fixed-width input without padding or truncating either value — padding a
+ * short secret out to a fixed width does not make it strong, and truncating a
+ * long one silently caps how much of it is ever actually checked.
  */
 function passwordMatches(supplied: string): boolean {
   const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) return false;
+  if (!expected || expected.length < ADMIN_PASSWORD_MIN_LENGTH) return false;
 
-  const a = Buffer.from(supplied.padEnd(64).slice(0, 64));
-  const b = Buffer.from(expected.padEnd(64).slice(0, 64));
+  const a = createHash("sha256").update(supplied).digest();
+  const b = createHash("sha256").update(expected).digest();
   return timingSafeEqual(a, b);
 }
 

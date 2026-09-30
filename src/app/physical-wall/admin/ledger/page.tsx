@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { LedgerPanel } from "@/features/physical-wall/components/ledger-panel";
+import { requireRolePage } from "@/features/physical-wall/authorize";
 import { formatINR } from "@/features/physical-wall/money";
 import {
   getMonthlySummary,
@@ -18,6 +19,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminLedgerPage({
   searchParams,
 }: PageProps<"/physical-wall/admin/ledger">) {
+  await requireRolePage("admin", "/physical-wall/admin/ledger");
   const params = await searchParams;
   const requested = typeof params.month === "string" ? params.month : undefined;
   const month =
