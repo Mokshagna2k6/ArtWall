@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const { alertAdmins } = vi.hoisted(() => ({
+  alertAdmins: vi.fn(async (_key: string, _subject: string, _body: string) => {}),
+}));
+vi.mock("@/features/physical-wall/notifications", () => ({ alertAdmins }));
+
 import { runCron } from "@/lib/cron";
 
 const req = (auth?: string) => new Request("http://x/api/cron/job", { headers: auth ? { authorization: auth } : {} });
@@ -8,6 +13,7 @@ const lines = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map((c) 
 describe("runCron structured logging (BE-2.27)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    alertAdmins.mockClear();
     delete process.env.CRON_SECRET;
   });
 
@@ -33,6 +39,17 @@ describe("runCron structured logging (BE-2.27)", () => {
     expect(res.status).toBe(500);
     expect(JSON.stringify(await res.json())).not.toContain("merkle_roots");
     expect(lines(error)[0]).toMatchObject({ event: "cron.error", job: "merkle-root", ok: false, error: expect.stringContaining("merkle_roots") });
+  });
+
+  it("alerts admins on failure (PERF-3.01), deduped per job per run", async () => {
+    process.env.CRON_SECRET = "s3cret";
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await runCron("merkle-root", req("Bearer s3cret"), async () => {
+      throw new Error("boom");
+    });
+    expect(alertAdmins).toHaveBeenCalledTimes(1);
+    expect(alertAdmins.mock.calls[0][0]).toMatch(/^cron\.error:merkle-root:/);
   });
 
   it("refuses without the secret, and never runs the job", async () => {
