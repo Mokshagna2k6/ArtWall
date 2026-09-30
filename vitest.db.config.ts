@@ -32,6 +32,9 @@ const STAND_INS = {
   CLOUDINARY_CLOUD_NAME: "standin-no-cloudinary",
   CLOUDINARY_API_KEY: "000000000000000",
   CLOUDINARY_API_SECRET: "standin-cloudinary-secret",
+  // SEC-1.13 gates every physical-wall action/route on this flag; the whole
+  // suite exercises that feature, so it must read as on with no .env (CI).
+  PHYSICAL_WALL_ENABLED: "true",
 };
 const fromProcess = Object.fromEntries(
   Object.keys(STAND_INS).flatMap((k) => (process.env[k] ? [[k, process.env[k]]] : []))
