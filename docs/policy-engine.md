@@ -101,9 +101,21 @@ combinations are covered in `engine.test.ts`:
 
 ### Mapping trust dimensions to real columns today
 
-DB-3.01 (the Database Phase 3 track) owns the canonical five-dimension
-loader. Until that lands, this repo's best-effort mapping — used for
-reasoning about the gate, not yet wired into a loader function — is:
+DB-3.01 landed the canonical five-dimension loader:
+`loadTrustDimensions(artworkId: string): Promise<TrustDimensions>` in
+`src/features/policy/trust.ts`. Call it, pass the result straight to a gate:
+
+```ts
+import { loadTrustDimensions } from "@/features/policy/trust";
+import { canExhibit } from "@/features/policy/engine";
+
+const trust = await loadTrustDimensions(artworkId);
+const decision = canExhibit({ trust });
+```
+
+It reads each dimension live from its existing source-of-truth table below —
+deliberately not a sixth mirrored column, since keeping a copy in sync with
+five different write paths is a drift bug waiting to happen:
 
 - `physicalBindingVerified` → `art_tags.boundAt is not null` for a tag bound
   to the artwork (`src/features/art-tags/actions.ts`). An NFC/QR tag bound to
@@ -116,7 +128,9 @@ reasoning about the gate, not yet wired into a loader function — is:
   `pw_identity_verifications` review approval).
 - `coaIssued` → `coa_certificates.status in ('issued', 'minted')`.
 - `curationApproved` → an approved `curator_picks` row, or an equivalent
-  platform-review flag (no dedicated column exists yet — flagged for DB-3.01).
+  platform-review flag. `curator_picks` has no separate approve/reject
+  status — a pick row existing for the artwork IS the approval, since there
+  is no curation workflow beyond a curator adding a pick.
 
 **Caveat:** the actual Bible section-14 and section-3–11 text is not present
 in this worktree (`docs/` has no "Bible" document checked in); this mapping
@@ -207,10 +221,10 @@ decision-log row must never fail the request it was only observing.
   own diff to review against "does not break existing code"). The engine and
   logging exist and are tested; wiring every call site is the next slice of
   work.
-- DB-3.01's five-dimension loader (a function that reads real columns and
-  returns a `TrustDimensions` object) does not exist yet — that is explicitly
-  the Database Phase 3 track's task, not this one's. The mapping table above
-  is a reasoning aid, not a shipped function.
+- DB-3.01's five-dimension loader now exists —
+  `loadTrustDimensions` in `src/features/policy/trust.ts`, DB-tested
+  (`src/features/policy/__tests__/trust.db.test.ts`). BE-3.03 (wiring every
+  gated call site) can call it directly; it is unblocked.
 - BE-3.07/3.08 (orthogonal state machine domains, 15-stage exhibition
   lifecycle) not started.
 - BE-3.11 – 3.25 not started (escrow, WallOS, demand engine, Shiprocket,
