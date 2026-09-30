@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { AdminQueue } from "@/features/physical-wall/components/admin-queue";
+import { requireRolePage } from "@/features/physical-wall/authorize";
 import { listQueue } from "@/features/physical-wall/data/waitlist";
 import { getActiveGrid, listSlots } from "@/features/physical-wall/data/wall";
 
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AdminQueuePage() {
+  await requireRolePage("admin", "/physical-wall/admin/queue");
   const grid = await getActiveGrid();
   const [entries, slots] = await Promise.all([
     listQueue(),

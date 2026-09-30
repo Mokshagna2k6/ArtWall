@@ -4,6 +4,8 @@ import { z } from "zod";
 
 import { cookies } from "next/headers";
 
+import { features } from "@/config/site";
+import { requirePhysicalWallEnabled } from "@/features/physical-wall/authorize";
 import { mintQrToken } from "@/features/physical-wall/qr";
 import { visitorRegisterSchema } from "@/features/physical-wall/schema";
 import {
@@ -42,6 +44,7 @@ export async function registerVisitor(
   formData: FormData
 ): Promise<ActionState> {
   try {
+    requirePhysicalWallEnabled();
     // 10 per 15 minutes per IP: the venue's shared Wi-Fi registers a queue of
     // walk-ins, but a script cannot flood the visitor table.
     const limit = await limitRequest("pw-visitor", { limit: 10, windowMs: 15 * 60 * 1000 });
@@ -137,6 +140,7 @@ export async function recordScan(
   visitId: string | null
 ): Promise<void> {
   try {
+    if (!features.physicalWall) return;
     const ids = z.object({ artworkId: z.string().min(1).max(64), visitId: z.string().min(1).max(64).nullable() });
     if (!ids.safeParse({ artworkId, visitId }).success) return;
     // 30/minute per IP per artwork: drops scripted scan inflation silently.
@@ -173,6 +177,7 @@ export async function withdrawVisitorConsent(
   formData: FormData
 ): Promise<ActionState> {
   try {
+    requirePhysicalWallEnabled();
     const { token } = formInput(
       z.object({ token: z.string({ error: "We need your code to find the record." }).trim().min(1, "We need your code to find the record.").max(200) }),
       formData

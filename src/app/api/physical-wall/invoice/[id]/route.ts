@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { features } from "@/config/site";
 import { getInvoice } from "@/features/physical-wall/actions/invoice";
 import { formatINR } from "@/features/physical-wall/money";
 
@@ -14,6 +15,9 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!features.physicalWall) {
+    return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+  }
   const { id } = await params;
   // getInvoice returns null unless the caller is the invoiced artist or staff.
   const invoice = await getInvoice(id);
