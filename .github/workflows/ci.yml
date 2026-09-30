@@ -13,6 +13,14 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
 
@@ -31,10 +39,19 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # generateSitemaps runs at build time (like generateStaticParams) and
+      # queries the database directly, so `pnpm build` needs a real reachable
+      # Postgres, not just a placeholder URL — an empty migrated database is
+      # enough, sitemap.ts only needs the query to succeed, not return rows.
+      - name: Apply all migrations
+        run: node scripts/migrate.mjs
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+
       - name: Build
         run: pnpm build
         env:
-          DATABASE_URL: "postgresql://placeholder:placeholder@localhost:5432/placeholder"
+          DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
           BETTER_AUTH_SECRET: "ci-placeholder-secret"
           BETTER_AUTH_URL: "http://localhost:3000"
 
