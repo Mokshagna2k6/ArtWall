@@ -1,14 +1,29 @@
 "use server";
 
-import { checkRateLimit } from "@/lib/rate-limit";
-import { requestUgcUploadSignature as createUgcUploadSignature } from "@/features/physical-wall/image-validation";
+import { features } from "@/config/site";
+import { limitRequest, retryIn, type RateLimitResult } from "@/lib/rate-limit";
+import { getSessionUser } from "@/lib/session";
+import {
+  requestUgcUploadSignature as createUgcUploadSignature,
+  type UgcUploadSignature,
+} from "@/features/physical-wall/image-validation";
+
+/**
+ * 10 signatures per hour per visitor (user id when signed in, else IP). A
+ * signature is a write token for our Cloudinary account; a selfie plus a few
+ * retakes fits, a script filling the account does not. (This used to be one
+ * global bucket shared by every visitor.)
+ */
+const UGC_SIGNATURE_LIMIT = { limit: 10, windowMs: 60 * 60 * 1000 };
 
 export async function requestUgcUploadSignature(): Promise<
-  { ok: true; signature: { signature: string; timestamp: number; apiKey: string; cloudName: string; folder: string } } | { ok: false; message: string }
+  { ok: true; signature: UgcUploadSignature } | { ok: false; message: string; rateLimit?: RateLimitResult }
 > {
-  const limit = checkRateLimit("pw-ugc-upload", { limit: 10, windowMs: 60 * 60 * 1000 });
+  if (!features.physicalWall) return { ok: false, message: "Uploads are unavailable right now." };
+  const user = await getSessionUser();
+  const limit = await limitRequest("pw-ugc-upload", UGC_SIGNATURE_LIMIT, user?.id);
   if (!limit.ok) {
-    return { ok: false, message: `Too many uploads. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.` };
+    return { ok: false, message: `Too many uploads. Try again in ${retryIn(limit)}.`, rateLimit: limit };
   }
 
   try {

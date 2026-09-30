@@ -1,13 +1,40 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 
+import { CertificateMintPanel } from "@/components/blockchain/certificate-mint-panel";
+import { WalletProviders } from "@/components/blockchain/wallet-providers";
+import { JsonLd } from "@/components/seo/json-ld";
 import {
   verifyCertificateByHash,
   getProvenanceTimeline,
 } from "@/features/coa/actions";
+import { cachedCatalog } from "@/lib/catalog-cache";
+
+// The certificate is cached inside verifyCertificateByHash (PERF-2.07); its
+// provenance is too. Both are expired by every issue/revoke/mint write.
+const loadTimeline = cachedCatalog(getProvenanceTimeline, "provenance", 3600);
+
+/**
+ * coa_certificates.status (CHECK 0015) → what a stranger checking the work
+ * should read. Only "revoked" may say revoked; a draft was never issued.
+ */
+const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "bad" }> = {
+  draft: { label: "Not issued (draft)", tone: "warn" },
+  issued: { label: "Issued", tone: "ok" },
+  revoked: { label: "Revoked", tone: "bad" },
+  metadata_pinned: { label: "Issued · not yet minted", tone: "ok" },
+  minting: { label: "Issued · minting on-chain", tone: "ok" },
+  minted: { label: "Issued · minted on-chain", tone: "ok" },
+  failed: { label: "Issued · on-chain mint failed", tone: "warn" },
+};
+const TONE = {
+  ok: "text-green-700 bg-green-500",
+  warn: "text-amber-700 bg-amber-500",
+  bad: "text-red-700 bg-red-500",
+};
 
 export const metadata: Metadata = {
-  title: "Verify Certificate | ArtWall",
+  title: "Verify Certificate",
   description: "Verify an ArtWall Certificate of Authenticity",
 };
 
@@ -31,14 +58,24 @@ export default async function VerifyPage({
     );
   }
 
-  const timeline = await getProvenanceTimeline(cert.id);
+  const timeline = await loadTimeline(cert.artworkId);
+  const status = STATUS[cert.status] ?? {
+    label: `Unknown status (${cert.status})`,
+    tone: "warn" as const,
+  };
+  const [text, dot] = TONE[status.tone].split(" ");
+  // The mint panel drives the NFT flow, which starts from a pinned certificate.
+  const mintable = ["metadata_pinned", "minting", "failed"].includes(cert.status);
 
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
-      <div className="flex items-center gap-2 text-sm text-green-600">
-        <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-        {cert.status === "issued" ? "Verified" : "Revoked"}
-      </div>
+      <p
+        data-testid="cert-status"
+        className={`flex items-center gap-2 text-sm ${text}`}
+      >
+        <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
+        {status.label}
+      </p>
 
       <h1 className="text-display font-heading mt-4">{cert.artworkTitle}</h1>
 
@@ -81,6 +118,18 @@ export default async function VerifyPage({
             </dd>
           </div>
         )}
+        {cert.revokedAt && (
+          <div>
+            <dt className="text-ink-muted">Revoked</dt>
+            <dd>
+              {new Date(cert.revokedAt).toLocaleDateString("en-IN", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </dd>
+          </div>
+        )}
       </dl>
 
       {cert.artworkImage && (
@@ -115,17 +164,27 @@ export default async function VerifyPage({
         </section>
       )}
 
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "VisualArtwork",
-            name: cert.artworkTitle,
-            creator: { "@type": "Person", name: cert.artistName },
-            artMedium: cert.medium,
-            dateCreated: cert.year?.toString(),
-          }),
+      {cert.viewerIsOwner && mintable && (
+        <section className="mt-12" aria-labelledby="mint-heading">
+          <h2 id="mint-heading" className="text-section font-heading">
+            Mint as NFT
+          </h2>
+          <div className="mt-4">
+            <WalletProviders>
+              <CertificateMintPanel certificateId={cert.id} />
+            </WalletProviders>
+          </div>
+        </section>
+      )}
+
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "VisualArtwork",
+          name: cert.artworkTitle,
+          creator: { "@type": "Person", name: cert.artistName },
+          artMedium: cert.medium,
+          dateCreated: cert.year?.toString(),
         }}
       />
     </main>

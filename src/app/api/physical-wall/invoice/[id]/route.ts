@@ -1,15 +1,25 @@
 import { NextResponse } from "next/server";
 
+import { features } from "@/config/site";
 import { getInvoice } from "@/features/physical-wall/actions/invoice";
 import { formatINR } from "@/features/physical-wall/money";
 
 export const dynamic = "force-dynamic";
 
+/** Every interpolated value is user- or admin-supplied text: escape it. */
+function esc(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[c]!);
+}
+
 export async function GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!features.physicalWall) {
+    return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+  }
   const { id } = await params;
+  // getInvoice returns null unless the caller is the invoiced artist or staff.
   const invoice = await getInvoice(id);
 
   if (!invoice) {
@@ -19,7 +29,7 @@ export async function GET(
   const lines = Array.isArray(invoice.line_items) ? invoice.line_items : [];
   const html = `<!DOCTYPE html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Invoice ${invoice.number}</title>
+<head><meta charset="utf-8"><title>Invoice ${esc(invoice.number)}</title>
 <style>
   body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;color:#1a1a2e}
   h1{font-size:24px;margin-bottom:4px} .meta{color:#666;font-size:13px}
@@ -31,34 +41,35 @@ export async function GET(
 </style></head>
 <body>
   <h1>Tax Invoice</h1>
-  <p class="meta"><strong>${invoice.number}</strong> &middot; ${invoice.issue_date}</p>
-  <p class="meta">GSTIN: ${invoice.gstin_supplier}</p>
-  <p class="meta">Place of supply: ${invoice.place_of_supply}</p>
+  <p class="meta"><strong>${esc(invoice.number)}</strong> &middot; ${esc(invoice.issue_date)}</p>
+  <p class="meta">GSTIN: ${esc(invoice.gstin_supplier)}</p>
+  <p class="meta">Place of supply: ${esc(invoice.place_of_supply)}</p>
   <hr>
-  <p><strong>Bill to:</strong> ${invoice.artist_name ?? "Artist"} (${invoice.artist_email ?? ""})</p>
+  <p><strong>Bill to:</strong> ${esc(invoice.artist_name ?? "Artist")} (${esc(invoice.artist_email)})${invoice.gstin_customer ? ` &middot; GSTIN ${esc(invoice.gstin_customer)}` : ""}</p>
 
   <table>
     <thead><tr>
       <th>Description</th><th>HSN/SAC</th>
       <th class="right">Net</th><th class="right">CGST</th>
-      <th class="right">SGST</th><th class="right">Total</th>
+      <th class="right">SGST</th><th class="right">IGST</th><th class="right">Total</th>
     </tr></thead>
     <tbody>
       ${lines
         .map(
           (l: Record<string, unknown>) =>
             `<tr>
-              <td>${l.description ?? "Wall rental"}</td>
-              <td>${l.hsn ?? ""}</td>
+              <td>${esc(l.description ?? "Wall rental")}</td>
+              <td>${esc(l.hsn)}</td>
               <td class="right">${formatINR(Number(l.net_paise ?? 0))}</td>
               <td class="right">${formatINR(Number(l.cgst_paise ?? 0))}</td>
               <td class="right">${formatINR(Number(l.sgst_paise ?? 0))}</td>
+              <td class="right">${formatINR(Number(l.igst_paise ?? 0))}</td>
               <td class="right">${formatINR(Number(l.total_paise ?? 0))}</td>
             </tr>`
         )
         .join("")}
       <tr>
-        <td colspan="5" class="right total">Grand Total</td>
+        <td colspan="6" class="right total">Grand Total</td>
         <td class="right total">${formatINR(Number(invoice.total_paise))}</td>
       </tr>
     </tbody>
@@ -73,6 +84,9 @@ export async function GET(
   return new NextResponse(html, {
     headers: {
       "content-type": "text/html; charset=utf-8",
+      "cache-control": "private, no-store",
+      "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'",
+      "x-content-type-options": "nosniff",
     },
   });
 }

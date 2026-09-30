@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { Pool } from "pg";
+import { pool } from "@/lib/db/index";
 
 const baseUrl =
   process.env.BETTER_AUTH_URL ??
@@ -32,17 +32,27 @@ const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
 
 export const auth = betterAuth({
-  database: new Pool({ connectionString: process.env.DATABASE_URL }),
+  // Shared pool: one set of connections and one place that handles dropped ones.
+  database: pool,
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: baseUrl,
   trustedOrigins,
   emailAndPassword: { enabled: true },
+  // Off: better-auth's built-in limiter defaults to per-instance memory, which
+  // does nothing on serverless. The credential endpoints are limited by the
+  // shared Postgres limiter in app/api/auth/[...all]/route.ts instead.
+  rateLimit: { enabled: false },
   account: {
     accountLinking: {
       // Equivalent to NextAuth's `allowDangerousEmailAccountLinking` for Google.
       // Google must still return a verified email address before it is linked.
       trustedProviders: ["google"],
-      requireLocalEmailVerified: false,
+      // KB-C03: `false` let an OAuth sign-in silently link onto ANY existing
+      // local account with a matching email, even one that never verified it
+      // (e.g. an attacker's own unverified sign-up in someone else's address).
+      // The default (true) requires the existing local account's email to
+      // already be verified before a new provider can attach to it.
+      requireLocalEmailVerified: true,
     },
   },
   ...(googleClientId && googleClientSecret

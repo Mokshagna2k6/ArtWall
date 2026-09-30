@@ -126,6 +126,13 @@ export interface BookingDetail extends Booking {
   artworkImageUrl: string | null;
   slots: { slotId: string; label: string; quotedPricePaise: number }[];
   addons: { id: string; label: string; pricePaise: number }[];
+  /** Admin view only (listAllBookings): install/de-install photos and damage. */
+  condition?: ConditionReport;
+}
+
+export interface ConditionReport {
+  photos: { id: string; stage: "install" | "deinstall"; itemKey: string; url: string; createdAt: string }[];
+  damage: { id: string; itemKey: string; description: string; severity: "minor" | "major"; artworkId: string | null; photoId: string | null; resolvedAt: string | null; createdAt: string }[];
 }
 
 export interface LedgerEntry {

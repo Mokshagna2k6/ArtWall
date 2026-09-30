@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 import Link from "next/link";
 
 import { discoverArtworks } from "@/features/marketplace/actions";
+import {
+  ARTWORK_CATEGORIES,
+  categoryLabel,
+} from "@/features/marketplace/categories";
 import { formatINR } from "@/features/physical-wall/money";
+import { cachedCatalog } from "@/lib/catalog-cache";
+
+// Catalogue cache (PERF-2.06), keyed by the filters + cursor. Shorter window:
+// the key space is open-ended (free-text q), so entries should age out.
+const loadPage = cachedCatalog(discoverArtworks, "discover", 300);
 
 export const metadata: Metadata = {
-  title: "Discover Art | ArtWall",
+  title: "Discover Art",
   description:
     "Explore original artworks from India's finest contemporary artists.",
 };
@@ -14,14 +23,36 @@ export const metadata: Metadata = {
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; medium?: string; sort?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    medium?: string;
+    category?: string;
+    min?: string;
+    max?: string;
+    sort?: string;
+    cursor?: string;
+  }>;
 }) {
   const params = await searchParams;
-  const items = await discoverArtworks({
+  const category = ARTWORK_CATEGORIES.find((c) => c === params.category);
+  const { items, nextCursor } = await loadPage({
     q: params.q,
     medium: params.medium,
+    category,
+    minPrice: rupeesToPaise(params.min),
+    maxPrice: rupeesToPaise(params.max),
     sort: (params.sort as "recent" | "price_asc" | "price_desc" | "title") ?? "recent",
+    cursor: params.cursor,
   });
+
+  // Same filters, next position. Minimal until FE-2.06's pagination UI lands.
+  const nextHref = nextCursor
+    ? `/discover?${new URLSearchParams(
+        Object.entries({ ...params, cursor: nextCursor }).filter(
+          (e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""
+        )
+      )}`
+    : null;
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-12">
@@ -37,6 +68,41 @@ export default async function DiscoverPage({
           placeholder="Search artworks…"
           defaultValue={params.q}
           className="border-hairline rounded-md border bg-transparent px-4 py-2 text-sm"
+        />
+        <select
+          name="category"
+          aria-label="Category"
+          defaultValue={category ?? ""}
+          className="border-hairline rounded-md border bg-transparent px-4 py-2 text-sm"
+        >
+          <option value="">All categories</option>
+          {ARTWORK_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {categoryLabel(c)}
+            </option>
+          ))}
+        </select>
+        <input
+          name="min"
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          placeholder="Min ₹"
+          aria-label="Minimum price in rupees"
+          defaultValue={params.min}
+          className="border-hairline w-28 rounded-md border bg-transparent px-4 py-2 text-sm"
+        />
+        <input
+          name="max"
+          type="number"
+          min={0}
+          step="any"
+          inputMode="decimal"
+          placeholder="Max ₹"
+          aria-label="Maximum price in rupees"
+          defaultValue={params.max}
+          className="border-hairline w-28 rounded-md border bg-transparent px-4 py-2 text-sm"
         />
         <select
           name="sort"
@@ -103,6 +169,24 @@ export default async function DiscoverPage({
           ))}
         </div>
       )}
+
+      {nextHref && (
+        <div className="mt-12 text-center">
+          <Link
+            href={nextHref}
+            className="border-hairline inline-block rounded-md border px-4 py-2 text-sm"
+          >
+            More artworks →
+          </Link>
+        </div>
+      )}
     </main>
   );
+}
+
+/** Rupees from a query string -> paise; blank or garbage means no bound. */
+function rupeesToPaise(value: string | undefined): number | undefined {
+  if (value == null || value.trim() === "") return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : undefined;
 }

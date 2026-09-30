@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { requireRolePage } from "@/features/physical-wall/authorize";
 import { getCalendar } from "@/features/physical-wall/data/calendar";
 import { countQueue } from "@/features/physical-wall/data/waitlist";
 
@@ -41,6 +42,7 @@ function dayIndex(from: string, iso: string): number {
 export default async function AdminCalendarPage({
   searchParams,
 }: PageProps<"/physical-wall/admin/calendar">) {
+  await requireRolePage("admin", "/physical-wall/admin/calendar");
   const params = await searchParams;
   const today = new Date().toISOString().slice(0, 10);
   const requested = typeof params.from === "string" ? params.from : undefined;

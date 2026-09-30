@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 
 import { recordAudit } from "@/features/physical-wall/audit";
@@ -106,7 +108,7 @@ export async function exportLedgerCsv(
   try {
     await requireRole("admin");
 
-    if (!/^\d{4}-\d{2}$/.test(month)) {
+    if (!z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).safeParse(month).success) {
       return { ok: false, message: "Pick a month." };
     }
 

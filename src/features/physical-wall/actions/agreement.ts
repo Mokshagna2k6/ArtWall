@@ -1,5 +1,7 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
 import { createHash } from "node:crypto";
 
@@ -12,12 +14,13 @@ import {
 } from "@/features/physical-wall/agreement";
 import { getCurrentRefundPolicy, getSettings } from "@/features/physical-wall/data/catalogs";
 import {
+  type ActionState,
   fail,
+  formInput,
   newId,
   ok,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
 import { getSql } from "@/lib/db";
 
@@ -103,8 +106,10 @@ export async function previewAgreement(
   bookingId: string
 ): Promise<{ ok: true; facts: AgreementFacts } | { ok: false; message: string }> {
   try {
+    const parsed = z.string().min(1).max(64).safeParse(bookingId);
+    if (!parsed.success) return { ok: false, message: "We couldn't find that booking." };
     const actor = await requireRole("artist");
-    const facts = await factsFor(bookingId, actor.id);
+    const facts = await factsFor(parsed.data, actor.id);
     if (!facts) return { ok: false, message: "We couldn't find that booking." };
     return { ok: true, facts };
   } catch (error) {
@@ -120,13 +125,14 @@ export async function signAgreement(
   try {
     const actor = await requireRole("artist");
 
-    const bookingId = String(formData.get("bookingId") ?? "");
-    const typedName = String(formData.get("signedName") ?? "").trim();
-    const agreed = formData.get("agreed") === "on";
-
-    if (!bookingId) return fail("Which booking?");
-    if (!agreed) return fail("Tick the box to sign.");
-    if (typedName.length < 2) return fail("Type your full name to sign.");
+    const { bookingId, signedName: typedName } = formInput(
+      z.object({
+        bookingId: z.string({ error: "Which booking?" }).min(1, "Which booking?").max(64),
+        agreed: z.literal("on", { error: "Tick the box to sign." }),
+        signedName: z.string({ error: "Type your full name to sign." }).trim().min(2, "Type your full name to sign.").max(200),
+      }),
+      formData
+    );
 
     // A signature that doesn't match the account name isn't a signature. Compared
     // loosely — case and spacing vary — but it must be the same person.

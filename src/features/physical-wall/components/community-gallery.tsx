@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { fullSrc } from "@/lib/cloudinary-url";
 import { SelfieBooth } from "@/features/physical-wall/components/selfie-booth";
 import { withdrawUgc } from "@/features/physical-wall/actions/ugc";
 import { IDLE } from "@/features/physical-wall/action-state";
@@ -73,7 +74,8 @@ export function CommunityGallerySection() {
               <li key={item.id} className="flex flex-col gap-2">
                 <figure className="overflow-hidden rounded-md border">
                   <img
-                    src={item.imageUrl}
+                    src={fullSrc(item.imageUrl, 640)}
+                    loading="lazy"
                     alt={item.caption}
                     className="aspect-4/3 h-full w-full object-cover"
                   />

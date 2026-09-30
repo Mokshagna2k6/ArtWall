@@ -1,8 +1,8 @@
 import {
-  StudioEmptyState,
+  StudioNotAvailable,
   StudioPageHeader,
-  StudioButton,
 } from "@/components/dashboard/studio-shell";
+
 export default function PaymentsPage() {
   return (
     <div className="flex flex-col gap-8">
@@ -10,14 +10,8 @@ export default function PaymentsPage() {
         eyebrow="Business"
         title="Payments"
         description="Track payment status alongside each sale without processing money in the archive."
-        action={<StudioButton>Record payment</StudioButton>}
       />
-      <div className="studio-card">
-        <StudioEmptyState
-          title="No payments yet"
-          description="Payment tracking will use server-side records and never expose sensitive credentials."
-        />
-      </div>
+      <StudioNotAvailable what="Payment tracking" />
     </div>
   );
 }

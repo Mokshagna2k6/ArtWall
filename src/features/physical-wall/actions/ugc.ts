@@ -1,10 +1,8 @@
 "use server";
 
 import { updateTag } from "next/cache";
-import { createHash } from "node:crypto";
-import { headers } from "next/headers";
 
-import { requireRole } from "@/features/physical-wall/authorize";
+import { getActor, hasRole, requireRole } from "@/features/physical-wall/authorize";
 import { recordAuditIn } from "@/features/physical-wall/audit";
 import {
   fail,
@@ -12,61 +10,107 @@ import {
   inTransaction,
   newId,
   ok,
-  toActionError,
   WALL_TAG,
   type ActionState,
 } from "@/features/physical-wall/actions/shared";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { limitRequest, retryIn } from "@/lib/rate-limit";
 import { getSql } from "@/lib/db";
-import { ugcSubmitSchema, ugcModerateSchema } from "@/features/physical-wall/schema";
-
-async function rotatingKey(prefix: string): Promise<string> {
-  const headerList = await headers();
-  const ip =
-    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headerList.get("x-real-ip") ||
-    "unknown";
-  const hour = Math.floor(Date.now() / 3_600_000);
-  return `${prefix}:${createHash("sha256").update(`${ip}:${hour}`).digest("hex").slice(0, 16)}`;
-}
+import { notifyUser } from "@/features/physical-wall/notifications";
+import { isOwnAsset } from "@/lib/cloudinary";
+import { getSessionUser } from "@/lib/session";
+import { currentUgcFolder, UGC_FORMATS } from "@/features/physical-wall/image-validation";
+import { ugcSubmitSchema, ugcModerateSchema, ugcWithdrawSchema } from "@/features/physical-wall/schema";
 
 export async function submitUgc(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const limit = checkRateLimit(await rotatingKey("pw-ugc"), {
-      limit: 5,
-      windowMs: 15 * 60 * 1000,
-    });
-    if (!limit.ok) return fail("Too many submissions. Try again shortly.");
+    // 5 per 15 minutes per visitor (user id when signed in, else IP): a selfie
+    // plus a couple of retakes. Moderation is manual, so the queue is the cost.
+    const user = await getSessionUser();
+    const limit = await limitRequest("pw-ugc", { limit: 5, windowMs: 15 * 60 * 1000 }, user?.id);
+    if (!limit.ok) return fail(`Too many submissions. Try again in ${retryIn(limit)}.`);
 
     const parsed = ugcSubmitSchema.safeParse({
       caption: formData.get("caption"),
       imageUrl: formData.get("imageUrl"),
+      cloudinaryId: formData.get("cloudinaryId"),
       visitId: formData.get("visitId") || undefined,
       consent: formData.get("consent") === "on",
       adultConfirmed: formData.get("adultConfirmed") === "on",
     });
     if (!parsed.success) return fail(firstIssue(parsed.error));
 
-    const { caption, imageUrl, visitId } = parsed.data;
+    const { caption, imageUrl, cloudinaryId, visitId } = parsed.data;
 
-    const sql = getSql();
+    // The browser uploads straight to Cloudinary and reports back the URL and
+    // public id, so both are untrusted. BE-2.08: the id must sit in THIS
+    // uploader's folder (an HMAC of their user id or guest cookie, which only
+    // our signature route hands out), so nobody can claim someone else's
+    // upload. The URL must be our own asset and the very one the id names.
+    const folder = await currentUgcFolder(false);
+    if (
+      !folder ||
+      !cloudinaryId.startsWith(`${folder}/`) ||
+      !isOwnAsset(imageUrl, folder) ||
+      !new URL(imageUrl).pathname.includes(`/${cloudinaryId}.`)
+    ) {
+      return fail("That photo did not come from our uploader. Please upload it again.");
+    }
+    const format = new URL(imageUrl).pathname.split(".").pop()?.toLowerCase() ?? "";
+    if (!(UGC_FORMATS as readonly string[]).includes(format)) {
+      return fail("That file type isn't supported. Upload a JPEG, PNG, WebP, HEIC or GIF photo.");
+    }
+
+    // Signed-in submitters are linked so their UGC shows up in a DPDP export
+    // and is erased with their account. A registered visitor is linked through
+    // their visit; anyone else is an anonymous guest.
     const id = newId("ugc");
-    const consentId = newId("cns");
 
-    await sql`
-      insert into pw_consents (id, purpose, granted, notice_version)
-      values (${consentId}, 'ugc_display', true, 'v1')
-    `;
+    const duplicate = await inTransaction(async (client) => {
+      // One submission per photo (0029). Checked under an advisory lock on the
+      // asset so a double-submit gets a clear answer rather than a 23505.
+      await client.query(`select pg_advisory_xact_lock(hashtext($1))`, [`ugc:${cloudinaryId}`]);
+      const seen = await client.query(`select 1 from pw_ugc_submissions where cloudinary_id = $1`, [cloudinaryId]);
+      if (seen.rowCount) return true;
 
-    await inTransaction(async (client) => {
+      let visitorId: string | null = null;
+      if (!user && visitId) {
+        const visit = await client.query<{ visitor_id: string }>(
+          `select visitor_id from pw_visits where id = $1`,
+          [visitId]
+        );
+        visitorId = visit.rows[0]?.visitor_id ?? null;
+      }
+
+      // One live 'ugc_publication' consent per person (unique partial index),
+      // reused across their submissions; a guest's consent is per submission.
+      let consentId: string | null = null;
+      if (user || visitorId) {
+        const live = await client.query<{ id: string }>(
+          `select id from pw_consents
+           where purpose = 'ugc_publication' and withdrawn_at is null
+             and ${user ? "user_id" : "visitor_id"} = $1
+           limit 1`,
+          [user?.id ?? visitorId]
+        );
+        consentId = live.rows[0]?.id ?? null;
+      }
+      if (!consentId) {
+        consentId = newId("cns");
+        await client.query(
+          `insert into pw_consents (id, user_id, visitor_id, purpose, granted, notice_version)
+           values ($1, $2, $3, 'ugc_publication', true, 'v1')`,
+          [consentId, user?.id ?? null, visitorId]
+        );
+      }
+
       await client.query(
         `insert into pw_ugc_submissions
-           (id, visitor_id, caption, cloudinary_id, url, consent_id, status, kind)
-         values ($1, $2, $3, $4, $5, $6, 'pending', 'selfie')`,
-        [id, visitId ?? null, caption, imageUrl, imageUrl, consentId]
+           (id, user_id, visitor_id, caption, cloudinary_id, url, consent_id, status, kind)
+         values ($1, $2, $3, $4, $5, $6, $7, 'pending', 'selfie')`,
+        [id, user?.id ?? null, visitorId, caption, cloudinaryId, imageUrl, consentId]
       );
 
       await recordAuditIn(client, {
@@ -76,7 +120,9 @@ export async function submitUgc(
         subjectId: id,
         after: { hasVisit: Boolean(visitId), captionLength: caption.length },
       });
+      return false;
     });
+    if (duplicate) return fail("That photo has already been submitted.");
 
     updateTag(WALL_TAG);
     return ok("Submitted for moderation. We'll let you know when it's live.");
@@ -104,7 +150,7 @@ export async function moderateUgc(
     const sql = getSql();
 
     const existing = (await sql.query(
-      `select id, status, cloudinary_id, url, caption, visitor_id, kind
+      `select id, status, cloudinary_id, url, caption, visitor_id, kind, user_id
        from pw_ugc_submissions
        where id = $1
        limit 1`,
@@ -121,6 +167,7 @@ export async function moderateUgc(
       caption: string;
       visitor_id: string | null;
       kind: string;
+      user_id: string | null;
     };
 
     if (row.status === "approved" || row.status === "rejected") {
@@ -177,6 +224,13 @@ export async function moderateUgc(
         });
       }
     });
+
+    // Guests left no address; signed-in submitters hear the outcome.
+    if (row.user_id) {
+      const caption = row.caption || "your photo";
+      if (verdict === "approved") await notifyUser("ugc.approved", row.user_id, () => ({ caption }));
+      else await notifyUser("ugc.removed", row.user_id, () => ({ caption }));
+    }
 
     updateTag(WALL_TAG);
     return ok(
@@ -245,18 +299,29 @@ export async function withdrawUgc(
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const submissionId = String(formData.get("submissionId") ?? "");
-    if (!submissionId) return fail("Which submission?");
+    const parsed = ugcWithdrawSchema.safeParse({ submissionId: formData.get("submissionId") });
+    if (!parsed.success) return fail("Which submission?");
+    const { submissionId } = parsed.data;
 
     const sql = getSql();
     const rows = (await sql`
-      select id, status, cloudinary_id, url
+      select id, status, cloudinary_id, url, user_id
       from pw_ugc_submissions
       where id = ${submissionId}
       limit 1
-    `) as { id: string; status: string; cloudinary_id: string; url: string }[];
+    `) as { id: string; status: string; cloudinary_id: string; url: string; user_id: string | null }[];
 
-    if (rows.length === 0) return fail("No such submission.");
+    // Only the submitter (their account, or the guest cookie whose folder the
+    // photo was uploaded into) or staff may withdraw. Gallery rows expose the
+    // submission id publicly, so an id alone must not be enough.
+    const actor = await getActor();
+    const folder = await currentUgcFolder(false);
+    const mine =
+      rows[0] &&
+      (hasRole(actor, "staff") ||
+        (actor && rows[0].user_id === actor.id) ||
+        (folder && rows[0].cloudinary_id.startsWith(`${folder}/`)));
+    if (!mine) return fail("No such submission.");
 
     await inTransaction(async (client) => {
       await client.query(

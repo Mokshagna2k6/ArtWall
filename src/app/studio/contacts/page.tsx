@@ -1,10 +1,9 @@
-import { Plus, Users } from "lucide-react";
 import { getContacts } from "@/app/actions/contacts";
 import {
-  StudioButton,
   StudioEmptyState,
   StudioPageHeader,
 } from "@/components/dashboard/studio-shell";
+import { WorkspaceCreateForm } from "@/components/dashboard/workspace-create-form";
 export default async function ContactsPage() {
   const contacts = await getContacts();
   return (
@@ -13,24 +12,13 @@ export default async function ContactsPage() {
         eyebrow="Network"
         title="Contacts"
         description="Build a thoughtful record of collectors, curators, galleries, and collaborators."
-        action={
-          <StudioButton>
-            <Plus data-icon="inline-start" />
-            Add contact
-          </StudioButton>
-        }
+        action={<WorkspaceCreateForm kind="contact" />}
       />
       {contacts.length === 0 ? (
         <div className="studio-card">
           <StudioEmptyState
             title="Your collector book is empty"
             description="Contacts will become the connective tissue between your work and its next home."
-            action={
-              <StudioButton>
-                <Users data-icon="inline-start" />
-                Add your first contact
-              </StudioButton>
-            }
           />
         </div>
       ) : (

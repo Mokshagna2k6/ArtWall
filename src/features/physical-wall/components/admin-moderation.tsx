@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
+import { fullSrc } from "@/lib/cloudinary-url";
 import { IDLE } from "@/features/physical-wall/action-state";
 import { moderateUgc, listPendingUgc } from "@/features/physical-wall/actions/ugc";
 import {
@@ -24,9 +25,18 @@ export function AdminModeration() {
     setLoading(false);
   }
 
-  useState(() => {
-    refresh();
-  });
+  // Load once on mount. (Was a useState initializer, i.e. setState during render.)
+  useEffect(() => {
+    let live = true;
+    listPendingUgc().then((data) => {
+      if (!live) return;
+      setItems(data);
+      setLoading(false);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   return (
     <div className="flex flex-col gap-6">
@@ -75,7 +85,8 @@ export function AdminModeration() {
 
                 <div className="mt-4 overflow-hidden rounded-md border">
                   <img
-                    src={item.imageUrl}
+                    src={fullSrc(item.imageUrl, 800)}
+                    loading="lazy"
                     alt="UGC submission"
                     className="h-64 w-full object-cover"
                   />

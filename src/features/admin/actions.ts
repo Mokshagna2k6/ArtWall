@@ -2,41 +2,49 @@
 
 import { updateTag } from "next/cache";
 import { headers } from "next/headers";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { z } from "zod";
 
 import { ROSTER_TAG } from "@/features/waitlist/roster";
 import { getSql } from "@/lib/db";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, clientIp, mostRestrictive, retryIn } from "@/lib/rate-limit";
 
 export type AdminState =
   | { status: "idle" }
   | { status: "error"; message: string }
   | { status: "ok"; message: string };
 
+/** SEC-1.16: below this, ADMIN_PASSWORD is not the ~32 random bytes this
+ * single shared-password mechanism needs to resist offline guessing. */
+const ADMIN_PASSWORD_MIN_LENGTH = 32;
+
 /**
  * Constant-time password comparison.
  *
  * A plain `===` on a secret leaks its length and, in principle, its prefix
- * through timing. Hashing both sides to a fixed width first also stops
- * `timingSafeEqual` throwing on mismatched lengths.
+ * through timing. SHA-256 hashing both sides first gives `timingSafeEqual` a
+ * fixed-width input without padding or truncating either value — padding a
+ * short secret out to a fixed width does not make it strong, and truncating a
+ * long one silently caps how much of it is ever actually checked.
  */
 function passwordMatches(supplied: string): boolean {
   const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) return false;
+  if (!expected || expected.length < ADMIN_PASSWORD_MIN_LENGTH) return false;
 
-  const a = Buffer.from(supplied.padEnd(64).slice(0, 64));
-  const b = Buffer.from(expected.padEnd(64).slice(0, 64));
+  const a = createHash("sha256").update(supplied).digest();
+  const b = createHash("sha256").update(expected).digest();
   return timingSafeEqual(a, b);
 }
 
-async function clientKey(): Promise<string> {
-  const headerList = await headers();
-  return (
-    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headerList.get("x-real-ip") ||
-    "unknown"
-  );
-}
+/**
+ * Admin password attempts: 5 per 15 minutes per IP, and 30 per 15 minutes
+ * across ALL IPs. The per-IP bucket stops one machine guessing; the global one
+ * caps a distributed guesser at ~2,900 tries a day instead of unbounded. The
+ * cost is that an attacker can lock the (single) admin out for 15 minutes,
+ * which is the right trade for a password-only endpoint.
+ */
+const ADMIN_PER_IP = { limit: 5, windowMs: 15 * 60 * 1000 };
+const ADMIN_GLOBAL = { limit: 30, windowMs: 15 * 60 * 1000 };
 
 /**
  * Hide or restore a tile.
@@ -53,12 +61,20 @@ export async function setTileStatus(
   _previous: AdminState,
   formData: FormData
 ): Promise<AdminState> {
-  const limit = checkRateLimit(`admin:${await clientKey()}`, {
-    limit: 8,
-    windowMs: 15 * 60 * 1000,
-  });
+  // Password-guarded: fails CLOSED if the limiter store is down (PERF-2.03).
+  const limit = mostRestrictive(
+    await Promise.all([
+      checkRateLimit(`admin:ip:${clientIp(await headers())}`, ADMIN_PER_IP),
+      checkRateLimit("admin:global", ADMIN_GLOBAL),
+    ])
+  );
   if (!limit.ok) {
-    return { status: "error", message: "Too many attempts. Wait a while." };
+    return {
+      status: "error",
+      message: limit.unavailable
+        ? "Temporarily unavailable. Try again shortly."
+        : `Too many attempts. Try again in ${retryIn(limit)}.`,
+    };
   }
 
   const password = String(formData.get("password") ?? "");
@@ -66,15 +82,16 @@ export async function setTileStatus(
     return { status: "error", message: "Wrong password." };
   }
 
-  const founderNumber = Number(formData.get("founderNumber"));
-  const next = String(formData.get("next"));
-
-  if (!Number.isInteger(founderNumber) || founderNumber < 1) {
-    return { status: "error", message: "Enter a valid founder number." };
+  const parsed = z
+    .object({
+      founderNumber: z.coerce.number({ error: "Enter a valid founder number." }).int("Enter a valid founder number.").min(1, "Enter a valid founder number."),
+      next: z.enum(["visible", "hidden"], { error: "Unknown action." }),
+    })
+    .safeParse({ founderNumber: formData.get("founderNumber"), next: formData.get("next") });
+  if (!parsed.success) {
+    return { status: "error", message: parsed.error.issues[0]?.message ?? "Check the form." };
   }
-  if (next !== "visible" && next !== "hidden") {
-    return { status: "error", message: "Unknown action." };
-  }
+  const { founderNumber, next } = parsed.data;
 
   try {
     const sql = getSql();

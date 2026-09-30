@@ -1,19 +1,22 @@
 "use server";
 
-import { updateTag } from "next/cache";
+import { z } from "zod";
 
 import { getSql } from "@/lib/db";
-import { fail, newId, ok, WALL_TAG, type ActionState } from "@/features/physical-wall/actions/shared";
+import { requirePhysicalWallEnabled } from "@/features/physical-wall/authorize";
+import { type ActionState, fail, firstIssue, newId } from "@/features/physical-wall/actions/shared";
 
 export async function searchArtworks(
   _previous: ActionState,
   formData: FormData
 ): Promise<ActionState & { results?: unknown[] }> {
   try {
-    const query = String(formData.get("q") ?? "").trim();
-    if (!query || query.length < 2) {
-      return fail("Type at least 2 characters to search.");
-    }
+    requirePhysicalWallEnabled();
+    const parsed = z
+      .object({ q: z.string({ error: "Type at least 2 characters to search." }).trim().min(2, "Type at least 2 characters to search.").max(200) })
+      .safeParse({ q: formData.get("q") ?? "" });
+    if (!parsed.success) return fail(firstIssue(parsed.error));
+    const query = parsed.data.q;
 
     const sql = getSql();
 
@@ -55,8 +58,11 @@ export async function searchArtworks(
       values (${newId("srch")}, ${query}, ${results.length})
     `;
 
-    updateTag(WALL_TAG);
-    return ok("", { results });
+    // No cache invalidation: nothing cached reads pw_search_log, and updateTag
+    // throws outside a Server Action, which failed every /api/physical-wall/search call.
+    // `results` at the top level, as the return type says: ok("", { results })
+    // nested it under `data`, so the route never found it and always answered 400.
+    return { status: "ok", message: "", results };
   } catch (error) {
     console.error("[physical-wall] searchArtworks", error);
     return fail("Search failed. Try again.");

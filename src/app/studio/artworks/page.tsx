@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 import { Plus } from "lucide-react";
 
 import { getArtworks } from "@/app/actions/artworks";

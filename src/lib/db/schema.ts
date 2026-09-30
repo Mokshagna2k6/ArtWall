@@ -23,6 +23,8 @@ export const user = pgTable("user", {
   /** Identity verification. Required before a first payout, not before exhibiting. */
   verifiedAt: timestamp("verifiedAt", { withTimezone: true }),
   verificationMethod: text("verificationMethod"),
+  /** Set when a pw_identity_verifications review is approved (0009). Payout gate. */
+  identityVerified: boolean("identity_verified").notNull().default(false),
   /** Self-declared 18+. Null means not yet asked (DPDP §5.4). */
   ageDeclaredAdult: boolean("ageDeclaredAdult"),
   onboardedAt: timestamp("onboardedAt", { withTimezone: true }),
@@ -105,6 +107,8 @@ export const artworks = pgTable("artworks", {
   category: text("category"),
   pricePaise: integer("price_paise"),
   tags: text("tags").array(),
+  // search_tsv: generated tsvector owned by Postgres (0018), deliberately not
+  // modelled so select() on artworks doesn't ship it. Query it in raw SQL.
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
@@ -137,7 +141,8 @@ export const sales = pgTable("sales", {
   contactId: text("contactId"),
   artworkId: text("artworkId"),
   status: text("status").notNull().default("lead"),
-  amount: integer("amount"),
+  /** Deal value in paise (was whole rupees in "amount" until 0033). */
+  amountPaise: integer("amountPaise"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
 export const documents = pgTable("documents", {
@@ -277,6 +282,8 @@ export const pwSettings = pgTable("pw_settings", {
   groupDiscountTiers: jsonb("group_discount_tiers").notNull().default([]),
   venueOpenHour: integer("venue_open_hour").notNull().default(11),
   venueCloseHour: integer("venue_close_hour").notNull().default(22),
+  /** Concurrent install windows the venue team can run (BE-1.15). */
+  installCapacity: integer("install_capacity").notNull().default(2),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -349,15 +356,50 @@ export const pwPayments = pgTable("pw_payments", {
     .defaultNow(),
 });
 
+/** Refunds owed/sent. Written before Razorpay is called — see 0022_be_refunds.sql. */
+export const pwRefunds = pgTable("pw_refunds", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  paymentId: text("payment_id"),
+  amountPaise: integer("amount_paise").notNull(),
+  status: text("status").notNull().default("pending"),
+  providerRefundId: text("provider_refund_id").unique(),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  reason: text("reason"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * The founder's ledger. Full notes: docs/db/ledger.md.
+ *
+ * `type` — CHECK pw_ledger_type_check allows exactly two values:
+ *   'revenue' | 'expense'
+ * There is no 'payment', 'settlement' or 'refund' *type*: a captured payment is
+ * type 'revenue' / category 'booking'; a refund is type 'expense' / category
+ * 'refund'. Categories are validated in app code (CATEGORIES in
+ * src/features/physical-wall/actions/ledger.ts), not by the DB.
+ *
+ * `amountPaise` is never negative (CHECK, 0017); direction comes from `type`.
+ */
 export const pwLedger = pgTable("pw_ledger", {
   id: text("id").primaryKey(),
-  type: text("type").notNull(),
+  type: text("type").notNull().$type<"revenue" | "expense">(),
   category: text("category").notNull(),
   amountPaise: integer("amount_paise").notNull(),
   note: text("note"),
-  entryDate: date("entry_date").notNull(),
+  entryDate: date("entry_date").notNull().defaultNow(),
+  /** 'booking:<id>' | 'refund:<id>' | 'perk:<redemption id>'; unique; null for manual rows. */
   sourceRef: text("source_ref"),
   createdBy: text("created_by"),
+  /**
+   * FK -> pw_bookings.id (0017), indexed. The booking this entry concerns; set
+   * on booking revenue, booking refunds and artist perks. Null for manual rows.
+   * Join on this for revenue-per-booking, never on parsed source_ref.
+   */
+  bookingId: text("booking_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -595,6 +637,11 @@ export const pwNotifications = pgTable("pw_notifications", {
   attempts: integer("attempts").notNull().default(0),
   lastError: text("last_error"),
   sentAt: timestamp("sent_at", { withTimezone: true }),
+  /** Scheduled sends go out once per key (0026). */
+  dedupeKey: text("dedupe_key"),
+  /** Outbox retry state (0052). */
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -613,6 +660,8 @@ export const pwConditionPhotos = pgTable("pw_condition_photos", {
   itemKey: text("item_key").notNull(),
   cloudinaryId: text("cloudinary_id").notNull(),
   url: text("url").notNull(),
+  /** 'install' | 'deinstall' (0025). */
+  stage: text("stage").notNull().default("install"),
   uploadedBy: text("uploaded_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -625,6 +674,7 @@ export const pwDamageRecords = pgTable("pw_damage_records", {
   description: text("description").notNull(),
   severity: text("severity").notNull().default("minor"),
   photoId: text("photo_id"),
+  artworkId: text("artwork_id"),
   recordedBy: text("recorded_by"),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -642,6 +692,9 @@ export const pwInvoices = pgTable("pw_invoices", {
   netPaise: integer("net_paise").notNull(),
   cgstPaise: integer("cgst_paise").notNull(),
   sgstPaise: integer("sgst_paise").notNull(),
+  /** Inter-state tax (0016). CHECK: igst > 0 only when cgst = sgst = 0. */
+  igstPaise: integer("igst_paise").notNull().default(0),
+  /** CHECK: total = net + cgst + sgst + igst. */
   totalPaise: integer("total_paise").notNull(),
   lineItems: jsonb("line_items").notNull(),
   status: text("status").notNull().default("issued"),
@@ -737,11 +790,31 @@ export const coaCertificates = pgTable("coa_certificates", {
   metadataHash: text("metadata_hash").notNull(),
   version: integer("version").notNull().default(1),
   pdfUrl: text("pdf_url"),
+  /**
+   * CHECK (0015): draft | issued | revoked            (off-chain COA)
+   *               metadata_pinned | minting | minted | failed  (NFT mint flow)
+   */
   status: text("status").notNull().default("draft"),
   issuedAt: timestamp("issued_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   revokeReason: text("revoke_reason"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // NFT/mint fields (migration 0014). camelCase columns, unlike the rest of this table.
+  imageCid: text("imageCid"),
+  metadataCid: text("metadataCid"),
+  metadataUri: text("metadataUri"),
+  metadataSha256: text("metadataSha256"),
+  mintNonce: text("mintNonce"),
+  txHash: text("txHash"),
+  chainId: integer("chainId"),
+  contractAddr: text("contractAddr"),
+  tokenId: text("tokenId"),
+  mintedAt: timestamp("mintedAt", { withTimezone: true }),
+  mintRequestedAt: timestamp("mintRequestedAt", { withTimezone: true }),
+  mintError: text("mintError"),
+  creatorName: text("creatorName"),
+  objectType: text("objectType"),
+  privacy: text("privacy").default("public"),
 });
 
 export const provenanceEvents = pgTable("provenance_events", {
@@ -779,6 +852,8 @@ export const mintCommitments = pgTable("mint_commitments", {
   merkleRootId: text("merkle_root_id"),
   tokenId: text("token_id"),
   mintTxHash: text("mint_tx_hash"),
+  /** Sibling path to merkle_roots.root_hash (0x bytes32[]), written by the merkle-root cron. */
+  merkleProof: jsonb("merkle_proof").$type<string[]>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

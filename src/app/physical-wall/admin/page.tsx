@@ -8,12 +8,15 @@ import {
   Wallet,
 } from "lucide-react";
 
+import { requireRolePage } from "@/features/physical-wall/authorize";
 import { formatINR } from "@/features/physical-wall/money";
 import { listInstallQueue } from "@/features/physical-wall/data/bookings";
 import { getCurrentRefundPolicy, getSettings } from "@/features/physical-wall/data/catalogs";
 import { getMonthlySummary, getPerkSummary } from "@/features/physical-wall/data/ledger";
 import { getActiveGrid, listSlots } from "@/features/physical-wall/data/wall";
+import { listDeadNotifications } from "@/features/physical-wall/notifications";
 import { isRazorpayConfigured } from "@/features/physical-wall/razorpay";
+import { countStuckRefunds } from "@/features/physical-wall/refunds";
 
 export const metadata: Metadata = {
   title: "Wall overview",
@@ -23,16 +26,19 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AdminOverviewPage() {
+  await requireRolePage("admin", "/physical-wall/admin");
   const grid = await getActiveGrid();
   const month = new Date().toISOString().slice(0, 7);
 
-  const [slots, summary, perks, policy, settings, queue] = await Promise.all([
+  const [slots, summary, perks, policy, settings, queue, deadLetters, stuckRefunds] = await Promise.all([
     grid ? listSlots(grid.id) : Promise.resolve([]),
     getMonthlySummary(month),
     getPerkSummary(month),
     getCurrentRefundPolicy(),
     getSettings(),
     listInstallQueue(),
+    listDeadNotifications(),
+    countStuckRefunds(),
   ]);
 
   const live = slots.filter((slot) => slot.state === "live").length;
@@ -59,6 +65,14 @@ export default async function AdminOverviewPage() {
     outOfService > 0 && {
       text: `${outOfService} slot${outOfService === 1 ? "" : "s"} out of service`,
       href: "/physical-wall/admin/grid",
+    },
+    stuckRefunds > 0 && {
+      text: `${stuckRefunds} refund${stuckRefunds === 1 ? " keeps" : "s keep"} failing at Razorpay — check and refund by hand if needed`,
+      href: "/physical-wall/admin/bookings",
+    },
+    deadLetters.length > 0 && {
+      text: `${deadLetters.length} notification${deadLetters.length === 1 ? "" : "s"} could not be delivered`,
+      href: "#dead-letter",
     },
     !policy && {
       text: "No refund policy is published — bookings cannot state their terms",
@@ -133,6 +147,25 @@ export default async function AdminOverviewPage() {
                   />
                   {alert.text}
                 </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {deadLetters.length > 0 && (
+        <section id="dead-letter">
+          <h2 className="text-label text-ink-muted tracking-wider uppercase">
+            Undelivered notifications
+          </h2>
+          <ul className="border-hairline mt-3 flex flex-col rounded-md border text-sm">
+            {deadLetters.map((n, index) => (
+              <li key={n.id} className={`px-4 py-3 ${index > 0 ? "border-hairline border-t" : ""}`}>
+                <p>
+                  <strong>{n.subject}</strong> to {n.recipient}{" "}
+                  <span className="text-ink-muted">({n.kind}, {n.attempts} attempts)</span>
+                </p>
+                {n.last_error && <p className="text-ink-muted mt-1 text-xs">{n.last_error}</p>}
               </li>
             ))}
           </ul>

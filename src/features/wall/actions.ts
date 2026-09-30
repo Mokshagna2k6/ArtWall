@@ -2,6 +2,7 @@
 
 import { updateTag } from "next/cache";
 import { headers } from "next/headers";
+import { z } from "zod";
 
 import { WALL_TAG } from "@/features/wall/data";
 import {
@@ -19,21 +20,19 @@ import {
   type UploadSignature,
 } from "@/lib/cloudinary";
 import { DatabaseNotConfiguredError } from "@/lib/db";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { limitRequest, retryIn } from "@/lib/rate-limit";
 import { getSessionUser } from "@/lib/session";
 
-/** Uploads are far heavier than a form post, so the ceiling is lower. */
+/**
+ * Per user (signed in) or per IP (anonymous search), via limitRequest.
+ * Uploads are far heavier than a form post, so the ceiling is lower: 8 upload
+ * signatures and 4 publishes per 10 minutes covers an artist retrying a tile;
+ * 40 searches a minute is fast typing with debounce misses.
+ */
 const UPLOAD_LIMIT = { limit: 8, windowMs: 10 * 60 * 1000 };
 const PUBLISH_LIMIT = { limit: 4, windowMs: 10 * 60 * 1000 };
-const SEARCH_LIMIT = { limit: 40, windowMs: 60 * 1000 };
-
-async function clientKey(): Promise<string> {
-  const headerList = await headers();
-  const forwarded = headerList.get("x-forwarded-for");
-  return (
-    forwarded?.split(",")[0]?.trim() || headerList.get("x-real-ip") || "unknown"
-  );
-}
+// Public read: fails open if the limiter store is down (PERF-2.03, lib/rate-limit.ts).
+const SEARCH_LIMIT = { limit: 40, windowMs: 60 * 1000, failOpen: true };
 
 /**
  * Mint a short-lived signature so the browser can upload straight to
@@ -46,15 +45,16 @@ async function clientKey(): Promise<string> {
 export async function requestUploadSignature(): Promise<
   { ok: true; signature: UploadSignature } | { ok: false; message: string }
 > {
-  if (!(await getSessionUser())) {
+  const user = await getSessionUser();
+  if (!user) {
     return { ok: false, message: "Please sign in to upload your work." };
   }
 
-  const limit = checkRateLimit(`upload:${await clientKey()}`, UPLOAD_LIMIT);
+  const limit = await limitRequest("wall-upload", UPLOAD_LIMIT, user.id);
   if (!limit.ok) {
     return {
       ok: false,
-      message: `Too many uploads. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.`,
+      message: `Too many uploads. Try again in ${retryIn(limit)}.`,
     };
   }
 
@@ -134,11 +134,11 @@ export async function publishToWall(
     };
   }
 
-  const limit = checkRateLimit(`publish:${await clientKey()}`, PUBLISH_LIMIT);
+  const limit = await limitRequest("wall-publish", PUBLISH_LIMIT, user.id);
   if (!limit.ok) {
     return {
       status: "error",
-      message: `Too many submissions. Try again in ${Math.ceil(limit.retryAfter / 60)} minutes.`,
+      message: `Too many submissions. Try again in ${retryIn(limit)}.`,
     };
   }
 
@@ -223,10 +223,16 @@ export async function publishToWall(
 export async function searchWall(
   query: string
 ): Promise<{ tiles: WallTile[]; limited: boolean }> {
-  if (query.trim().length < 2) return { tiles: [], limited: false };
+  const parsed = z.string().trim().min(2).max(200).safeParse(query);
+  if (!parsed.success) return { tiles: [], limited: false };
 
-  const limit = checkRateLimit(`wallsearch:${await clientKey()}`, SEARCH_LIMIT);
+  const limit = await limitRequest("wall-search", SEARCH_LIMIT);
   if (!limit.ok) return { tiles: [], limited: true };
 
-  return { tiles: await searchWallTiles(query), limited: false };
+  try {
+    return { tiles: await searchWallTiles(parsed.data), limited: false };
+  } catch (error) {
+    console.error("[wall] search failed", error);
+    return { tiles: [], limited: false };
+  }
 }

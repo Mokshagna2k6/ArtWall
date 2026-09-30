@@ -162,7 +162,9 @@ Build        PASS (all routes compiled)
 | security.test.ts | 10 | Webhook forgery, null/empty signatures, wrong-secret, RBAC ranks |
 | concurrency.test.ts | 1 | **50 parallel bookings on one slot → exactly 1 success, 49 clean failures** |
 
-Missing: integration tests against a real database, E2E journeys, accessibility audits, load testing.
+Integration tests against the real database now exist (`pnpm test:db`). Current true counts and coverage map: [docs/testing.md](docs/testing.md) (163 tests: 126 unit + 37 integration).
+
+Missing: E2E journeys, accessibility audits, load testing.
 
 ---
 

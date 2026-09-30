@@ -8,6 +8,7 @@ import { SkipLink } from "@/components/layout/skip-link";
 import { features, siteConfig } from "@/config/site";
 import { getActor } from "@/features/physical-wall/authorize";
 import "./globals.css";
+import { JsonLd } from "@/components/seo/json-ld";
 
 /**
  * Display face. The `opsz` axis is what makes a serif hold together at 100px
@@ -104,17 +105,11 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${fraunces.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
-        {/* Structured data. The content is a literal object we control and is
-            serialised with JSON.stringify, so there is no injection path here. */}
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify(organisationJsonLd),
-          }}
-        />
+        <JsonLd data={organisationJsonLd} />
         <MotionProvider>
           <SkipLink />
           {/* Read here, in a Server Component, and handed down: the flag is a

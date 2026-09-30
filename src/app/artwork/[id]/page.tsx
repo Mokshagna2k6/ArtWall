@@ -1,11 +1,17 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getArtworkDetail } from "@/features/marketplace/actions";
 import { getProvenanceTimeline } from "@/features/coa/actions";
 import { formatINR } from "@/features/physical-wall/money";
+import { JsonLd } from "@/components/seo/json-ld";
+import { cachedCatalog } from "@/lib/catalog-cache";
+
+// Same for every visitor: served from the catalogue cache (PERF-2.06).
+const loadArtwork = cachedCatalog(getArtworkDetail, "artwork-detail", 3600);
+const loadTimeline = cachedCatalog(getProvenanceTimeline, "provenance", 3600);
 
 export async function generateMetadata({
   params,
@@ -13,11 +19,13 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  const artwork = await getArtworkDetail(id);
+  const artwork = await loadArtwork(id);
   if (!artwork) return { title: "Artwork not found" };
   return {
-    title: `${artwork.title} by ${artwork.artistName} | ArtWall`,
-    description: artwork.description?.slice(0, 160) ?? `${artwork.title} — ${artwork.medium ?? "artwork"}`,
+    title: `${artwork.title} by ${artwork.artistName}`,
+    description:
+      artwork.description?.slice(0, 160) ??
+      `${artwork.title} — ${artwork.medium ?? "artwork"}`,
   };
 }
 
@@ -27,10 +35,10 @@ export default async function ArtworkDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const artwork = await getArtworkDetail(id);
+  const artwork = await loadArtwork(id);
   if (!artwork) notFound();
 
-  const timeline = await getProvenanceTimeline(id);
+  const timeline = await loadTimeline(id);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
@@ -107,7 +115,7 @@ export default async function ArtworkDetailPage({
           {/* Certificates */}
           {artwork.certificates.length > 0 && (
             <section className="mt-8">
-              <h2 className="text-xs font-medium uppercase tracking-wider">
+              <h2 className="text-xs font-medium tracking-wider uppercase">
                 Certificates of Authenticity
               </h2>
               <ul className="mt-3 space-y-2">
@@ -170,7 +178,7 @@ export default async function ArtworkDetailPage({
             {timeline.map((ev) => (
               <li key={ev.id} className="relative">
                 <span
-                  className={`absolute -left-[1.9rem] top-1.5 h-2.5 w-2.5 rounded-full border-2 border-white ${
+                  className={`absolute top-1.5 -left-[1.9rem] h-2.5 w-2.5 rounded-full border-2 border-white ${
                     ev.txHash ? "bg-green-500" : "bg-neutral-400"
                   }`}
                 />
@@ -192,25 +200,22 @@ export default async function ArtworkDetailPage({
         </section>
       )}
 
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "VisualArtwork",
-            name: artwork.title,
-            creator: { "@type": "Person", name: artwork.artistName },
-            artMedium: artwork.medium,
-            dateCreated: artwork.year?.toString(),
-            image: artwork.imageUrl,
-            offers: artwork.pricePaise
-              ? {
-                  "@type": "Offer",
-                  price: (artwork.pricePaise / 100).toFixed(2),
-                  priceCurrency: "INR",
-                }
-              : undefined,
-          }),
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "VisualArtwork",
+          name: artwork.title,
+          creator: { "@type": "Person", name: artwork.artistName },
+          artMedium: artwork.medium,
+          dateCreated: artwork.year?.toString(),
+          image: artwork.imageUrl,
+          offers: artwork.pricePaise
+            ? {
+                "@type": "Offer",
+                price: (artwork.pricePaise / 100).toFixed(2),
+                priceCurrency: "INR",
+              }
+            : undefined,
         }}
       />
     </main>

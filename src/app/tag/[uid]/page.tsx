@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 import Link from "next/link";
 
 import { resolveTagScan } from "@/features/art-tags/actions";
 
 export const metadata: Metadata = {
-  title: "ArtTag | ArtWall",
+  title: "ArtTag",
   description: "Scan an ArtWall tag to discover the artwork",
 };
 
@@ -33,7 +33,9 @@ export default async function TagPage({
       <main className="mx-auto max-w-lg px-6 py-24 text-center">
         <h1 className="text-display font-heading">Tag scanned</h1>
         <p className="text-ink-muted mt-4">
-          This ArtTag has not been bound to an artwork yet.
+          {"private" in result && result.private
+            ? "The artwork on this ArtTag is not public right now."
+            : "This ArtTag has not been bound to an artwork yet."}
         </p>
       </main>
     );

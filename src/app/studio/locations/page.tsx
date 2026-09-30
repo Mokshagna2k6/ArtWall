@@ -1,8 +1,8 @@
 import {
-  StudioEmptyState,
+  StudioNotAvailable,
   StudioPageHeader,
-  StudioButton,
 } from "@/components/dashboard/studio-shell";
+
 export default function LocationsPage() {
   return (
     <div className="flex flex-col gap-8">
@@ -10,14 +10,8 @@ export default function LocationsPage() {
         eyebrow="Operations"
         title="Locations"
         description="Know where every work is, whether it is in the studio, a gallery, or a collector's home."
-        action={<StudioButton>Add location</StudioButton>}
       />
-      <div className="studio-card">
-        <StudioEmptyState
-          title="No locations yet"
-          description="Locations and movement history will appear here as your archive grows."
-        />
-      </div>
+      <StudioNotAvailable what="Location tracking" />
     </div>
   );
 }

@@ -1,23 +1,24 @@
 "use server";
 
+import { z } from "zod";
+
 import { updateTag } from "next/cache";
-import { createHash } from "node:crypto";
-import { headers } from "next/headers";
 
 import { requireRole } from "@/features/physical-wall/authorize";
 import { getActor } from "@/features/physical-wall/authorize";
-import { recordAudit, recordAuditIn } from "@/features/physical-wall/audit";
+import { recordAudit } from "@/features/physical-wall/audit";
 import { feedbackSchema, reactionSchema } from "@/features/physical-wall/schema";
 import {
+  type ActionState,
   fail,
   firstIssue,
+  formInput,
   newId,
   ok,
   toActionError,
   WALL_TAG,
-  type ActionState,
 } from "@/features/physical-wall/actions/shared";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { limitRequest } from "@/lib/rate-limit";
 import { getSql } from "@/lib/db";
 
 /**
@@ -27,23 +28,6 @@ import { getSql } from "@/lib/db";
  * tap to a person - which is what makes "no account needed" and "low PII" the
  * same decision rather than two competing ones.
  */
-
-/**
- * A rotating rate-limit key.
- *
- * Hashed with the current hour so it changes on its own and cannot be used to
- * follow one visitor through an evening. Lives in memory for the window and is
- * never written down.
- */
-async function rotatingKey(prefix: string): Promise<string> {
-  const headerList = await headers();
-  const ip =
-    headerList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    headerList.get("x-real-ip") ||
-    "unknown";
-  const hour = Math.floor(Date.now() / 3_600_000);
-  return `${prefix}:${createHash("sha256").update(`${ip}:${hour}`).digest("hex").slice(0, 16)}`;
-}
 
 /**
  * Tap a reaction.
@@ -60,15 +44,18 @@ export async function react(
   const parsed = reactionSchema.safeParse({ artworkId, kind });
   if (!parsed.success) return { ok: false, message: firstIssue(parsed.error) };
 
-  const limit = checkRateLimit(await rotatingKey(`pw-react:${artworkId}`), {
-    limit: 20,
-    windowMs: 60 * 1000,
-  });
-  if (!limit.ok) {
-    return { ok: false, message: "Easy — give it a moment." };
-  }
-
+  // 20/minute per IP per artwork: generous for a group tapping at one phone,
+  // too low to inflate the demand signal by holding a button down. The key is
+  // HMAC'd before storage, so no IP is written down.
   try {
+    const limit = await limitRequest(`pw-react:${parsed.data.artworkId}`, {
+      limit: 20,
+      windowMs: 60 * 1000,
+    });
+    if (!limit.ok) {
+      return { ok: false, message: "Easy — give it a moment." };
+    }
+
     const sql = getSql();
     const rows = (await sql`
       insert into pw_reactions (artwork_id, kind, count)
@@ -99,12 +86,13 @@ export async function shareArtwork(
   try {
     const actor = await getActor();
 
-    const artworkId = String(formData.get("artworkId") ?? "");
-    const target = String(formData.get("target") ?? "");
-
-    if (!artworkId || !target) {
-      return fail("Share what, and where?");
-    }
+    const { artworkId, target } = formInput(
+      z.object({
+        artworkId: z.string({ error: "Share what, and where?" }).min(1, "Share what, and where?").max(64),
+        target: z.enum(["whatsapp", "instagram", "x", "copy"], { error: "Share what, and where?" }),
+      }),
+      formData
+    );
 
     await recordAudit({
       actor,

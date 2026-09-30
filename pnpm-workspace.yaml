@@ -1,3 +1,12 @@
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+# ponytail: wagmi 2 -> @base-org/account -> @coinbase/cdp-sdk >=1.53 dynamically
+# imports optional @x402/* peers that Turbopack can't resolve, breaking the whole
+# dev/build. Pin below that until cdp-sdk guards those imports.
+# ponytail: rainbowkit -> cuer@0.0.3 calls qr with border: 0, which qr >=0.6 rejects
+# (RangeError when the WalletConnect QR renders). Pin until cuer ships a fix.
+overrides:
+  "@coinbase/cdp-sdk": "1.52.0"
+  "qr": "0.5.5"
