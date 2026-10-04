@@ -7,6 +7,23 @@ ignoredBuiltDependencies:
 # dev/build. Pin below that until cdp-sdk guards those imports.
 # ponytail: rainbowkit -> cuer@0.0.3 calls qr with border: 0, which qr >=0.6 rejects
 # (RangeError when the WalletConnect QR renders). Pin until cuer ships a fix.
+#
+# SEC-2.10: force these deep transitive deps (pulled in by already-latest
+# wagmi/rainbowkit/eslint-config-next/shadcn) up to their patched versions —
+# `pnpm audit` was reporting them as high-severity. `braces` (pulled in via
+# eslint-config-next > @next/eslint-plugin-next > fast-glob > micromatch) has
+# no patched release yet upstream (patched_versions "<0.0.0" in the advisory)
+# so it is not listed here; it's the one high finding scripts/audit-high.mjs
+# still reports, tracked as a known, currently-unfixable finding, not hidden.
+# It's dev/lint tooling only — never in the production server bundle.
 overrides:
   "@coinbase/cdp-sdk": "1.52.0"
   "qr": "0.5.5"
+  "ws@>=8.0.0 <8.21.0": ">=8.21.0"
+  "nanoid@<3.3.18": ">=3.3.18"
+  "axios@>=1.13.0 <1.20.0": ">=1.20.0"
+  "fast-uri@<3.1.7": ">=3.1.7"
+  "js-yaml@>=4.0.0 <4.3.2": ">=4.3.2"
+  "undici@>=7.0.0 <7.29.1": ">=7.29.1"
+  "brace-expansion@<1.1.20": "1.1.21"
+  "brace-expansion@>=4.0.0 <5.0.12": "5.0.12"
