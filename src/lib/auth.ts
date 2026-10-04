@@ -65,6 +65,14 @@ export const auth = betterAuth({
         },
       }
     : {}),
+  // SEC-2.05: this SameSite=Lax (below) is also this app's CSRF defense for
+  // the handful of cookie-session-authenticated API routes that aren't Next
+  // server actions (src/app/api/blockchain/**, ugc/upload-signature) — Lax
+  // cookies are withheld from cross-site fetch/XHR entirely, POST included,
+  // not just cross-site form submission, and nothing here sets a wildcard
+  // CORS header that would widen that. Server actions get Next's own
+  // Origin/Host check instead (confirmed in
+  // node_modules/next/dist/docs/01-app/02-guides/server-actions.md).
   advanced: {
     defaultCookieAttributes:
       process.env.NODE_ENV === "development"
