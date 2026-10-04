@@ -67,14 +67,30 @@ const certificateMintedEvent = parseAbiItem(
   "event CertificateMinted(uint256 indexed tokenId, address indexed to, string uri)",
 );
 
+/** BC-1.19: a tx needs this many confirmations behind the chain head before
+ *  it counts as minted, so a block that gets reorged out cannot flip a
+ *  certificate to "minted" on a transaction that later disappears. */
+export const REQUIRED_CONFIRMATIONS = Number(
+  process.env.MINT_REQUIRED_CONFIRMATIONS ?? 2,
+);
+
 export type MintVerdict =
   | { state: "pending" }
   | { state: "confirmed"; tokenId: string; contractAddr: Address; chainId: number }
   | { state: "failed"; reason: string };
 
+/**
+ * BC-1.18/1.19: validates that `txHash` is a real, sufficiently-confirmed
+ * mint of exactly the certificate this caller expects — not merely a
+ * same-named event emitted by some unrelated transaction.
+ *
+ * @param expected the recipient and tokenURI the voucher for this
+ *   certificate was signed with; the on-chain event must match both.
+ */
 export async function verifyMintTx(
   txHash: Hex,
   chainId = DEFAULT_CHAIN_ID,
+  expected?: { to: Address; uri: string },
 ): Promise<MintVerdict> {
   const client = publicClientFor(chainId);
 
@@ -90,6 +106,12 @@ export async function verifyMintTx(
     return { state: "failed", reason: "transaction did not target the Artwall contract" };
   }
 
+  const currentBlock = await client.getBlockNumber();
+  const confirmations = currentBlock - receipt.blockNumber + 1n;
+  if (confirmations < BigInt(REQUIRED_CONFIRMATIONS)) {
+    return { state: "pending" };
+  }
+
   const logs = await client.getLogs({
     address: NFT_CONTRACT_ADDRESS,
     event: certificateMintedEvent,
@@ -98,6 +120,15 @@ export async function verifyMintTx(
   const mintLog = logs.find((l) => l.transactionHash === txHash);
   if (!mintLog || mintLog.args.tokenId === undefined) {
     return { state: "failed", reason: "no CertificateMinted event in this transaction" };
+  }
+
+  if (expected) {
+    if (mintLog.args.to?.toLowerCase() !== expected.to.toLowerCase()) {
+      return { state: "failed", reason: "minted recipient does not match this certificate's voucher" };
+    }
+    if (mintLog.args.uri !== expected.uri) {
+      return { state: "failed", reason: "minted tokenURI does not match this certificate's voucher" };
+    }
   }
 
   return {
