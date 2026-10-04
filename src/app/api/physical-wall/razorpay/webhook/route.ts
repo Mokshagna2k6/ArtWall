@@ -1,12 +1,36 @@
 import { NextResponse } from "next/server";
 
 import { features } from "@/config/site";
+import { alertAdmins } from "@/features/physical-wall/notifications";
 import { settleFromWebhook } from "@/features/physical-wall/settlement";
 import { validateRazorpayConfig, verifyWebhookSignature } from "@/features/physical-wall/razorpay";
+import { getSql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 validateRazorpayConfig();
+
+/**
+ * Uptime check (PERF-3.02). The webhook itself is POST-only and signature
+ * gated, so an external uptime monitor has nothing to poll — this GET is that
+ * endpoint. Checks the one dependency this route actually needs (the
+ * database) plus that Razorpay config is present; either failing means the
+ * POST handler would also fail, so this is a true "is this route up" signal,
+ * not just "is the server running".
+ */
+export async function GET() {
+  if (!features.physicalWall) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    await getSql()`select 1`;
+  } catch (error) {
+    console.error("[physical-wall] Webhook health check: database unreachable", error);
+    return NextResponse.json({ status: "down", reason: "database" }, { status: 503 });
+  }
+  if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
+    return NextResponse.json({ status: "down", reason: "config" }, { status: 503 });
+  }
+  return NextResponse.json({ status: "ok" });
+}
 
 /**
  * Razorpay webhook (F17).
@@ -114,6 +138,15 @@ export async function POST(request: Request) {
     // A 500 here is deliberate: it asks Razorpay to retry, which is what we
     // want when our own database was briefly unavailable.
     console.error("[physical-wall] Could not settle webhook", error);
+    // PERF-3.01: alert on webhook failure. Deduped per payment id, so a burst
+    // of Razorpay retries for the same failing payment pages once, not per
+    // retry; a different payment id (i.e. the failure is spreading, not one
+    // stuck payment) pages again.
+    await alertAdmins(
+      `webhook.razorpay.failed:${payment.id}`,
+      "Razorpay webhook settlement failed",
+      `payment ${payment.id} (order ${payment.order_id ?? "?"}): ${error instanceof Error ? error.message : String(error)}`
+    );
     return NextResponse.json({ error: "could not settle" }, { status: 500 });
   }
 }
