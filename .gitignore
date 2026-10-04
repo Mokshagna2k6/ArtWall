@@ -44,3 +44,8 @@ next-env.d.ts
 
 # vitest blob reports (CI merges them for coverage)
 /.vitest-reports
+
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
