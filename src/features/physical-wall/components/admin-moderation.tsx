@@ -6,6 +6,7 @@ import { fullSrc } from "@/lib/cloudinary-url";
 import { IDLE } from "@/features/physical-wall/action-state";
 import { moderateUgc, listPendingUgc } from "@/features/physical-wall/actions/ugc";
 import {
+  ConfirmStep,
   Field,
   FormStatus,
   inputClass,
@@ -137,7 +138,9 @@ function RemoveForm({
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="submissionId" value={submissionId} />
       <input type="hidden" name="verdict" value="removed" />
-      <SubmitButton variant="danger">Remove</SubmitButton>
+      <ConfirmStep label="Remove" warning="Remove this submission from the community gallery?">
+        <SubmitButton variant="danger">Confirm remove</SubmitButton>
+      </ConfirmStep>
       <FormStatus state={state} />
     </form>
   );
