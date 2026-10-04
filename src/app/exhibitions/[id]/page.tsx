@@ -3,6 +3,7 @@ import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getPublicExhibition } from "@/features/exhibitions/actions";
+import { ExhibitionViewToggle } from "@/features/exhibitions/viewer3d/exhibition-view-toggle";
 import { cachedCatalog } from "@/lib/catalog-cache";
 
 // Keyed by id: exhibitions have no slug column. Only published ones resolve.
@@ -63,35 +64,44 @@ export default async function ExhibitionPage({
       {exh.artworks.length === 0 ? (
         <p className="text-ink-muted mt-12">No works are on show yet.</p>
       ) : (
-        <ul className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {exh.artworks.map((work) => (
-            <li key={work.id}>
-              <Link href={`/artwork/${work.id}`} className="group block">
-                <div className="bg-band relative aspect-[4/3] overflow-hidden rounded-lg">
-                  {work.imageUrl ? (
-                    <Image
-                      src={work.imageUrl}
-                      alt={work.title}
-                      fill
-                      className="object-cover transition-transform group-hover:scale-105"
-                      sizes="(min-width:1024px) 33vw, (min-width:640px) 50vw, 100vw"
-                    />
-                  ) : (
-                    <div className="text-ink-muted flex h-full items-center justify-center text-sm">
-                      No image
+        <ExhibitionViewToggle
+          artworks={exh.artworks.map((w) => ({
+            id: w.id,
+            title: w.title,
+            imageUrl: w.imageUrl,
+          }))}
+          gallery={
+            <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {exh.artworks.map((work) => (
+                <li key={work.id}>
+                  <Link href={`/artwork/${work.id}`} className="group block">
+                    <div className="bg-band relative aspect-[4/3] overflow-hidden rounded-lg">
+                      {work.imageUrl ? (
+                        <Image
+                          src={work.imageUrl}
+                          alt={work.title}
+                          fill
+                          className="object-cover transition-transform group-hover:scale-105"
+                          sizes="(min-width:1024px) 33vw, (min-width:640px) 50vw, 100vw"
+                        />
+                      ) : (
+                        <div className="text-ink-muted flex h-full items-center justify-center text-sm">
+                          No image
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <h2 className="mt-3 text-sm font-medium group-hover:underline">
-                  {work.title}
-                </h2>
-                <p className="text-ink-muted text-xs">
-                  {[work.medium, work.year].filter(Boolean).join(" · ")}
-                </p>
-              </Link>
-            </li>
-          ))}
-        </ul>
+                    <h2 className="mt-3 text-sm font-medium group-hover:underline">
+                      {work.title}
+                    </h2>
+                    <p className="text-ink-muted text-xs">
+                      {[work.medium, work.year].filter(Boolean).join(" · ")}
+                    </p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          }
+        />
       )}
     </main>
   );
