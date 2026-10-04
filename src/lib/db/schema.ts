@@ -621,6 +621,8 @@ export const pwAuditLog = pgTable("pw_audit_log", {
   before: jsonb("before"),
   after: jsonb("after"),
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  /** SEC-2.11 (0044): the caller's IP, when written from a request context. */
+  actorIp: text("actor_ip"),
 });
 
 /* ── Production readiness (migration 0009) ──────────────────────────────────── */
