@@ -11,6 +11,7 @@ import { expireCatalog } from "@/lib/catalog-cache";
 import { isOwnAsset } from "@/lib/cloudinary";
 import { db } from "@/lib/db/index";
 import { artistProfiles } from "@/lib/db/schema";
+import { formFail, formInvalid, type FormResult } from "@/lib/form-result";
 
 const profileSchema = z.object({
   displayName: z.string().trim().min(2).max(100),
@@ -70,14 +71,17 @@ export async function getStudioArtistProfile() {
   return ensureArtistProfile(await currentUser());
 }
 
-export async function saveArtistProfile(input: unknown) {
+export async function saveArtistProfile(input: unknown): Promise<FormResult> {
   const user = await currentUser();
   const current = await ensureArtistProfile(user);
-  const data = profileSchema.parse(input);
+  const parsed = profileSchema.safeParse(input);
+  if (!parsed.success) return formInvalid(parsed.error);
+  const data = parsed.data;
 
   if (data.avatarUrl && !isOwnAsset(data.avatarUrl, "artwall/selfie")) {
-    throw new Error(
-      "That profile image could not be verified. Please upload it again."
+    return formFail(
+      "That profile image could not be verified. Please upload it again.",
+      "avatarUrl"
     );
   }
 
@@ -88,7 +92,7 @@ export async function saveArtistProfile(input: unknown) {
       .where(eq(artistProfiles.handle, data.handle))
       .limit(1);
     if (owner[0] && owner[0].userId !== user.id) {
-      throw new Error("That ArtWall handle is already taken.");
+      return formFail("That ArtWall handle is already taken.", "handle");
     }
   }
 
@@ -107,6 +111,7 @@ export async function saveArtistProfile(input: unknown) {
   revalidatePath("/artists");
   revalidatePath(`/artist/${current.handle}`);
   revalidatePath(`/artist/${data.handle}`);
+  return { ok: true };
 }
 
 export async function publishArtistProfile() {

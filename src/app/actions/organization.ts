@@ -7,6 +7,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/index";
 import { collections, tasks } from "@/lib/db/schema";
+import { formInvalid, type FormResult } from "@/lib/form-result";
 async function getUserId() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session?.user) throw new Error("Unauthorized");
@@ -20,16 +21,18 @@ export async function getCollections() {
     .where(eq(collections.userId, userId))
     .orderBy(desc(collections.createdAt));
 }
-export async function createCollection(input: unknown) {
+export async function createCollection(input: unknown): Promise<FormResult> {
   const userId = await getUserId();
-  const data = z
+  const parsed = z
     .object({
       name: z.string().trim().min(1).max(160),
       description: z.string().max(500).optional(),
     })
-    .parse(input);
-  await db.insert(collections).values({ id: randomUUID(), userId, ...data });
+    .safeParse(input);
+  if (!parsed.success) return formInvalid(parsed.error);
+  await db.insert(collections).values({ id: randomUUID(), userId, ...parsed.data });
   revalidatePath("/studio/collections");
+  return { ok: true };
 }
 export async function getTasks() {
   const userId = await getUserId();
