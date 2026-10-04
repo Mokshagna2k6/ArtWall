@@ -85,6 +85,13 @@ export const getCertificateForVerify = cachedCatalog(
         dimensions: artworks.dimensions,
         year: artworks.year,
         artistName: artistProfiles.displayName,
+        // BC-2.12: enough to do a live on-chain existence/ownership check
+        // for a minted certificate — read outside this cache, per request.
+        tokenId: coaCertificates.tokenId,
+        contractAddr: coaCertificates.contractAddr,
+        chainId: coaCertificates.chainId,
+        metadataUri: coaCertificates.metadataUri,
+        ownerWallet: artistProfiles.walletAddress,
       })
       .from(coaCertificates)
       .innerJoin(artworks, eq(coaCertificates.artworkId, artworks.id))

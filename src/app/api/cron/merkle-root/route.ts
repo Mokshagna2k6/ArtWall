@@ -4,7 +4,7 @@ import { runCron } from "@/lib/cron";
 import { db } from "@/lib/db/index";
 import { merkleRoots } from "@/lib/db/schema";
 import { commitPendingMerkleRoot } from "@/features/coa/merkle-commit";
-import { submitRootOnChain, recordOnChainProvenance } from "@/features/blockchain/gateway";
+import { submitRootOnChain, recordOnChainProvenance, retryFailedRoots } from "@/features/blockchain/gateway";
 import { publicClientFor, DEFAULT_CHAIN_ID } from "@/lib/blockchain/chain";
 import type { Hex } from "viem";
 
@@ -54,13 +54,20 @@ async function confirmSubmittedRoots(): Promise<number> {
 export async function GET(request: Request) {
   return runCron("merkle-root", request, async () => {
     const confirmed = await confirmSubmittedRoots();
+    // BC-2.06: give previously-failed anchors (RPC outage, transient signer
+    // error) another shot before batching a new root — same cron, bounded.
+    const retried = await retryFailedRoots();
 
     const result = await commitPendingMerkleRoot();
-    if (!result) return { processed: 0, errors: 0, root: null, confirmed };
+    if (!result) return { processed: 0, errors: 0, root: null, confirmed, retried };
 
     let errors = 0;
     let onChain: { submitted: boolean; txHash?: string; error?: string } | null = null;
     if (!result.reused) {
+      // submitRootOnChain never throws for an anchor failure (it marks the
+      // row 'failed' and returns submitted: false) — this try/catch
+      // is only for a genuinely unexpected throw (e.g. a DB error) that
+      // submitRootOnChain's own error path didn't already handle.
       try {
         onChain = await submitRootOnChain(result.rootId);
         if (!onChain.submitted) errors = 1;
@@ -70,6 +77,6 @@ export async function GET(request: Request) {
       }
     }
 
-    return { processed: result.leafCount, errors, ...result, onChain, confirmed };
+    return { processed: result.leafCount, errors, ...result, onChain, confirmed, retried };
   });
 }

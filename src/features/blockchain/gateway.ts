@@ -1,12 +1,12 @@
 import "server-only";
 
-import { createWalletClient, http, type Hex } from "viem";
+import { createWalletClient, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { merkleRoots, mintCommitments, provenanceEvents } from "@/lib/db/schema";
-import { publicClientFor, NFT_CONTRACT_ADDRESS, DEFAULT_CHAIN_ID } from "@/lib/blockchain/chain";
+import { chainFor, resilientTransport, NFT_CONTRACT_ADDRESS, DEFAULT_CHAIN_ID } from "@/lib/blockchain/chain";
 import { artwallCoaAbi } from "@/lib/blockchain/abi";
 import { expireCatalog } from "@/lib/catalog-cache";
 
@@ -15,6 +15,13 @@ import { expireCatalog } from "@/lib/catalog-cache";
  * (BC-1.11/1.12). Signs with the same platform signer key the mint-voucher
  * route uses — it holds SIGNER_ROLE on the deployed contract, which is what
  * commitRoot requires.
+ *
+ * BC-2.06: on any failure to submit (missing config, every RPC endpoint
+ * down, a reverted/rejected tx), the root is marked 'failed' instead
+ * of being left at 'pending' forever — commitPendingMerkleRoot() never
+ * re-batches it (its leaves are already 'committed', not 'pending'), so a
+ * silently-stuck 'pending' row would otherwise never be retried or even be
+ * visible as broken. 'failed' is picked back up by retryFailedRoots().
  */
 export async function submitRootOnChain(rootId: string): Promise<{
   submitted: boolean;
@@ -22,13 +29,11 @@ export async function submitRootOnChain(rootId: string): Promise<{
   error?: string;
 }> {
   const privateKey = process.env.MINT_SIGNER_PRIVATE_KEY;
-  const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL;
 
-  if (!privateKey || !NFT_CONTRACT_ADDRESS || !rpcUrl) {
-    return {
-      submitted: false,
-      error: "Missing MINT_SIGNER_PRIVATE_KEY, NEXT_PUBLIC_NFT_CONTRACT_ADDRESS, or BASE_SEPOLIA_RPC_URL",
-    };
+  if (!privateKey || !NFT_CONTRACT_ADDRESS) {
+    const error = "Missing MINT_SIGNER_PRIVATE_KEY or NEXT_PUBLIC_NFT_CONTRACT_ADDRESS";
+    await markAnchorFailed(rootId, error);
+    return { submitted: false, error };
   }
 
   const [root] = await db
@@ -39,23 +44,62 @@ export async function submitRootOnChain(rootId: string): Promise<{
   if (!root) return { submitted: false, error: "Root not found" };
   if (root.status === "confirmed") return { submitted: false, error: "Already confirmed" };
 
-  const account = privateKeyToAccount(privateKey as Hex);
-  const chain = publicClientFor(DEFAULT_CHAIN_ID).chain;
-  const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
+  try {
+    const account = privateKeyToAccount(privateKey as Hex);
+    // Reuses chain.ts's retry+fallback transport (BC-2.06) rather than a
+    // single bare RPC URL, so root anchoring gets the same RPC resilience
+    // as mint verification.
+    const client = createWalletClient({
+      account,
+      chain: chainFor(DEFAULT_CHAIN_ID),
+      transport: resilientTransport(DEFAULT_CHAIN_ID),
+    });
 
-  const txHash = await client.writeContract({
-    address: NFT_CONTRACT_ADDRESS,
-    abi: artwallCoaAbi,
-    functionName: "commitRoot",
-    args: [`0x${root.rootHash}` as Hex],
-  });
+    const txHash = await client.writeContract({
+      address: NFT_CONTRACT_ADDRESS,
+      abi: artwallCoaAbi,
+      functionName: "commitRoot",
+      args: [`0x${root.rootHash}` as Hex],
+    });
 
+    await db
+      .update(merkleRoots)
+      .set({ status: "submitted", chainId: DEFAULT_CHAIN_ID, txHash })
+      .where(eq(merkleRoots.id, rootId));
+
+    return { submitted: true, txHash };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    await markAnchorFailed(rootId, error);
+    return { submitted: false, error };
+  }
+}
+
+async function markAnchorFailed(rootId: string, reason: string) {
   await db
     .update(merkleRoots)
-    .set({ status: "submitted", chainId: DEFAULT_CHAIN_ID, txHash })
+    .set({ status: "failed" })
     .where(eq(merkleRoots.id, rootId));
+  console.error("[gateway] submitRootOnChain failed, root marked 'failed' for retry", rootId, reason);
+}
 
-  return { submitted: true, txHash };
+/** BC-2.06: roots stuck at 'failed' get one more submit attempt per
+ *  cron run (bounded, so a persistently broken signer/RPC doesn't retry
+ *  unboundedly fast) — a fresh RPC outage or a transient nonce/gas issue
+ *  resolves on its own without the batch's leaves staying unanchored. */
+export async function retryFailedRoots(limit = 5): Promise<number> {
+  const failed = await db
+    .select({ id: merkleRoots.id })
+    .from(merkleRoots)
+    .where(eq(merkleRoots.status, "failed"))
+    .limit(limit);
+
+  let retried = 0;
+  for (const row of failed) {
+    const result = await submitRootOnChain(row.id);
+    if (result.submitted) retried++;
+  }
+  return retried;
 }
 
 export async function recordOnChainProvenance(rootId: string, txHash: string, blockNumber: number) {
