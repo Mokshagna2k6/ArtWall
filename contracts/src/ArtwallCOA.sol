@@ -98,12 +98,17 @@ contract ArtwallCOA is ERC721, ERC2981, EIP712, AccessControl {
         totalMinted++;
         _tokenUris[tokenId] = voucher.uri;
 
-        _safeMint(voucher.to, tokenId);
+        // BC-2.03 (Slither reentrancy-benign/reentrancy-events): state writes
+        // and the mint event are ordered before the external call
+        // (_safeMint's onERC721Received callback to the recipient), so a
+        // malicious recipient contract can observe no inconsistent
+        // intermediate state and cannot reorder/fabricate this event.
         if (voucher.royaltyReceiver != address(0)) {
             _setTokenRoyalty(tokenId, voucher.royaltyReceiver, voucher.royaltyFeeBps);
         }
-
         emit CertificateMinted(tokenId, voucher.to, voucher.uri);
+
+        _safeMint(voucher.to, tokenId);
     }
 
     /// @notice Commit a batched Merkle root of pending mint commitments
