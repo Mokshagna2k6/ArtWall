@@ -193,11 +193,32 @@ async function payInTestMode(page: Page, checkout: ReturnType<Page["frameLocator
   await checkout.locator("body").waitFor();
   await clearContactDialogIfShown(checkout);
 
+  // HDFC, not SBI: Razorpay's own test-mode sandbox has shown SBI as
+  // intermittently unavailable ("currently facing issues"), which is a
+  // property of their mock bank list, not this app -- HDFC has been stable.
+  // Selecting a netbanking option can submit straight away (it shows its own
+  // "Processing your payment" transition and opens the bank popup directly)
+  // instead of waiting for a separate Pay button click -- arm the popup
+  // listener before picking the bank so either path is caught.
   await clickThroughContactDialog(checkout, checkout.getByText(/netbanking/i).first());
-  await clickThroughContactDialog(checkout, checkout.getByText(/SBI|State Bank/i).first());
+  const popup = page.waitForEvent("popup", { timeout: 20_000 }).catch(() => null);
+  await clickThroughContactDialog(checkout, checkout.getByText(/HDFC/i).first());
 
-  const popup = page.waitForEvent("popup");
-  await clickThroughContactDialog(checkout, checkout.getByRole("button", { name: /^pay/i }).first());
-  const bank = await popup;
+  let bank = await popup;
+  if (!bank) {
+    // Didn't auto-submit: a separate Pay button needs a click. `/^pay/i`
+    // alone also matches the unrelated "Pay Later" option
+    // (data-testid="paylater"), which can sit earlier in the DOM than the
+    // real submit button and win `.first()` -- exclude it explicitly.
+    await clearContactDialogIfShown(checkout);
+    const payButton = checkout
+      .getByRole("button", { name: /^pay/i })
+      .filter({ hasNotText: /later/i })
+      .first();
+    await payButton.waitFor({ state: "visible", timeout: 10_000 });
+    const popup2 = page.waitForEvent("popup");
+    await payButton.click();
+    bank = await popup2;
+  }
   await bank.getByRole("button", { name: /success/i }).click();
 }
