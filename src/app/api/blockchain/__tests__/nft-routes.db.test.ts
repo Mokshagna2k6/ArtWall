@@ -32,8 +32,18 @@ vi.mock("@/lib/blockchain/chain", async (original) => ({
   ...(await original<typeof import("@/lib/blockchain/chain")>()),
   verifyMintTx: vi.fn(async (hash: string) => chain.byHash[hash] ?? chain.verdict),
 }));
+const pinnedJson = vi.hoisted(() => ({ lastMetadata: null as Record<string, unknown> | null }));
 vi.mock("@/lib/blockchain/pinata", () => ({
-  pinata: { upload: { public: { json: vi.fn(async () => ({ cid: "bafytestmetadata" })) } } },
+  pinata: {
+    upload: {
+      public: {
+        json: vi.fn(async (metadata: Record<string, unknown>) => {
+          pinnedJson.lastMetadata = metadata;
+          return { cid: "bafytestmetadata" };
+        }),
+      },
+    },
+  },
 }));
 
 const { POST: createCert } = await import("@/app/api/blockchain/certificates/route");
@@ -82,6 +92,18 @@ describe("NFT routes (/api/blockchain)", () => {
     expect((await createCert(post({ artworkId: "" }))).status).toBe(422);
     actAs(await makeUser()); // someone else's artwork
     expect((await createCert(post({ artworkId: art, imageCid: "c", creatorName: "n" }))).status).toBe(404);
+  });
+
+  it("create: the pinned IPFS metadata embeds this certificate's content hash (BC-2.09)", async () => {
+    const { id } = await pinnedCert();
+    const [row] = await q<{ metadata_hash: string }>(
+      `select metadata_hash from coa_certificates where id = $1`,
+      [id]
+    );
+    // The on-chain tokenURI → IPFS metadata → content_hash chain: the JSON
+    // actually pinned to IPFS (captured by the pinata mock above) must carry
+    // the same hash as the DB record /verify/[hash] is keyed by.
+    expect(pinnedJson.lastMetadata?.content_hash).toBe(row.metadata_hash);
   });
 
   it("mint-voucher: signs an EIP-712 voucher from verified DB state; refuses others, no-wallet, in-flight and done certs", async () => {

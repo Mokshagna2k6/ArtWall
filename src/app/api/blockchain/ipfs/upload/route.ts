@@ -4,6 +4,7 @@ import { getApiUser } from "@/lib/blockchain/auth";
 import { apiError, handleRouteError, requestId } from "@/lib/blockchain/http";
 import { limitRequest, tooManyRequests } from "@/lib/rate-limit";
 import { sniffImageType } from "@/lib/blockchain/file-sniff";
+import { verifyCid } from "@/lib/blockchain/cid";
 
 export const runtime = "nodejs";
 
@@ -36,6 +37,20 @@ export async function POST(req: NextRequest) {
     }
 
     const upload = await pinata.upload.public.file(file);
+
+    // BC-2.08: don't trust the pinning provider's returned CID blindly —
+    // re-derive it locally from the exact uploaded bytes and compare. A
+    // mismatch means the pin does not actually correspond to what we sent
+    // (compromised/misbehaving provider, or a UnixFS/dag-pb-wrapped CID
+    // this function cannot re-derive); either way we must not hand back a
+    // CID we have not verified corresponds to our bytes.
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const verdict = verifyCid(bytes, upload.cid);
+    if (!verdict.verified) {
+      console.error("[ipfs-upload] CID verification failed", { reqId, cid: upload.cid, reason: verdict.reason });
+      return apiError("internal_error", { reqId, details: `CID verification failed: ${verdict.reason}` });
+    }
+
     return NextResponse.json({ cid: upload.cid });
   } catch (err) {
     return handleRouteError(err, { route: "POST /api/blockchain/ipfs/upload", reqId });
