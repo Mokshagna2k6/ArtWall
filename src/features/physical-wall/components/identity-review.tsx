@@ -54,14 +54,20 @@ function ReviewCard({ item }: { item: Item }) {
             {new Date(item.created_at).toLocaleDateString("en-IN")}
           </p>
         </div>
-        <a
-          href={`https://res.cloudinary.com/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? "artwall"}/image/upload/${item.doc_cloudinary_id}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="border-hairline-strong hover:border-ink text-small inline-flex h-9 items-center rounded-md border px-3"
-        >
-          View document
-        </a>
+        {/* SEC-2.08: no direct, permanent, unsigned Cloudinary URL for an
+            identity document — that's a public link to someone's ID with no
+            auth check, if the asset id is ever logged, cached, or screenshot.
+            There's no submission flow wired up yet to produce a real
+            doc_cloudinary_id (see src/features/physical-wall/actions/identity.ts),
+            so there's nothing here to link to today; when that flow exists,
+            it must upload with `type: "authenticated"` and this must view
+            through a route that checks requireRole("admin"), fetches with a
+            Cloudinary-signed short-lived URL or proxies the bytes server-side,
+            and audit-logs the view (recordAudit) — never a client-rendered
+            public URL. */}
+        <span className="text-ink-muted text-small">
+          Document: {item.doc_kind} ({item.doc_cloudinary_id})
+        </span>
       </div>
 
       <form action={action} className="mt-4 flex flex-wrap items-end gap-3">

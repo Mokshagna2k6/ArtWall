@@ -749,6 +749,13 @@ export const pwSearchLog = pgTable("pw_search_log", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// SEC-2.08: docCloudinaryId must be uploaded with Cloudinary's
+// `type: "authenticated"` (a private asset type, not the default public
+// `type: "upload"` every other image path here uses) once a submission
+// action exists to write this table — there is none yet, only admin review.
+// Viewing it must go through a route that checks requireRole("admin"),
+// resolves a short-lived signed access to the asset, and calls recordAudit
+// for the view. See src/features/physical-wall/components/identity-review.tsx.
 export const pwIdentityVerifications = pgTable("pw_identity_verifications", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
