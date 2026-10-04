@@ -18,7 +18,9 @@ import {
   saveArtistProfile,
   unpublishArtistProfile,
 } from "@/app/actions/artist-profile";
+import { FieldError, fieldProps } from "@/components/dashboard/field-error";
 import { ImageDrop } from "@/features/upload/image-drop";
+import type { FieldErrors } from "@/lib/form-result";
 
 type ArtistProfile = {
   handle: string;
@@ -43,6 +45,7 @@ export function ArtistProfileForm({
   const [avatarUrl, setAvatarUrl] = useState(profile.avatarUrl ?? "");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
@@ -50,8 +53,9 @@ export function ArtistProfileForm({
     setSaving(true);
     setError("");
     setMessage("");
+    setFieldErrors({});
     try {
-      await saveArtistProfile({
+      const result = await saveArtistProfile({
         displayName: formData.get("displayName"),
         handle: formData.get("handle"),
         discipline: formData.get("discipline"),
@@ -61,6 +65,11 @@ export function ArtistProfileForm({
         instagram: formData.get("instagram"),
         avatarUrl,
       });
+      if (!result.ok) {
+        setError(result.message);
+        setFieldErrors(result.fieldErrors ?? {});
+        return;
+      }
       setMessage(
         onboarding
           ? "Your profile is ready. Welcome to Studio."
@@ -132,11 +141,12 @@ export function ArtistProfileForm({
             Artist name
             <input
               className="studio-input"
-              name="displayName"
+              {...fieldProps(fieldErrors, "displayName")}
               defaultValue={profile.displayName}
               autoComplete="name"
               required
             />
+            <FieldError errors={fieldErrors} name="displayName" />
           </label>
           <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
             ArtWall handle
@@ -146,7 +156,7 @@ export function ArtistProfileForm({
               </span>
               <input
                 className="text-studio-ink min-w-0 flex-1 bg-transparent px-1 py-[0.85rem] outline-none"
-                name="handle"
+                {...fieldProps(fieldErrors, "handle")}
                 defaultValue={profile.handle}
                 pattern="[a-z0-9]+(-[a-z0-9]+)*"
                 required
@@ -155,26 +165,29 @@ export function ArtistProfileForm({
             <span className="text-studio-muted text-xs font-normal">
               Lowercase letters, numbers and hyphens only.
             </span>
+            <FieldError errors={fieldErrors} name="handle" />
           </label>
           <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
             Practice / discipline
             <input
               className="studio-input"
-              name="discipline"
+              {...fieldProps(fieldErrors, "discipline")}
               defaultValue={profile.discipline ?? ""}
               placeholder="Painter, photographer, ceramicist…"
               required
             />
+            <FieldError errors={fieldErrors} name="discipline" />
           </label>
           <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
             Based in
             <input
               className="studio-input"
-              name="location"
+              {...fieldProps(fieldErrors, "location")}
               defaultValue={profile.location ?? ""}
               placeholder="Jaipur, Rajasthan"
               required
             />
+            <FieldError errors={fieldErrors} name="location" />
           </label>
         </div>
 
@@ -182,11 +195,12 @@ export function ArtistProfileForm({
           Artist statement
           <textarea
             className="studio-input min-h-40 resize-y"
-            name="bio"
+            {...fieldProps(fieldErrors, "bio")}
             defaultValue={profile.bio ?? ""}
             placeholder="Tell visitors about the materials, questions, and places that shape your work."
             required
           />
+          <FieldError errors={fieldErrors} name="bio" />
         </label>
       </section>
 
@@ -208,10 +222,11 @@ export function ArtistProfileForm({
               <input
                 className="studio-input"
                 type="url"
-                name="website"
+                {...fieldProps(fieldErrors, "website")}
                 defaultValue={profile.website ?? ""}
                 placeholder="https://your-site.com"
               />
+              <FieldError errors={fieldErrors} name="website" />
             </label>
             <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
               <span className="inline-flex items-center gap-2">
@@ -223,10 +238,11 @@ export function ArtistProfileForm({
               </span>
               <input
                 className="studio-input"
-                name="instagram"
+                {...fieldProps(fieldErrors, "instagram")}
                 defaultValue={profile.instagram ?? ""}
                 placeholder="yourhandle"
               />
+              <FieldError errors={fieldErrors} name="instagram" />
             </label>
             <div className="border-studio-border bg-studio-bg text-studio-muted rounded-xl border border-dashed p-4 text-sm leading-6">
               <MapPin className="text-studio-accent mr-2 inline size-4" />
@@ -257,6 +273,7 @@ export function ArtistProfileForm({
               hint="Optional. JPG, PNG, WebP or AVIF; up to 25 MB."
               onChange={(asset) => setAvatarUrl(asset?.url ?? "")}
             />
+            <FieldError errors={fieldErrors} name="avatarUrl" />
           </div>
         </div>
       </section>

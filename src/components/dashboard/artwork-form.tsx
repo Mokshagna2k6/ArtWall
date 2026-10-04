@@ -4,15 +4,18 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createArtwork } from "@/app/actions/artworks";
+import { FieldError, fieldProps } from "@/components/dashboard/field-error";
 import {
   ARTWORK_CATEGORIES,
   categoryLabel,
 } from "@/features/marketplace/categories";
 import { ImageDrop } from "@/features/upload/image-drop";
+import type { FieldErrors } from "@/lib/form-result";
 
 export function ArtworkForm() {
   const router = useRouter();
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pending, setPending] = useState(false);
   const [image, setImage] = useState<{ url: string; publicId: string } | null>(
     null
@@ -21,8 +24,9 @@ export function ArtworkForm() {
   async function submit(formData: FormData) {
     setPending(true);
     setError("");
+    setFieldErrors({});
     try {
-      await createArtwork({
+      const result = await createArtwork({
         title: formData.get("title"),
         year: formData.get("year") || undefined,
         medium: formData.get("medium"),
@@ -35,6 +39,12 @@ export function ArtworkForm() {
         imageUrl: image?.url,
         imagePublicId: image?.publicId,
       });
+      if (!result.ok) {
+        setError(result.message);
+        setFieldErrors(result.fieldErrors ?? {});
+        setPending(false);
+        return;
+      }
       router.push("/studio/artworks");
       router.refresh();
     } catch (cause) {
@@ -68,32 +78,36 @@ export function ArtworkForm() {
           setImage(asset ? { url: asset.url, publicId: asset.publicId } : null)
         }
       />
+      <FieldError errors={fieldErrors} name="imageUrl" />
       <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
         Title
         <input
           className="studio-input"
-          name="title"
+          {...fieldProps(fieldErrors, "title")}
           placeholder="Untitled"
           required
         />
+        <FieldError errors={fieldErrors} name="title" />
       </label>
       <div className="grid gap-5 md:grid-cols-2">
         <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
           Year
           <input
             className="studio-input"
-            name="year"
+            {...fieldProps(fieldErrors, "year")}
             inputMode="numeric"
             placeholder="2026"
           />
+          <FieldError errors={fieldErrors} name="year" />
         </label>
         <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
           Medium
           <input
             className="studio-input"
-            name="medium"
+            {...fieldProps(fieldErrors, "medium")}
             placeholder="Oil on canvas"
           />
+          <FieldError errors={fieldErrors} name="medium" />
         </label>
       </div>
       <div className="grid gap-5 md:grid-cols-2">
@@ -101,9 +115,10 @@ export function ArtworkForm() {
           Dimensions
           <input
             className="studio-input"
-            name="dimensions"
+            {...fieldProps(fieldErrors, "dimensions")}
             placeholder="91 × 122 cm"
           />
+          <FieldError errors={fieldErrors} name="dimensions" />
         </label>
         <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
           Availability
@@ -133,18 +148,20 @@ export function ArtworkForm() {
         Price (₹)
         <input
           className="studio-input"
-          name="price"
+          {...fieldProps(fieldErrors, "price")}
           inputMode="decimal"
           placeholder="Leave blank for price on request"
         />
+        <FieldError errors={fieldErrors} name="price" />
       </label>
       <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
         Artwork note
         <textarea
           className="studio-input min-h-28 resize-y"
-          name="description"
+          {...fieldProps(fieldErrors, "description")}
           placeholder="A short statement, process note, or story behind this work."
         />
+        <FieldError errors={fieldErrors} name="description" />
       </label>
       <label className="border-studio-border bg-studio-bg text-studio-ink flex items-start gap-3 rounded-xl border p-4 text-sm">
         <input
