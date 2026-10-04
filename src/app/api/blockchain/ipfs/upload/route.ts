@@ -2,19 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { pinata } from "@/lib/blockchain/pinata";
 import { getApiUser } from "@/lib/blockchain/auth";
 import { apiError, handleRouteError, requestId } from "@/lib/blockchain/http";
+import { sniffImageType } from "@/lib/blockchain/file-sniff";
 import { limitRequest, tooManyRequests } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
 const MAX_BYTES = 25 * 1024 * 1024;
-const ALLOWED_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/tiff",
-  "image/avif",
-]);
 
 export async function POST(req: NextRequest) {
   const reqId = requestId();
@@ -33,7 +26,12 @@ export async function POST(req: NextRequest) {
       return apiError("validation_failed", { reqId, details: "No file provided" });
     }
     if (file.size > MAX_BYTES) return apiError("payload_too_large", { reqId });
-    if (!ALLOWED_TYPES.has(file.type)) {
+
+    // SEC-2.07: never trust the client-sent file.type — sniff the real magic
+    // bytes server-side, same detector every other image upload path uses.
+    const head = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+    const sniffed = sniffImageType(head);
+    if (!sniffed) {
       return apiError("unsupported_media_type", { reqId });
     }
 

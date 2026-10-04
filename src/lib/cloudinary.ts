@@ -10,6 +10,16 @@ export class CloudinaryNotConfiguredError extends Error {
 }
 
 /**
+ * SEC-2.07: every upload path on the site (artwork, selfie/UGC, wall tile,
+ * condition photo, identity document) is a photo. One shared allow-list, so
+ * `allowed_formats` is never left off a signature by omission the way the
+ * artwork/wall/condition folders previously were (only the UGC folder passed
+ * it). Cloudinary rejects the upload server-side if the actual file doesn't
+ * match, on top of our own magic-byte check for paths that see the bytes.
+ */
+export const IMAGE_UPLOAD_FORMATS = ["jpg", "jpeg", "png", "webp", "heic", "gif"] as const;
+
+/**
  * Signed direct uploads, without the Cloudinary SDK.
  *
  * Why signed and not an unsigned preset: an unsigned preset is a public write
