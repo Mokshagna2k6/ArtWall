@@ -45,14 +45,17 @@ export default async function DiscoverPage({
     cursor: params.cursor,
   });
 
-  // Same filters, next position. Minimal until FE-2.06's pagination UI lands.
-  const nextHref = nextCursor
-    ? `/discover?${new URLSearchParams(
-        Object.entries({ ...params, cursor: nextCursor }).filter(
-          (e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""
-        )
-      )}`
-    : null;
+  // Every filter, the sort and the page position live in the URL (FE-2.05),
+  // so a filtered page is shareable and survives a reload. Submitting the
+  // filter form drops `cursor`, so a new filter starts from the first page.
+  const hrefWith = (cursor: string | undefined) =>
+    `/discover?${new URLSearchParams(
+      Object.entries({ ...params, cursor }).filter(
+        (e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""
+      )
+    )}`;
+  const nextHref = nextCursor ? hrefWith(nextCursor) : null;
+  const firstHref = params.cursor ? hrefWith(undefined) : null;
 
   return (
     <main className="mx-auto max-w-7xl px-6 py-12">
@@ -66,6 +69,7 @@ export default async function DiscoverPage({
           name="q"
           type="search"
           placeholder="Search artworks…"
+          aria-label="Search artworks"
           defaultValue={params.q}
           className="border-hairline rounded-md border bg-transparent px-4 py-2 text-sm"
         />
@@ -106,6 +110,7 @@ export default async function DiscoverPage({
         />
         <select
           name="sort"
+          aria-label="Sort by"
           defaultValue={params.sort ?? "recent"}
           className="border-hairline rounded-md border bg-transparent px-4 py-2 text-sm"
         >
@@ -170,15 +175,36 @@ export default async function DiscoverPage({
         </div>
       )}
 
-      {nextHref && (
-        <div className="mt-12 text-center">
-          <Link
-            href={nextHref}
-            className="border-hairline inline-block rounded-md border px-4 py-2 text-sm"
-          >
-            More artworks →
-          </Link>
-        </div>
+      {/* Keyset pagination (PERF-1.07): forward-only "next" plus a way back
+          to the start, and an explicit end state (FE-2.06). */}
+      {(nextHref || firstHref || items.length > 0) && (
+        <nav
+          aria-label="Pagination"
+          className="mt-12 flex flex-wrap items-center justify-center gap-4 text-sm"
+        >
+          {firstHref && (
+            <Link
+              href={firstHref}
+              className="border-hairline inline-block rounded-md border px-4 py-2"
+            >
+              ← First page
+            </Link>
+          )}
+          {nextHref ? (
+            <Link
+              href={nextHref}
+              className="border-hairline inline-block rounded-md border px-4 py-2"
+            >
+              More artworks →
+            </Link>
+          ) : (
+            items.length > 0 && (
+              <p className="text-ink-muted" data-testid="discover-end">
+                That&rsquo;s everything — no more results.
+              </p>
+            )
+          )}
+        </nav>
       )}
     </main>
   );
