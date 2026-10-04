@@ -6,22 +6,28 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { merkleRoots, mintCommitments, provenanceEvents } from "@/lib/db/schema";
-import { publicClientFor } from "@/lib/blockchain/chain";
+import { publicClientFor, NFT_CONTRACT_ADDRESS, DEFAULT_CHAIN_ID } from "@/lib/blockchain/chain";
+import { artwallCoaAbi } from "@/lib/blockchain/abi";
 import { expireCatalog } from "@/lib/catalog-cache";
 
+/**
+ * Anchors a batched Merkle root on-chain via ArtwallCOA.commitRoot
+ * (BC-1.11/1.12). Signs with the same platform signer key the mint-voucher
+ * route uses — it holds SIGNER_ROLE on the deployed contract, which is what
+ * commitRoot requires.
+ */
 export async function submitRootOnChain(rootId: string): Promise<{
   submitted: boolean;
   txHash?: string;
   error?: string;
 }> {
-  const privateKey = process.env.DEPLOYER_PRIVATE_KEY;
-  const registryAddress = process.env.ARTWORK_REGISTRY_ADDRESS as `0x${string}` | undefined;
+  const privateKey = process.env.MINT_SIGNER_PRIVATE_KEY;
   const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL;
 
-  if (!privateKey || !registryAddress || !rpcUrl) {
+  if (!privateKey || !NFT_CONTRACT_ADDRESS || !rpcUrl) {
     return {
       submitted: false,
-      error: "Missing DEPLOYER_PRIVATE_KEY, ARTWORK_REGISTRY_ADDRESS, or BASE_SEPOLIA_RPC_URL",
+      error: "Missing MINT_SIGNER_PRIVATE_KEY, NEXT_PUBLIC_NFT_CONTRACT_ADDRESS, or BASE_SEPOLIA_RPC_URL",
     };
   }
 
@@ -33,27 +39,20 @@ export async function submitRootOnChain(rootId: string): Promise<{
   if (!root) return { submitted: false, error: "Root not found" };
   if (root.status === "confirmed") return { submitted: false, error: "Already confirmed" };
 
-  const account = privateKeyToAccount(`0x${privateKey}` as Hex);
-  const chain = publicClientFor(84532).chain;
+  const account = privateKeyToAccount(privateKey as Hex);
+  const chain = publicClientFor(DEFAULT_CHAIN_ID).chain;
   const client = createWalletClient({ account, chain, transport: http(rpcUrl) });
 
-  // ponytail: ABI for commitRoot — single bytes32 arg
   const txHash = await client.writeContract({
-    address: registryAddress,
-    abi: [{
-      type: "function",
-      name: "commitRoot",
-      stateMutability: "nonpayable",
-      inputs: [{ name: "root", type: "bytes32" }],
-      outputs: [],
-    }] as const,
+    address: NFT_CONTRACT_ADDRESS,
+    abi: artwallCoaAbi,
     functionName: "commitRoot",
     args: [`0x${root.rootHash}` as Hex],
   });
 
   await db
     .update(merkleRoots)
-    .set({ status: "submitted", chainId: 84532, txHash })
+    .set({ status: "submitted", chainId: DEFAULT_CHAIN_ID, txHash })
     .where(eq(merkleRoots.id, rootId));
 
   return { submitted: true, txHash };

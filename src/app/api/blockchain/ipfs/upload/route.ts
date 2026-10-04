@@ -3,18 +3,11 @@ import { pinata } from "@/lib/blockchain/pinata";
 import { getApiUser } from "@/lib/blockchain/auth";
 import { apiError, handleRouteError, requestId } from "@/lib/blockchain/http";
 import { limitRequest, tooManyRequests } from "@/lib/rate-limit";
+import { sniffImageType } from "@/lib/blockchain/file-sniff";
 
 export const runtime = "nodejs";
 
 const MAX_BYTES = 25 * 1024 * 1024;
-const ALLOWED_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/tiff",
-  "image/avif",
-]);
 
 export async function POST(req: NextRequest) {
   const reqId = requestId();
@@ -33,7 +26,12 @@ export async function POST(req: NextRequest) {
       return apiError("validation_failed", { reqId, details: "No file provided" });
     }
     if (file.size > MAX_BYTES) return apiError("payload_too_large", { reqId });
-    if (!ALLOWED_TYPES.has(file.type)) {
+
+    // BC-1.20: the real file content decides the type, never the client-sent
+    // file.type header, which anyone sending the request fully controls.
+    const head = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+    const detected = sniffImageType(head);
+    if (!detected) {
       return apiError("unsupported_media_type", { reqId });
     }
 

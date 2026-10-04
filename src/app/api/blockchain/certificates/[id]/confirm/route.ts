@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
+import { getAddress } from "viem";
 import { eq, and } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { expireCatalog } from "@/lib/catalog-cache";
-import { coaCertificates } from "@/lib/db/schema";
+import { coaCertificates, artistProfiles } from "@/lib/db/schema";
 import { getApiUser } from "@/lib/blockchain/auth";
 import { apiError, handleRouteError, requestId } from "@/lib/blockchain/http";
 import { verifyMintTx } from "@/lib/blockchain/chain";
@@ -35,9 +36,25 @@ export async function POST(
       return apiError("conflict", { reqId, details: "no mint in progress" });
     }
 
+    // BC-1.18: the expected recipient is this certificate owner's own
+    // registered wallet (the only address the mint-voucher route ever signs
+    // a voucher for) and the expected tokenURI is this certificate's pinned
+    // metadata — both read from verified DB state, never the request.
+    let expected: { to: Address; uri: string } | undefined;
+    if (cert.metadataUri) {
+      const [profile] = await db
+        .select({ walletAddress: artistProfiles.walletAddress })
+        .from(artistProfiles)
+        .where(eq(artistProfiles.userId, user.id));
+      if (profile?.walletAddress) {
+        expected = { to: getAddress(profile.walletAddress), uri: cert.metadataUri };
+      }
+    }
+
     const verdict = await verifyMintTx(
       cert.txHash as Hex,
       cert.chainId ?? undefined,
+      expected,
     );
 
     if (verdict.state === "pending") {
