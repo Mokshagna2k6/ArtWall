@@ -8,6 +8,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/index";
 import { artTags, artTagScans, artworks, artistProfiles } from "@/lib/db/schema";
+import { clientIp, limitRequest } from "@/lib/rate-limit";
 import {
   attempt,
   parseInput,
@@ -30,8 +31,6 @@ const createTagSchema = z.object({
 });
 const scanSchema = z.object({
   tagUid: z.string().trim().min(1).max(128),
-  ip: z.string().max(64).optional(),
-  ua: z.string().max(512).optional(),
 });
 
 function newId(prefix: string): string {
@@ -134,12 +133,19 @@ export async function unbindTag(tagId: string): Promise<Result> {
   });
 }
 
-/** Public: resolve a tag scan, increment count, log it */
-export async function resolveTagScan(tagUid: string, ip?: string, ua?: string) {
-  return readSafely("resolveTagScan", null, () => recordScan(parseInput(scanSchema, { tagUid, ip, ua })));
+/**
+ * Public: resolve a tag scan, increment count, log it.
+ *
+ * Takes no caller-supplied ip/ua (those were spoofable client input on a
+ * public action) and reads the request itself. A scan counts at most once per
+ * IP per tag per 10 minutes, so a reload or a scripted loop cannot inflate
+ * scan_count (FE-2.11 cleanup, same commit as the privacy fix below).
+ */
+export async function resolveTagScan(tagUid: string) {
+  return readSafely("resolveTagScan", null, () => recordScan(parseInput(scanSchema, { tagUid })));
 }
 
-async function recordScan({ tagUid, ip, ua }: z.infer<typeof scanSchema>) {
+async function recordScan({ tagUid }: z.infer<typeof scanSchema>) {
   const [tag] = await db
     .select({
       id: artTags.id,
@@ -149,19 +155,27 @@ async function recordScan({ tagUid, ip, ua }: z.infer<typeof scanSchema>) {
     .where(eq(artTags.tagUid, tagUid));
   if (!tag) return null;
 
-  await db.insert(artTagScans).values({
-    id: newId("tscan"),
-    tagId: tag.id,
-    ipAddress: ip ?? null,
-    userAgent: ua ?? null,
-  });
+  const h = await headers();
+  const fresh = await limitRequest(
+    `tag-scan:${tag.id}`,
+    { limit: 1, windowMs: 10 * 60 * 1000 },
+    null,
+    h
+  );
+  if (fresh.ok) {
+    await db.insert(artTagScans).values({
+      id: newId("tscan"),
+      tagId: tag.id,
+      ipAddress: clientIp(h),
+      userAgent: h.get("user-agent")?.slice(0, 512) ?? null,
+    });
+    await db
+      .update(artTags)
+      .set({ scanCount: sql`scan_count + 1` })
+      .where(eq(artTags.id, tag.id));
+  }
 
-  await db
-    .update(artTags)
-    .set({ scanCount: sql`scan_count + 1` })
-    .where(eq(artTags.id, tag.id));
-
-  if (!tag.artworkId) return { tagId: tag.id, artworkId: null };
+  if (!tag.artworkId) return { tagId: tag.id, artwork: null };
 
   const [artwork] = await db
     .select({
@@ -184,5 +198,9 @@ async function recordScan({ tagUid, ip, ua }: z.infer<typeof scanSchema>) {
       )
     );
 
-  return { tagId: tag.id, artwork: artwork ?? null, private: !artwork };
+  // FE-2.11: a bound-but-private work and an unbound tag must look identical
+  // to the caller — neither "artwork" nor "owner" is revealed either way, so
+  // the `private` flag that used to distinguish them is gone. The page shows
+  // one generic message for both.
+  return { tagId: tag.id, artwork: artwork ?? null };
 }
