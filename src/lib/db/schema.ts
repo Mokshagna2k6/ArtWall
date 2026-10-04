@@ -94,6 +94,11 @@ export const artworks = pgTable("artworks", {
   description: text("description"),
   dimensions: text("dimensions"),
   status: text("status").notNull().default("available"),
+  /** Orthogonal status domains (DB-3.03, 0047). status above is untouched. */
+  lifecycleStatus: text("lifecycle_status").notNull().default("draft"),
+  commerceStatus: text("commerce_status").notNull().default("unlisted"),
+  exhibitionStatus: text("exhibition_status").notNull().default("not_exhibited"),
+  custodyStatus: text("custody_status").notNull().default("with_artist"),
   imageUrl: text("imageUrl"),
   imagePublicId: text("imagePublicId"),
   isPublic: boolean("isPublic").notNull().default(true),
@@ -795,6 +800,8 @@ export const coaCertificates = pgTable("coa_certificates", {
    *               metadata_pinned | minting | minted | failed  (NFT mint flow)
    */
   status: text("status").notNull().default("draft"),
+  /** 0-3, DB-3.02. Real stored state, backfilled from status (0046). */
+  coaLevel: integer("coa_level").notNull().default(0),
   issuedAt: timestamp("issued_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   revokeReason: text("revoke_reason"),
@@ -907,6 +914,10 @@ export const artTags = pgTable("art_tags", {
   boundAt: timestamp("bound_at", { withTimezone: true }),
   scanCount: integer("scan_count").notNull().default(0),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** DB-3.11, 0049. A *reference* to the NTAG424 key, never the key itself. */
+  keyReference: text("key_reference"),
+  sunCounterLastSeen: integer("sun_counter_last_seen"),
+  bindingStatus: text("binding_status").notNull().default("unbound"),
 });
 
 /* ── PolicyEngine (Phase 3) ───────────────────────────────────────────────── */
@@ -948,4 +959,95 @@ export const artTagScans = pgTable("art_tag_scans", {
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   location: jsonb("location"),
+});
+
+/* ── Database Phase 3 additions (0044-0049) ─────────────────────────────── */
+
+/** Versioned whole-transaction commission split (DB-3.04, 0044). Immutable once effective. */
+export const commissionPolicyVersions = pgTable("commission_policy_versions", {
+  id: text("id").primaryKey(),
+  version: integer("version").notNull(),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+  effectiveTo: timestamp("effective_to", { withTimezone: true }),
+  platformBps: integer("platform_bps").notNull(),
+  artistBps: integer("artist_bps").notNull(),
+  curatorBps: integer("curator_bps").notNull(),
+  venueBps: integer("venue_bps").notNull(),
+  royaltyBps: integer("royalty_bps").notNull(),
+  note: text("note"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Demand Engine (DB-3.14, 0045). Append-only event log. */
+export const demandSignals = pgTable("demand_signals", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  artworkId: text("artwork_id").notNull(),
+  signalType: text("signal_type").notNull(),
+  weight: integer("weight").notNull(),
+  value: integer("value").notNull().default(1),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Demand Engine aggregate (DB-3.14, 0045), upserted by the aggregation job. */
+export const demandAggregates = pgTable("demand_aggregates", {
+  artworkId: text("artwork_id").primaryKey(),
+  score: integer("score").notNull().default(0),
+  thresholdCrossedAt: timestamp("threshold_crossed_at", { withTimezone: true }),
+  computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Escrow (DB-3.09, 0049). Linked to pw_bookings (this codebase's "order"). */
+export const escrowHolds = pgTable("escrow_holds", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  amountPaise: integer("amount_paise").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const escrowReleases = pgTable("escrow_releases", {
+  id: text("id").primaryKey(),
+  escrowHoldId: text("escrow_hold_id").notNull(),
+  ledgerId: text("ledger_id"),
+  amountPaise: integer("amount_paise").notNull(),
+  releasedTo: text("released_to"),
+  releasedAt: timestamp("released_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Admin roles (DB-3.10, 0049): the 8 Bible roles + user assignment + audit trail. */
+export const adminRoles = pgTable("admin_roles", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+});
+
+export const adminRoleAssignments = pgTable("admin_role_assignments", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  roleId: text("role_id").notNull(),
+  grantedBy: text("granted_by"),
+  grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedBy: text("revoked_by"),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
+/** Shipments (DB-3.15, 0049), for Shiprocket. */
+export const shipments = pgTable("shipments", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id"),
+  provider: text("provider").notNull().default("shiprocket"),
+  providerShipmentId: text("provider_shipment_id"),
+  status: text("status").notNull().default("created"),
+  trackingUrl: text("tracking_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const shipmentEvents = pgTable("shipment_events", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  shipmentId: text("shipment_id").notNull(),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").notNull().default({}),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
 });
