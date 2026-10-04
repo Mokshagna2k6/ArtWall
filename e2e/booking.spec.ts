@@ -99,16 +99,54 @@ test("book a slot, agree, pay in Razorpay test mode, see it paid", async ({ page
  */
 async function clearContactDialogIfShown(checkout: ReturnType<Page["frameLocator"]>) {
   const contact = checkout.locator('input[name="contact"]');
-  if (!(await contact.isVisible({ timeout: 3_000 }).catch(() => false))) return;
+  // `.isVisible()` is a point-in-time check — unlike `expect(...).toBeVisible()`
+  // or `.waitFor()`, passing it a `timeout` does not make it poll for the
+  // element to *become* visible; it just looks once and returns false
+  // immediately if the dialog hasn't finished animating in yet. That false
+  // negative was the actual bug here: the dialog was genuinely on screen
+  // (confirmed by screenshot) but this check said "not shown" and let the
+  // caller click straight into it, where it then blocked every click for
+  // the rest of the test. `.waitFor({state:"visible"})` genuinely polls.
+  const shown = await contact
+    .waitFor({ state: "visible", timeout: 3_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (!shown) return;
 
   // A plain .fill() can land before the widget's own handlers are attached,
   // so the value never sticks and Continue re-shows the same empty dialog.
-  // Click first to focus/hydrate it, type character-by-character, and
-  // confirm the value stuck before submitting.
+  // `.fill("")` to clear has the same problem in reverse: it sets the DOM
+  // value directly without the input events Razorpay's controlled component
+  // listens for, so its internal state can still think the field holds
+  // whatever it had before — the visible value looks right but the widget's
+  // own validation (which reads its state, not the DOM) keeps failing.
+  // Select-all and type over it via real keyboard events instead, so every
+  // mutation the widget sees comes through its normal input handler.
   await contact.click();
-  await contact.pressSequentially("9999999999", { delay: 20 });
-  await expect(contact).toHaveValue("9999999999");
-  await checkout.getByRole("button", { name: /continue|proceed/i }).first().click();
+  await contact.press("ControlOrMeta+a");
+  await contact.press("Backspace");
+  await contact.pressSequentially("9123456780", { delay: 20 });
+  await expect(contact).toHaveValue("9123456780");
+  // The widget's own validation message can lag a beat behind the last
+  // keystroke (debounced revalidation) — clicking Continue immediately can
+  // land while it's still showing the error from before this field was
+  // filled. Give it a moment to clear before relying on Continue to dismiss
+  // the dialog; if the error is still showing, fall through and let the
+  // caller's retry loop give it another pass rather than waiting forever
+  // here.
+  await checkout
+    .getByText(/please enter a valid/i)
+    .waitFor({ state: "hidden", timeout: 2_000 })
+    .catch(() => {});
+  // A valid number can make the widget auto-advance on its own before this
+  // click lands, detaching the button mid-click and hanging the action for
+  // its full timeout. The click is just a nudge for when it doesn't
+  // auto-advance — either way the waits below confirm the dialog is gone.
+  await checkout
+    .getByRole("button", { name: /continue|proceed/i })
+    .first()
+    .click({ timeout: 5_000 })
+    .catch(() => {});
   // The dialog's own backdrop (#overlay-backdrop) stays in the DOM above
   // the payment list until the close transition finishes. Wait for both
   // the input and its backdrop to actually leave the DOM before the caller
