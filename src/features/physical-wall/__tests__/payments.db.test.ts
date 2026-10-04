@@ -256,6 +256,15 @@ describe("durable refunds (BE-1.14)", () => {
     expect(r.provider_refund_id).toBe(`rfnd_crash_${id}`);
     expect(rp.refunds.filter((x) => x.notes.refundId === id)).toHaveLength(1);
     expect(rp.createRefundCalls).toBe(1); // only the failed in-request attempt
+
+    // SEC-2.11: confirming the money actually moved is audited separately
+    // from the cancellation request that queued it.
+    const [audit] = await q<{ subject_id: string; after: { refundId: string } }>(
+      `select subject_id, after from pw_audit_log where action = 'refund.processed' and subject_id = $1`,
+      [booking]
+    );
+    expect(audit).toBeTruthy();
+    expect(audit.after.refundId).toBe(id);
   });
 
   it("a fresh 'processing' row (another worker mid-flight) is not touched", async () => {
