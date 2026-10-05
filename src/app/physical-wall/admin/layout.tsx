@@ -45,8 +45,13 @@ const ITEMS = [
  * uses the full width beside it. It collapses to a horizontal scroller on a
  * phone, where a fixed 13rem column would eat a third of the screen.
 
- * The ADMIN_EMAILS bootstrap happens inside `getActor`, so a founder arriving
- * here is already promoted by the time the role is checked.
+ * SEC-3.02: admin promotion is no longer a live, request-time path (the old
+ * ADMIN_EMAILS allowlist bootstrap inside `getActor` was removed) — the
+ * first admin is seeded out-of-band (scripts/seed-accounts.mjs) and every
+ * admin after that is granted by an existing super_admin via
+ * `grantAdminRole`, so a user is already an `admin` (and already holds any
+ * specific admin_roles role an action further requires) by the time they
+ * reach this layout.
  */
 export default async function PhysicalWallAdminLayout({
   children,
