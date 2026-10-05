@@ -1,3 +1,4 @@
+import { createCipheriv } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { aesCmac, decryptPiccData, verifySdmCmac, verifySunMessage, diversifyTagKey } from "@/lib/blockchain/ntag424";
 
@@ -61,7 +62,6 @@ describe("NTAG424 SDM picc_data decrypt + CMAC verify (constructed vectors)", ()
     plain[8] = counter & 0xff;
     plain[9] = (counter >> 8) & 0xff;
     plain[10] = (counter >> 16) & 0xff;
-    const { createCipheriv } = require("node:crypto");
     const cipher = createCipheriv("aes-128-cbc", metaReadKey, Buffer.alloc(16));
     cipher.setAutoPadding(false);
     return new Uint8Array(Buffer.concat([cipher.update(plain), cipher.final()]));
