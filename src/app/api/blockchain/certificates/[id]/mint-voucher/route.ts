@@ -13,6 +13,8 @@ import { newVoucherNonce, signMintVoucher } from "@/lib/blockchain/mint-voucher"
 import { canMint } from "@/features/policy/engine";
 import { logPolicyDecision } from "@/features/policy/log";
 import { loadTrustDimensions } from "@/features/policy/trust";
+import { limitPolicyOperation } from "@/features/policy/rate-limit";
+import { getActor } from "@/features/physical-wall/authorize";
 import { recordAudit } from "@/features/physical-wall/audit";
 
 export const runtime = "nodejs";
@@ -37,6 +39,15 @@ export async function POST(
     // is generous; beyond that someone is farming signatures.
     const rl = await limitRequest("mint-voucher", { limit: 10, windowMs: 60 * 60 * 1000 }, user.id);
     if (!rl.ok) return tooManyRequests(rl, { error: { code: "rate_limited", reqId } });
+
+    // PERF-3.03: the PolicyEngine-gated per-role mint limit, separate bucket
+    // from the per-endpoint one above (that one caps voucher-signing retries
+    // regardless of role; this one is the role-aware ceiling on the
+    // PolicyEngine operation itself, same shape as every other rate-limited
+    // call site).
+    const role = (await getActor())?.role ?? "visitor";
+    const policyRl = await limitPolicyOperation("mint", role, user.id);
+    if (!policyRl.ok) return tooManyRequests(policyRl, { error: { code: "rate_limited", reqId } });
 
     const { id } = await params;
     const [cert] = await db
