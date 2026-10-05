@@ -14,11 +14,9 @@ import { getSql } from "@/lib/db";
  * "ASSUMED SCHEMA" comment guessed, so no interface change was needed, only
  * un-stubbing the query below.
  *
- * Still not wired into a cron route (`src/app/api/cron/*`) — that is
- * PERF-3.04's own follow-up, not this migration's job; wire
- * `runDemandAggregation` into `src/app/api/cron/demand-aggregate/route.ts`
- * (same `runCron` pattern as every other job in that directory) when that
- * ticket is picked up.
+ * Wired into `src/app/api/cron/demand-aggregate/route.ts` (PERF-3.04, same
+ * `runCron` pattern as every other job in that directory), scheduled daily
+ * in `vercel.json`.
  *
  * The artist unlock threshold (see `content.ts`'s "Demand-Triggered Sale"
  * copy) is not yet a stored per-artwork column anywhere in this codebase;
