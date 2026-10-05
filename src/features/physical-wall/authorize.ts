@@ -201,10 +201,26 @@ function isAllowlisted(email: string): boolean {
 async function promoteToAdmin(userId: string): Promise<void> {
   try {
     const sql = getSql();
-    await sql`
+    const rows = (await sql`
       update "user" set role = 'admin'
       where id = ${userId} and role <> 'admin'
-    `;
+      returning id
+    `) as { id: string }[];
+
+    if (rows.length > 0) {
+      // SEC-2.11: this IS a role grant — just allowlist-driven rather than
+      // admin-driven. Lazy import: audit.ts imports the Actor *type* from this
+      // module, so a static import here would be a real (if type-erased at
+      // runtime) cycle — avoided the same way requireOnboardedPage avoids one.
+      const { recordAudit } = await import("@/features/physical-wall/audit");
+      await recordAudit({
+        actor: null,
+        action: "user.role-granted",
+        subjectType: "user",
+        subjectId: userId,
+        after: { role: "admin", via: "ADMIN_EMAILS allowlist" },
+      });
+    }
   } catch (error) {
     console.error("[physical-wall] Could not sync admin allowlist", error);
   }

@@ -13,6 +13,7 @@ import { newVoucherNonce, signMintVoucher } from "@/lib/blockchain/mint-voucher"
 import { canMint } from "@/features/policy/engine";
 import { logPolicyDecision } from "@/features/policy/log";
 import { loadTrustDimensions } from "@/features/policy/trust";
+import { recordAudit } from "@/features/physical-wall/audit";
 
 export const runtime = "nodejs";
 
@@ -94,6 +95,16 @@ export async function POST(
       .set({ mintNonce: nonce, status: "metadata_pinned", mintError: null })
       .where(eq(coaCertificates.id, id));
     expireCatalog();
+
+    // SEC-2.11: a mint voucher is a server signature authorising an on-chain
+    // mint — accountable the same way a refund or role grant is.
+    await recordAudit({
+      actor: user,
+      action: "certificate.mint_voucher_issued",
+      subjectType: "coa_certificate",
+      subjectId: id,
+      after: { to, royaltyReceiver, royaltyFeeBps, nonce, deadline },
+    });
 
     return NextResponse.json({
       voucher: {

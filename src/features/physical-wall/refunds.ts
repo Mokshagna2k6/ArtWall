@@ -3,6 +3,7 @@ import "server-only";
 import type { PoolClient } from "pg";
 
 import { newId } from "@/features/physical-wall/actions/shared";
+import { recordAudit } from "@/features/physical-wall/audit";
 import { alertAdmins } from "@/features/physical-wall/notifications";
 import { createRefund, findRefund } from "@/features/physical-wall/razorpay";
 import { pool } from "@/lib/db/index";
@@ -82,16 +83,34 @@ export async function processRefund(refundId: string): Promise<RefundOutcome> {
        where id = $1`,
       [refundId, refund.id]
     );
+    // SEC-2.11: the audit log at queue time (booking.cancelled / booking.payment-refunded)
+    // records who asked for the refund and why; this records that Razorpay
+    // actually moved the money, which is the part only known after the fact.
+    await recordAudit({
+      actor: null,
+      action: "refund.processed",
+      subjectType: "booking",
+      subjectId: row.booking_id,
+      after: { refundId, providerRefundId: refund.id, amountPaise: Number(row.amount_paise) },
+    });
     return "processed";
   } catch (error) {
     console.error(`[physical-wall] refund ${refundId} failed`, error);
+    const message = String(error instanceof Error ? error.message : error).slice(0, 1000);
     await pool
       .query(
         `update pw_refunds set status = 'failed', last_error = $2, updated_at = now()
          where id = $1 and status = 'processing'`,
-        [refundId, String(error instanceof Error ? error.message : error).slice(0, 1000)]
+        [refundId, message]
       )
       .catch((e) => console.error(`[physical-wall] could not mark refund ${refundId} failed`, e));
+    await recordAudit({
+      actor: null,
+      action: "refund.failed",
+      subjectType: "booking",
+      subjectId: row.booking_id,
+      after: { refundId, amountPaise: Number(row.amount_paise), error: message },
+    });
     return "failed";
   }
 }

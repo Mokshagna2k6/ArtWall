@@ -55,6 +55,37 @@ jobs:
           BETTER_AUTH_SECRET: "ci-placeholder-secret"
           BETTER_AUTH_URL: "http://localhost:3000"
 
+  # SEC-2.09: no secret (API key, password, token) is committed to the repo.
+  # gitleaks scans the full history on every run so a secret buried in an old
+  # commit on this branch still fails CI, not just the current diff.
+  secrets-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # SEC-2.10: fail CI on any high/critical advisory in a direct or transitive
+  # dependency. `pnpm audit --audit-level=high` does NOT gate on severity —
+  # pnpm's --audit-level only filters what's printed, and pnpm audit's exit
+  # code is 1 for any finding at all (including low/moderate). scripts/audit-high.mjs
+  # reads the audit's own severity counts and gates on high+critical only.
+  dependency-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: pnpm audit (high/critical only)
+        run: node scripts/audit-high.mjs
+
   # DB-2.13: every migration applies to an empty database, twice, without error
   # and without changing the schema on the second pass.
   migrations:

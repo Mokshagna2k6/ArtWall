@@ -16,6 +16,7 @@ import { ROSTER_TAG } from "@/features/waitlist/roster";
 import {
   createUploadSignature,
   fetchModerationVerdict,
+  IMAGE_UPLOAD_FORMATS,
   isOwnAsset,
   type UploadSignature,
 } from "@/lib/cloudinary";
@@ -59,7 +60,10 @@ export async function requestUploadSignature(): Promise<
   }
 
   try {
-    return { ok: true, signature: createUploadSignature(WALL_UPLOAD_FOLDER) };
+    return {
+      ok: true,
+      signature: createUploadSignature(WALL_UPLOAD_FOLDER, { allowedFormats: IMAGE_UPLOAD_FORMATS }),
+    };
   } catch (error) {
     console.error("[wall] Cloudinary is not configured", error);
     return {

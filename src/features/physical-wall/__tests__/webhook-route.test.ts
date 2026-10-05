@@ -18,7 +18,7 @@ const { POST, GET } = await import("@/app/api/physical-wall/razorpay/webhook/rou
 
 const sign = (body: string, secret = "whsec_unit") => createHmac("sha256", secret).update(body).digest("hex");
 
-function captured(extra: Record<string, unknown> = {}) {
+function captured(extra: Record<string, unknown> = {}, eventExtra: Record<string, unknown> = {}) {
   return JSON.stringify({
     event: "payment.captured",
     payload: {
@@ -26,6 +26,7 @@ function captured(extra: Record<string, unknown> = {}) {
         entity: { id: "pay_1", order_id: "order_1", amount: 11800, currency: "INR", notes: { bookingId: "bk_1" }, ...extra },
       },
     },
+    ...eventExtra,
   });
 }
 
@@ -104,6 +105,36 @@ describe("Razorpay webhook signature (BE-2.01)", () => {
     expect(res.status).toBe(500);
     expect(alertAdmins).toHaveBeenCalledTimes(1);
     expect(alertAdmins.mock.calls[0][0]).toBe("webhook.razorpay.failed:pay_1");
+  });
+});
+
+describe("Razorpay webhook replay window (SEC-2.14)", () => {
+  it("accepts a payload whose created_at is within the window", async () => {
+    const body = captured({}, { created_at: Math.floor(Date.now() / 1000) });
+    const res = await post(body, { "x-razorpay-signature": sign(body), "x-razorpay-event-id": "evt_fresh" });
+    expect(res.status).toBe(200);
+    expect(settle).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a validly-signed payload whose created_at is far in the past (replay)", async () => {
+    const body = captured({}, { created_at: Math.floor(Date.now() / 1000) - 3600 });
+    const res = await post(body, { "x-razorpay-signature": sign(body), "x-razorpay-event-id": "evt_old" });
+    expect(res.status).toBe(401);
+    expect(settle).not.toHaveBeenCalled();
+  });
+
+  it("rejects a validly-signed payload whose created_at is far in the future", async () => {
+    const body = captured({}, { created_at: Math.floor(Date.now() / 1000) + 3600 });
+    const res = await post(body, { "x-razorpay-signature": sign(body), "x-razorpay-event-id": "evt_future" });
+    expect(res.status).toBe(401);
+    expect(settle).not.toHaveBeenCalled();
+  });
+
+  it("has no created_at field (older/synthetic payload) → window check is skipped, event still settles", async () => {
+    const body = captured();
+    const res = await post(body, { "x-razorpay-signature": sign(body), "x-razorpay-event-id": "evt_nocreatedat" });
+    expect(res.status).toBe(200);
+    expect(settle).toHaveBeenCalledTimes(1);
   });
 });
 

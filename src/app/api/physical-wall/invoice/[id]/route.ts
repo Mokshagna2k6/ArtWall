@@ -3,13 +3,9 @@ import { NextResponse } from "next/server";
 import { features } from "@/config/site";
 import { getInvoice } from "@/features/physical-wall/actions/invoice";
 import { formatINR } from "@/features/physical-wall/money";
+import { esc } from "@/lib/html-escape";
 
 export const dynamic = "force-dynamic";
-
-/** Every interpolated value is user- or admin-supplied text: escape it. */
-function esc(value: unknown): string {
-  return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[c]!);
-}
 
 export async function GET(
   _request: Request,

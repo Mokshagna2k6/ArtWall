@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { coaCertificates, artworks, artistProfiles } from "@/lib/db/schema";
+import { esc } from "@/lib/html-escape";
 
 export async function GET(
   _request: Request,
@@ -95,10 +96,3 @@ export async function GET(
   });
 }
 
-function esc(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
