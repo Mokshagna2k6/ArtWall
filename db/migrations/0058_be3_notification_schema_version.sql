@@ -1,4 +1,4 @@
--- 0057: pw_notifications.schema_version (BE-3.22).
+-- 0058: pw_notifications.schema_version (BE-3.22).
 --
 -- "The notification outbox event schema is versioned, so it can later be
 -- bridged to a broker without code changes to producers" (F70). A bare
