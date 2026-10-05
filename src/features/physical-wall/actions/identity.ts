@@ -44,6 +44,9 @@ export async function reviewIdentity(
 
     const userId = rows[0].user_id;
 
+    // DB-3.01: artist_verification_status mirrors the same review verdict
+    // identity_verified already tracks — one write path, two columns.
+    await sql`update "user" set artist_verification_status = ${verdict} where id = ${userId}`;
     if (verdict === "approved") {
       await sql`update "user" set identity_verified = true where id = ${userId}`;
     }
