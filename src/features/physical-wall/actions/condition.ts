@@ -16,7 +16,7 @@ import {
   type Result,
   toActionError,
 } from "@/features/physical-wall/actions/shared";
-import { createUploadSignature, isOwnAsset, type UploadSignature } from "@/lib/cloudinary";
+import { createUploadSignature, IMAGE_UPLOAD_FORMATS, isOwnAsset, type UploadSignature } from "@/lib/cloudinary";
 
 /**
  * Condition reports (BE-1.36, BE-1.37). Staff/admin only.
@@ -32,7 +32,7 @@ const CONDITION_FOLDER = "artwall/condition";
 export async function requestConditionUploadSignature(): Promise<Result<UploadSignature>> {
   return attempt("requestConditionUploadSignature", async () => {
     await requireRole("staff");
-    return createUploadSignature(CONDITION_FOLDER);
+    return createUploadSignature(CONDITION_FOLDER, { allowedFormats: IMAGE_UPLOAD_FORMATS });
   });
 }
 

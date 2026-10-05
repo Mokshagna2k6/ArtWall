@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 
-import { createUploadSignature } from "@/lib/cloudinary";
+import { createUploadSignature, IMAGE_UPLOAD_FORMATS } from "@/lib/cloudinary";
 import { limitRequest, retryIn } from "@/lib/rate-limit";
 import { getSessionUser } from "@/lib/session";
 
@@ -53,7 +53,7 @@ export async function getUploadSignature(
   }
 
   try {
-    const signed = createUploadSignature(`artwall/${parsed.data}`);
+    const signed = createUploadSignature(`artwall/${parsed.data}`, { allowedFormats: IMAGE_UPLOAD_FORMATS });
     return { ok: true, ...signed };
   } catch (error) {
     console.error("[upload] Could not create signature", error);

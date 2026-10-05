@@ -116,6 +116,18 @@ describe("NFT routes (/api/blockchain)", () => {
     const [{ mintNonce }] = await q<{ mintNonce: string }>(`select "mintNonce" from coa_certificates where id = $1`, [id]);
     expect(mintNonce).toBe(body.voucher.nonce);
 
+    // SEC-2.11: issuing a mint voucher is a security-relevant action and
+    // must land in the append-only audit log with who did it, what, and
+    // from where (actor_ip).
+    const [auditRow] = await q<{ actor_id: string; subject_id: string; actor_ip: string | null }>(
+      `select actor_id, subject_id, actor_ip from pw_audit_log
+       where action = 'certificate.mint_voucher_issued' and subject_id = $1`,
+      [id]
+    );
+    expect(auditRow).toBeTruthy();
+    expect(auditRow.actor_id).toBe(artist.id);
+    expect(auditRow.actor_ip).toBeTruthy();
+
     // A revoked certificate is never put back into the mint flow.
     await q(`update coa_certificates set status = 'revoked', revoked_at = now() where id = $1`, [id]);
     expect((await voucher(post(voucherBody), params(id))).status).toBe(409);

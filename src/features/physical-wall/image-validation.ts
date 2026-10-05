@@ -3,12 +3,13 @@ import "server-only";
 import { createHmac, randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 
-import { createUploadSignature, type UploadSignature } from "@/lib/cloudinary";
+import { sniffImageType } from "@/lib/blockchain/file-sniff";
+import { createUploadSignature, IMAGE_UPLOAD_FORMATS, type UploadSignature } from "@/lib/cloudinary";
 import { getSessionUser } from "@/lib/session";
 
 export const UGC_UPLOAD_FOLDER = "artwall/ugc";
 /** What Cloudinary will accept for a selfie; enforced by the signed upload. */
-export const UGC_FORMATS = ["jpg", "jpeg", "png", "webp", "heic", "gif"] as const;
+export const UGC_FORMATS = IMAGE_UPLOAD_FORMATS;
 /** httpOnly cookie that ties a signed-out visitor's upload to their submit. */
 export const UGC_GUEST_COOKIE = "pw_ugc_guest";
 
@@ -65,29 +66,16 @@ export async function requestUgcUploadSignature(): Promise<UgcUploadSignature> {
 }
 
 /**
- * Magic-byte MIME validation for uploaded images (F09).
+ * Magic-byte MIME validation for uploaded images (F09, SEC-2.07).
  *
- * Checks the first 12 bytes against known image signatures. This catches
- * renamed EXE files, PDFs with image extensions, and other spoofed uploads
- * that a MIME type from the browser cannot.
+ * Thin wrapper over the shared `sniffImageType` (BC-1.20) rather than a second,
+ * independently-maintained signature table — one file-type detector for every
+ * upload path (IPFS, UGC, identity documents, artwork images), not two.
  */
-const SIGNATURES: { bytes: number[]; mime: string }[] = [
-  { bytes: [0xFF, 0xD8, 0xFF], mime: "image/jpeg" },
-  { bytes: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], mime: "image/png" },
-  { bytes: [0x52, 0x49, 0x46, 0x46], mime: "image/webp" }, // RIFF (WebP container)
-  { bytes: [0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70], mime: "image/heic" }, // HEIC ftyp
-  { bytes: [0x47, 0x49, 0x46, 0x38], mime: "image/gif" },
-];
-
 export function validateImageMagicBytes(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  for (const sig of SIGNATURES) {
-    if (bytes.length >= sig.bytes.length) {
-      const match = sig.bytes.every((b, i) => bytes[i] === b);
-      if (match) return sig.mime;
-    }
-  }
-  throw new Error("That file does not look like a valid image.");
+  const mime = sniffImageType(new Uint8Array(buffer));
+  if (!mime) throw new Error("That file does not look like a valid image.");
+  return mime;
 }
 
 /**
