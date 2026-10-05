@@ -138,6 +138,63 @@ is inferred from column names, comments and the BE-3.xx task list's own
 citations, not read from source. Whoever owns DB-3.01 should confirm or
 correct this table against the real Bible text.
 
+### The graded levels (DB-3.01, migration 0052)
+
+The boolean `TrustDimensions` above answer "can the gate say yes right now".
+A separate, GRADED set of five columns/views answers "how far along is this,
+exactly" — what the not-yet-built trust-panel UI (FE-3.01-3.04) needs to show
+"COA level 2 of 3" instead of a checkmark. `loadTrustDimensionLevels` in
+`src/features/policy/trust.ts` is the loader:
+
+| Dimension | Values | Storage |
+|---|---|---|
+| `artistVerificationStatus` | `unverified \| pending \| approved \| rejected` | Real stored column, `user.artist_verification_status`. Written by `reviewIdentity` — the same write path that already sets `identity_verified`. |
+| `coaLevel` | 0-3 | Real stored column, `coa_certificates.coa_level` (0046/DB-3.02). Kept in sync by a trigger added in 0052 — see "coa_level drift fix" below. |
+| `provenanceLevel` | 0-4 (P0-P4) | View `artwork_provenance_levels`. P0 none, P1 COA issued, P2 mint commitment opened, P3 commitment confirmed on-chain, P4 minted. |
+| `bindingLevel` | 0-3 (B0-B3) | Generated column, `art_tags.binding_level` — `GENERATED ALWAYS AS ... STORED` from `binding_status`/`key_reference`/`sun_counter_last_seen` on the same row. |
+| `transactionEligible` | boolean | View `artwork_transaction_eligibility` — literally `canSecondarySell`'s three preconditions (published, identity verified, COA issued) read live. |
+
+**Why views/generated column instead of five more mirrored columns:**
+`provenanceLevel` and `transactionEligible` need data from more than one
+table (artworks + coa_certificates + mint_commitments + user), so they can't
+be Postgres `GENERATED` columns (same-row only) — a stored+trigger column
+would need triggers fanned out across three tables to stay correct, the
+exact drift risk `loadTrustDimensions`'s own doc comment warns about. A view
+recomputes live from the same tables the boolean loader already reads.
+`bindingLevel`'s inputs are all on the same `art_tags` row, so it is a real
+`GENERATED ALWAYS AS ... STORED` column — Postgres keeps it correct by
+construction, the strongest guarantee available, and the literal "column
+with a CHECK" the task text asks for. `artistVerificationStatus` has exactly
+one write path already (`reviewIdentity`), so storing it is zero new sync
+burden, not a drift risk.
+
+**coa_level drift fix:** building `provenanceLevel` surfaced a real bug in
+0046 — it backfilled `coa_level` once at migration time, but nothing kept it
+in sync afterwards. Every status-writing call site (`issue`, `revoke`, the
+mint-flow routes under `src/app/api/blockchain/certificates/**`) only ever
+set `status`, never `coa_level`, so every certificate created or transitioned
+since 0046 silently drifted back to level 0. Migration 0052 adds a
+`before insert or update of status` trigger (`coa_certificates_sync_level`)
+that derives `coa_level` from `status` on every write, including the
+"revoked/failed keep whatever level they were at" rule 0046's comment
+described but never enforced (`OLD.coa_level` is carried forward when
+transitioning into `revoked`/`failed`). Verified against a real
+`metadata_pinned` -> `minting` -> `failed` sequence: level stays 2 throughout,
+never resets to 1.
+
+**Known incomplete signal, not fabricated:** `bindingLevel`'s B2/B3 split is
+meant (per the Bible's NTAG424/SUN model) to distinguish "a key reference is
+on file" from "a live SUN-counter tap was cryptographically re-verified" —
+real proof of a physical tap, not just a stored reference. Today's real
+columns only capture `key_reference` (set at bind time) and
+`sun_counter_last_seen` (a value, not a re-validation event), so B3 here
+means "bound, with a key reference, and at least one observed SUN counter
+value" — the best signal the database actually has, not "re-verified on
+every scan". If a future Blockchain Phase 3 slice adds scan-time SUN counter
+re-validation (a monotonic check against the tag's real NTAG424 state on
+every read, not just at bind time), B3 should be redefined against that
+event instead of mere presence of a last-seen value.
+
 ## Commission policies (BE-3.09, BE-3.10)
 
 `commission_policies` replaces the two env-var-based rates that used to be
@@ -224,7 +281,9 @@ decision-log row must never fail the request it was only observing.
 - DB-3.01's five-dimension loader now exists —
   `loadTrustDimensions` in `src/features/policy/trust.ts`, DB-tested
   (`src/features/policy/__tests__/trust.db.test.ts`). BE-3.03 (wiring every
-  gated call site) can call it directly; it is unblocked.
+  gated call site) can call it directly; it is unblocked. The graded levels
+  (`loadTrustDimensionLevels`, migration 0052, DB-tested in
+  `trust-levels.db.test.ts`) are also done — see "The graded levels" above.
 - BE-3.07/3.08 (orthogonal state machine domains, 15-stage exhibition
   lifecycle) not started.
 - BE-3.11 – 3.25 not started (escrow, WallOS, demand engine, Shiprocket,

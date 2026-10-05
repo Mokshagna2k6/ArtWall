@@ -25,6 +25,10 @@ export const user = pgTable("user", {
   verificationMethod: text("verificationMethod"),
   /** Set when a pw_identity_verifications review is approved (0009). Payout gate. */
   identityVerified: boolean("identity_verified").notNull().default(false),
+  /** unverified | pending | approved | rejected (DB-3.01, 0052). Same write
+   *  path as identityVerified (reviewIdentity); this is the graded status,
+   *  identityVerified stays the simple payout-gate boolean. */
+  artistVerificationStatus: text("artist_verification_status").notNull().default("unverified"),
   /** Self-declared 18+. Null means not yet asked (DPDP §5.4). */
   ageDeclaredAdult: boolean("ageDeclaredAdult"),
   onboardedAt: timestamp("onboardedAt", { withTimezone: true }),
@@ -918,6 +922,10 @@ export const artTags = pgTable("art_tags", {
   keyReference: text("key_reference"),
   sunCounterLastSeen: integer("sun_counter_last_seen"),
   bindingStatus: text("binding_status").notNull().default("unbound"),
+  /** 0-3, generated from binding_status/key_reference/sun_counter_last_seen
+   *  on this same row (DB-3.01, 0052). Read-only — Postgres computes it, this
+   *  is a plain column decl for typed reads only, never written from here. */
+  bindingLevel: integer("binding_level"),
 });
 
 /* ── PolicyEngine (Phase 3) ───────────────────────────────────────────────── */
