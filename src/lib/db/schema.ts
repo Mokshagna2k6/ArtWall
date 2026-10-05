@@ -906,6 +906,15 @@ export const artTags = pgTable("art_tags", {
   boundBy: text("bound_by"),
   boundAt: timestamp("bound_at", { withTimezone: true }),
   scanCount: integer("scan_count").notNull().default(0),
+  /** Opaque KMS key reference for this tag's diversified AES-128 keys
+   *  (BC-3.10). Null for 'qr' tags (they use the Ed25519 signing key
+   *  instead). Never raw key material — see src/lib/blockchain/kms.ts. */
+  keyReference: text("key_reference"),
+  /** Replay-rejection high-water mark: the highest NTAG424 SDM read counter
+   *  this server has accepted for this tag (BC-3.09). */
+  sunCounterLastSeen: integer("sun_counter_last_seen"),
+  /** Provisioning/binding lifecycle (BC-3.13): unprovisioned | provisioned | bound | revoked. */
+  bindingStatus: text("binding_status").notNull().default("unprovisioned"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
