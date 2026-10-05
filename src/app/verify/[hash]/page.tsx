@@ -9,6 +9,8 @@ import {
   getProvenanceTimeline,
 } from "@/features/coa/actions";
 import { cachedCatalog } from "@/lib/catalog-cache";
+import { verifyTokenOnChain } from "@/lib/blockchain/chain";
+import type { Address } from "viem";
 
 // The certificate is cached inside verifyCertificateByHash (PERF-2.07); its
 // provenance is too. Both are expired by every issue/revoke/mint write.
@@ -67,6 +69,23 @@ export default async function VerifyPage({
   // The mint panel drives the NFT flow, which starts from a pinned certificate.
   const mintable = ["metadata_pinned", "minting", "failed"].includes(cert.status);
 
+  // BC-2.12: a "minted" status is a DB record of what verifyMintTx found at
+  // confirm time — re-check live, right now, rather than trusting that the
+  // DB row was never missed by a reconcile run. Not cached (unlike the
+  // certificate lookup above): this must reflect the chain at request time.
+  let onChain: { verified: boolean; reason?: string } | null = null;
+  if (cert.status === "minted" && cert.tokenId && cert.contractAddr && cert.chainId) {
+    const verdict = await verifyTokenOnChain(
+      cert.tokenId,
+      cert.chainId,
+      cert.contractAddr as Address,
+      cert.metadataUri ?? undefined,
+    );
+    onChain = verdict.verified
+      ? { verified: verdict.tokenUriMatches, reason: verdict.tokenUriMatches ? undefined : "tokenURI mismatch" }
+      : { verified: false, reason: verdict.reason };
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-16">
       <p
@@ -76,6 +95,20 @@ export default async function VerifyPage({
         <span className={`inline-block h-2 w-2 rounded-full ${dot}`} />
         {status.label}
       </p>
+
+      {onChain && (
+        <p
+          data-testid="onchain-status"
+          className={`mt-2 flex items-center gap-2 text-sm ${onChain.verified ? "text-green-700" : "text-red-700"}`}
+        >
+          <span
+            className={`inline-block h-2 w-2 rounded-full ${onChain.verified ? "bg-green-500" : "bg-red-500"}`}
+          />
+          {onChain.verified
+            ? "On-chain: verified just now"
+            : `On-chain: unverified (${onChain.reason ?? "check failed"})`}
+        </p>
+      )}
 
       <h1 className="text-display font-heading mt-4">{cert.artworkTitle}</h1>
 

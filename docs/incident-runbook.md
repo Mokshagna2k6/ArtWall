@@ -86,7 +86,10 @@ single blip) to the same on-call channel as the code-level alerts above.
    third-party API keys (`RAZORPAY_KEY_SECRET`, `RESEND_API_KEY`,
    `CLOUDINARY_API_SECRET`) that may be exposed, immediately — this
    invalidates existing sessions and revokes leaked credentials without
-   waiting for root cause.
+   waiting for root cause. If `MINT_SIGNER_PRIVATE_KEY` is suspected exposed,
+   follow the dedicated procedure below instead of just swapping the env var
+   — the old key's on-chain `SIGNER_ROLE` must be explicitly revoked, or it
+   can keep signing valid vouchers/root commits after rotation.
 2. `policy_decisions`, `pw_notifications`, and the audit tables under
    `recordAuditIn`/`recordAudit` (`src/features/physical-wall/audit.ts`) are
    the append-only trails to pull for a timeline of what an attacker could
@@ -97,6 +100,52 @@ single blip) to the same on-call channel as the code-level alerts above.
    elsewhere in this codebase — loop in whoever owns compliance before any
    public disclosure decision; this runbook covers technical containment
    only, not legal/regulatory response.
+
+## Rotating `MINT_SIGNER_PRIVATE_KEY` (BC-2.05)
+
+The platform voucher signer key lives only in the deploy environment's secret
+store (Vercel/Railway/etc. environment variables) — never in the repo or a
+committed `.env`. It signs two things: EIP-712 mint vouchers
+(`src/lib/blockchain/mint-voucher.ts`) and `commitRoot` merkle-root anchoring
+transactions (`src/features/blockchain/gateway.ts`), and on-chain it is the
+`ArtwallCOA` contract's `SIGNER_ROLE` holder.
+
+Rotate it on a suspected compromise (data-breach incident above), or on a
+routine schedule if the team adopts one. Order matters — granting the new
+key's role before revoking the old one avoids a window with zero valid
+signer:
+
+1. Generate a new key pair offline (e.g. `cast wallet new`); never generate
+   it inside a script that could log or transmit it. Note the new address.
+2. On-chain, grant the new address `SIGNER_ROLE` **before** touching the old
+   key — any `DEFAULT_ADMIN_ROLE` holder can call
+   `grantRole(SIGNER_ROLE, newSignerAddress)` (OpenZeppelin `AccessControl`,
+   inherited by `ArtwallCOA`; no custom function needed). Confirm on a block
+   explorer that the role is actually granted before proceeding.
+3. Update `MINT_SIGNER_PRIVATE_KEY` in the deploy environment's secret store
+   to the new key, and redeploy/restart so the running process picks it up
+   (`mint-voucher.ts` and `gateway.ts` both read it at module load).
+4. Revoke the old key's role: `revokeRole(SIGNER_ROLE, oldSignerAddress)`.
+   Once revoked, any voucher still signed by the old key permanently fails
+   `mintWithVoucher`'s `hasRole(SIGNER_ROLE, recoveredSigner)` check — this is
+   intentional, not a bug to route around.
+5. Any certificate with an unredeemed voucher issued by the old key (status
+   `metadata_pinned` with no mint attempted yet) needs a fresh voucher from
+   the new key before the artist can mint — the mint-voucher route always
+   signs on demand from current DB state, so simply re-requesting a voucher
+   through the normal flow is sufficient; nothing needs to be replayed or
+   migrated by hand.
+6. Confirm the old private key material is deleted everywhere it was ever
+   placed (secret store history, any local `.env` used to generate/test it).
+
+This procedure is intentionally runnable with only `cast` + a block explorer
+— no custom tooling — since Phase 2 has no live deployment to rehearse it
+against yet (BC-1.10 is pending funding). The `grantRole`/`revokeRole` calls
+themselves are exercised for real in
+`contracts/test/ArtwallCOASecurity.t.sol`'s
+`testAdminCanGrantSignerRole`/`testAdminCanRevokeSignerRole` against a local
+Foundry chain, so the on-chain half of this procedure is verified even
+without Base Sepolia.
 
 ## Escalation
 

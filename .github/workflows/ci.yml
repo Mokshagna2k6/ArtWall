@@ -86,6 +86,24 @@ jobs:
       - name: pnpm audit (high/critical only)
         run: node scripts/audit-high.mjs
 
+  # BC-1.08: the Solidity contract (contracts/) builds and its Foundry test
+  # suite passes on every push/PR. No Postgres needed — purely on-chain logic.
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: forge build
+        run: forge build
+        working-directory: contracts
+
+      - name: forge test
+        run: forge test -vvv
+        working-directory: contracts
+
   # DB-2.13: every migration applies to an empty database, twice, without error
   # and without changing the schema on the second pass.
   migrations:

@@ -1,10 +1,11 @@
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
+import { getAddress } from "viem";
 import { eq, and, lt, isNotNull } from "drizzle-orm";
 
 import { expireCatalog } from "@/lib/catalog-cache";
 import { deadline } from "@/lib/cron";
 import { db } from "@/lib/db/index";
-import { coaCertificates } from "@/lib/db/schema";
+import { coaCertificates, artistProfiles } from "@/lib/db/schema";
 import { verifyMintTx } from "@/lib/blockchain/chain";
 import { runCron } from "@/lib/cron";
 
@@ -40,9 +41,21 @@ async function reconcile() {
   for (const cert of stale) {
     if (Date.now() > until) break; // still "minting", reconciled next run
     try {
+      let expected: { to: Address; uri: string } | undefined;
+      if (cert.metadataUri) {
+        const [profile] = await db
+          .select({ walletAddress: artistProfiles.walletAddress })
+          .from(artistProfiles)
+          .where(eq(artistProfiles.userId, cert.userId));
+        if (profile?.walletAddress) {
+          expected = { to: getAddress(profile.walletAddress), uri: cert.metadataUri };
+        }
+      }
+
       const verdict = await verifyMintTx(
         cert.txHash as Hex,
         cert.chainId ?? undefined,
+        expected,
       );
       if (verdict.state === "pending") {
         pending++;

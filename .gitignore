@@ -44,3 +44,8 @@ next-env.d.ts
 
 # vitest blob reports (CI merges them for coverage)
 /.vitest-reports
+
+# Foundry build artifacts (contracts/) — lib/ (vendored deps) is committed.
+/contracts/out/
+/contracts/cache/
+/contracts/broadcast/
