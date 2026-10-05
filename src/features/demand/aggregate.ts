@@ -63,3 +63,36 @@ export async function runDemandAggregation(): Promise<{ processed: number }> {
   `) as { artworkId: string }[];
   return { processed: rows.length };
 }
+
+/**
+ * FE-3.06: the demand meter UI's read side. `demand_aggregates` has no
+ * stored "max score" anywhere (no threshold config exists yet either — see
+ * this file's header comment), so the meter is relative: this artwork's
+ * score against the highest score currently in the table. A single
+ * artwork's score with no context ("score: 11") tells a visitor nothing;
+ * the max lets the UI draw a fill bar without inventing a scale the
+ * database doesn't define.
+ */
+export interface DemandSignal {
+  score: number;
+  maxScore: number;
+  thresholdCrossed: boolean;
+}
+
+export async function loadDemandSignal(artworkId: string): Promise<DemandSignal> {
+  const rows = (await getSql()`
+    select
+      coalesce((select score from demand_aggregates where artwork_id = ${artworkId}), 0) as "score",
+      coalesce((select max(score) from demand_aggregates), 0) as "maxScore",
+      exists(
+        select 1 from demand_aggregates
+        where artwork_id = ${artworkId} and threshold_crossed_at is not null
+      ) as "thresholdCrossed"
+  `) as { score: number; maxScore: number; thresholdCrossed: boolean }[];
+  const row = rows[0];
+  return {
+    score: row?.score ?? 0,
+    maxScore: row?.maxScore ?? 0,
+    thresholdCrossed: row?.thresholdCrossed ?? false,
+  };
+}
