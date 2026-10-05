@@ -1036,12 +1036,19 @@ export const demandAggregates = pgTable("demand_aggregates", {
   computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Escrow (DB-3.09, 0049). Linked to pw_bookings (this codebase's "order"). */
+/**
+ * Escrow (DB-3.09, 0049; release state added BE-3.11, 0057). Linked to
+ * pw_bookings (this codebase's "order").
+ */
 export const escrowHolds = pgTable("escrow_holds", {
   id: text("id").primaryKey(),
   bookingId: text("booking_id").notNull(),
   amountPaise: integer("amount_paise").notNull(),
   reason: text("reason"),
+  status: text("status").notNull().default("held"),
+  disputeWindowDays: integer("dispute_window_days").notNull().default(3),
+  releaseEligibleAt: timestamp("release_eligible_at", { withTimezone: true }),
+  commissionPolicyVersionId: text("commission_policy_version_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
