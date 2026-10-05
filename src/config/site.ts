@@ -26,6 +26,17 @@ export const siteConfig = {
     phoneDigits: "918209395894",
   },
 
+  /**
+   * DPDP Rules 2025, Rule 13: the grievance officer's name, designation and
+   * contact details must be prominently published. Displayed on the rights
+   * centre (BE-3.20) next to the grievance form it already has.
+   */
+  grievanceOfficer: {
+    name: "Grievance Officer, Artwall Labs",
+    email: "grievance@artwalllabs.com",
+    phone: "+91 82093 95894",
+  },
+
   social: {
     instagram: "https://instagram.com/artwalllabs",
     x: "https://x.com/artwalllabs",
