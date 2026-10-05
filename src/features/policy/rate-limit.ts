@@ -8,11 +8,15 @@ import { limitRequest, retryIn, type RateLimitResult } from "@/lib/rate-limit";
  * `src/lib/rate-limit.ts` (Postgres-backed, fail-closed by default) — no new
  * mechanism.
  *
- * These are deliberately NOT wired into a call site yet: no route or action in
- * this codebase invokes `canMint`/`canList`/`canSecondarySell` for real (see
- * "What's not done" in docs/policy-engine.md, BE-3.03). `limitPolicyOperation`
- * is what that wiring should call once it exists — same shape as every other
- * rate-limited action in this codebase (`limitRequest` + `retryIn`).
+ * PERF-3.03: `mint` is wired into the real `canMint` call site
+ * (`src/app/api/blockchain/certificates/[id]/mint-voucher/route.ts`).
+ * `list`/`secondarySell` are still NOT wired into any call site — no
+ * marketplace listing or secondary-sale action exists anywhere in this
+ * codebase yet (see "What's not done" in docs/policy-engine.md, BE-3.03), so
+ * there is nothing real to rate-limit for those two operations.
+ * `limitPolicyOperation` is what that wiring should call once those actions
+ * exist — same shape as every other rate-limited action in this codebase
+ * (`limitRequest` + `retryIn`).
  *
  * Per-role limits: staff/admin act on behalf of many artists (bulk curation,
  * support), so they get a higher ceiling than an individual artist self-service

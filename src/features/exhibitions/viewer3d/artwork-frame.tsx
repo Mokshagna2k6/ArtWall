@@ -6,7 +6,18 @@ import { Html, useTexture } from "@react-three/drei";
 import { fullSrc } from "@/lib/cloudinary-url";
 import type { Placement } from "@/features/exhibitions/viewer3d/templates";
 
-/** Isolated so `useTexture`'s suspense-throw only ever wraps the mesh that needs it. */
+/**
+ * PERF-3.05 texture-compression note: KTX2/Draco apply to a pre-baked 3D
+ * asset pipeline (compressed GPU textures baked into a glTF, compressed mesh
+ * geometry) — neither applies here. There is no glTF/mesh asset at all: each
+ * frame is a plain `planeGeometry` and the "texture" is this project's own
+ * artwork photo, already served through `fullSrc` (Cloudinary `f_auto`
+ * picks AVIF/WebP per browser, `q_auto` picks quality, capped to 800px) —
+ * i.e. already compressed at delivery, same as every other image on the
+ * site, via the one mechanism that already exists rather than adding a KTX2
+ * transcoding step for an asset format this viewer doesn't have. Isolated so
+ * `useTexture`'s suspense-throw only ever wraps the mesh that needs it.
+ */
 function TexturedMaterial({ url }: { url: string }) {
   const texture = useTexture(url);
   return <meshStandardMaterial map={texture} toneMapped={false} />;
