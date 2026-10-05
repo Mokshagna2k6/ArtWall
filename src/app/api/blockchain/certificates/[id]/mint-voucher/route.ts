@@ -10,6 +10,9 @@ import { getApiUser } from "@/lib/blockchain/auth";
 import { apiError, handleRouteError, requestId } from "@/lib/blockchain/http";
 import { limitRequest, tooManyRequests } from "@/lib/rate-limit";
 import { newVoucherNonce, signMintVoucher } from "@/lib/blockchain/mint-voucher";
+import { canMint } from "@/features/policy/engine";
+import { logPolicyDecision } from "@/features/policy/log";
+import { loadTrustDimensions } from "@/features/policy/trust";
 
 export const runtime = "nodejs";
 
@@ -51,6 +54,25 @@ export async function POST(
     // un-revoke the certificate. The DB guard (0029) refuses it too.
     if (cert.status === "revoked" || cert.status === "issued") {
       return apiError("conflict", { reqId, details: `cannot mint a ${cert.status} certificate` });
+    }
+
+    // BE-3.03/BE-3.05: the PolicyEngine gate, reading from the five real trust
+    // dimensions (never a collapsed status shortcut).
+    const trust = await loadTrustDimensions(cert.artworkId);
+    const decision = canMint({ trust, alreadyMinted: cert.status === "minted" });
+    await logPolicyDecision({
+      gate: "canMint",
+      subjectType: "certificate",
+      subjectId: id,
+      actorId: user.id,
+      decision,
+      inputs: { trust, alreadyMinted: cert.status === "minted" },
+    });
+    if (!decision.allow) {
+      return apiError("conflict", {
+        reqId,
+        details: `not eligible to mint: ${decision.reasons.join(", ")}`,
+      });
     }
 
     const { to, royaltyReceiver, royaltyFeeBps } = bodySchema.parse(await req.json());

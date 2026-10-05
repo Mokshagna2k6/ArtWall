@@ -6,7 +6,13 @@ import { db, pool } from "@/lib/db/index";
 import { artTags, artworks, coaCertificates, curatorPicks, mintCommitments, user } from "@/lib/db/schema";
 import type { TrustDimensions } from "@/features/policy/engine";
 
-const COA_ISSUED_STATUSES = ["issued", "metadata_pinned", "minting", "minted"] as const;
+// "failed" is a real, retryable state (a chain tx failed; mint-voucher's own
+// comment: "failed -> retry with a fresh voucher") — the certificate itself
+// stays issued, only the on-chain attempt failed, so it counts the same as
+// "issued" here. Confirmed against 0052's coa_level trigger, which
+// deliberately carries the level forward into "revoked"/"failed" rather than
+// resetting it (docs/policy-engine.md's "coa_level drift fix").
+const COA_ISSUED_STATUSES = ["issued", "metadata_pinned", "minting", "minted", "failed"] as const;
 
 /**
  * DB-3.01: the canonical loader for {@link TrustDimensions}.

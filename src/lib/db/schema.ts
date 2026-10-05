@@ -889,6 +889,17 @@ export const exhibitionArtworks = pgTable("exhibition_artworks", {
   displayOrder: integer("display_order").notNull().default(0),
 }, (t) => [primaryKey({ columns: [t.exhibitionId, t.artworkId] })]);
 
+/** Append-only audit trail of every exhibition lifecycle move (BE-3.08, 0051). */
+export const exhibitionTransitions = pgTable("exhibition_transitions", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  exhibitionId: text("exhibition_id").notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  actorId: text("actor_id"),
+  note: text("note"),
+  transitionedAt: timestamp("transitioned_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const curators = pgTable("curators", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
