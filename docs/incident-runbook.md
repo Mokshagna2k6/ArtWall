@@ -45,6 +45,13 @@ would make the real POST handler fail.
 Configure the monitor to alert on 2+ consecutive failures (avoid paging on a
 single blip) to the same on-call channel as the code-level alerts above.
 
+**In-repo backstop:** `src/app/api/cron/uptime-check/route.ts` polls the same
+four surfaces once a day (`vercel.json`, 02:00 UTC — Vercel Hobby only
+schedules crons daily) and calls `alertAdmins` on any failure. This exists so
+an outage still pages someone even if the external monitor above is never
+configured, but it is daily-granularity only — it does not replace the
+external monitor for catching an incident within minutes.
+
 ## Triage by incident type
 
 ### Payment incident (Razorpay webhook down, or `alertAdmins` fired for `webhook.razorpay.failed:*`)
