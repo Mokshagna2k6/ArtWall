@@ -4,6 +4,11 @@ import { afterAll, describe, expect, it, vi } from "vitest";
 import { actAs } from "@/test/db-setup";
 import { makeArtwork, makeBooking, makeProfile, makeSlots, makeUser, purgeTestData, q, tid } from "@/test/fixtures";
 
+// BC-3.09/3.10: an 'nfc' tag's UID must be real hex (it derives the tag's
+// KMS-diversified keys) — tid()'s own id text isn't hex, so nfc fixtures in
+// this file need a distinct hex UID instead.
+const hexUid = () => Buffer.from(tid("uid")).toString("hex");
+
 /**
  * SEC-2.01 / SEC-2.02: a cross-cutting BOLA/IDOR regression sweep.
  *
@@ -175,7 +180,7 @@ describe("IDOR sweep: tag -> binding -> artwork chain (SEC-2.02)", () => {
     const owner = await makeUser();
     const other = await makeUser();
     actAs(owner);
-    const created = await createTag({ tagType: "nfc", tagUid: tid("uid") });
+    const created = await createTag({ tagType: "nfc", tagUid: hexUid() });
     if (!created.ok) throw new Error(created.error);
     const tagId = created.data;
 
@@ -185,7 +190,7 @@ describe("IDOR sweep: tag -> binding -> artwork chain (SEC-2.02)", () => {
 
     // Someone else's tag, own artwork.
     actAs(other);
-    const theirTag = await createTag({ tagType: "nfc", tagUid: tid("uid") });
+    const theirTag = await createTag({ tagType: "nfc", tagUid: hexUid() });
     if (!theirTag.ok) throw new Error(theirTag.error);
     const myArt = await makeArtwork(owner.id);
     actAs(owner);
