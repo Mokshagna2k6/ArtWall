@@ -17,7 +17,20 @@ import { PreconditionError } from "@/features/physical-wall/actions/shared";
  * silently re-price a transaction that already happened.
  */
 
-export type CommissionKind = "curator_commission" | "mint_royalty" | "platform_commission";
+/**
+ * "venue_revenue_share" (BC-3.14): the venue's cut of a physical-wall slot
+ * booking, recorded the same way every other rate in this table is —
+ * versioned, one active row, no literal bps anywhere in src. BC-3.14 also
+ * asks for "WallOS slot IDs registered on-chain"; no WallOS hierarchy
+ * tables exist in this codebase today (checked: no pw_slots chain-ref
+ * column, no on-chain registration anywhere in Phase 1/2/3's work), and
+ * every other on-chain surface in this codebase (ArtwallCOA, mint_commitments)
+ * is scoped to the *artwork*, never to a physical wall slot — consistent
+ * with BE-3.14's own scope interpretation (docs/policy-engine.md), on-chain
+ * slot IDs are treated as Growth-phase / N/A for MVP; only the revenue-share
+ * rate itself is implemented here.
+ */
+export type CommissionKind = "curator_commission" | "mint_royalty" | "platform_commission" | "venue_revenue_share";
 
 export interface ActiveCommissionPolicy {
   id: string;

@@ -94,6 +94,15 @@ contract ArtwallCOAInvariantTest is Test {
         coa = new ArtwallCOA(admin, signer);
         handler = new ArtwallCOAHandler(coa, signerKey);
         targetContract(address(handler));
+
+        // BC-3.05: this invariant run issues far more mints per run (up to
+        // invariant.depth = 25, invariant.runs = 64, i.e. up to 1600 calls)
+        // than the per-period mint cap's production default (500/day) allows
+        // within one unmoved block.timestamp — raise the cap here so this
+        // suite keeps exercising mint-sequence invariants, not the cap itself
+        // (the cap's own enforcement is covered by ArtwallCOAGovernance.t.sol).
+        vm.prank(admin);
+        coa.setMintCap(1 days, 10_000);
     }
 
     /// @dev "A token id cannot be minted twice": every id the handler's mints

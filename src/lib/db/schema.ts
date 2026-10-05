@@ -939,11 +939,20 @@ export const artTags = pgTable("art_tags", {
   boundBy: text("bound_by"),
   boundAt: timestamp("bound_at", { withTimezone: true }),
   scanCount: integer("scan_count").notNull().default(0),
-  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  /** DB-3.11, 0049. A *reference* to the NTAG424 key, never the key itself. */
+  /** Opaque KMS key reference for this tag's diversified AES-128 keys
+   *  (BC-3.10, DB-3.11). Null for 'qr' tags (they use the Ed25519 signing
+   *  key instead). Never raw key material — see src/lib/blockchain/kms.ts. */
   keyReference: text("key_reference"),
+  /** Replay-rejection high-water mark: the highest NTAG424 SDM read counter
+   *  this server has accepted for this tag (BC-3.09). */
   sunCounterLastSeen: integer("sun_counter_last_seen"),
-  bindingStatus: text("binding_status").notNull().default("unbound"),
+  /** Provisioning/binding lifecycle: unprovisioned | provisioned | bound |
+   *  revoked (DB-3.11 originally shipped unbound|bound|revoked; BC-3.13
+   *  needed to distinguish "row exists, no KMS key yet" from "KMS key
+   *  issued, not yet bound" — widened in 0055, see that migration's header
+   *  for the reconciliation). */
+  bindingStatus: text("binding_status").notNull().default("unprovisioned"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   /** 0-3, generated from binding_status/key_reference/sun_counter_last_seen
    *  on this same row (DB-3.01, 0052). Read-only — Postgres computes it, this
    *  is a plain column decl for typed reads only, never written from here. */

@@ -11,11 +11,16 @@ export const metadata: Metadata = {
 
 export default async function TagPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ uid: string }>;
+  searchParams: Promise<{ picc_data?: string; cmac?: string }>;
 }) {
   const { uid } = await params;
-  const result = await resolveTagScan(uid);
+  // BC-3.09: an NTAG424 DNA tag's NDEF URL appends ?picc_data=&cmac= (SDM) —
+  // present only for a genuine chip scan, verified in resolveTagScan.
+  const { picc_data, cmac } = await searchParams;
+  const result = await resolveTagScan(uid, undefined, undefined, { piccData: picc_data, cmac });
 
   if (!result) {
     return (
