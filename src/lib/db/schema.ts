@@ -242,6 +242,10 @@ export const pwSlots = pgTable("pw_slots", {
   state: text("state").notNull().default("available"),
   /** Optimistic lock. Two admins can edit the grid at the same time. */
   version: integer("version").notNull().default(1),
+  /** BE-3.13 bridge (0050): nullable FK into the `slots` hierarchy leaf. Null
+   *  for rows never linked (should not happen post-migration, but the column
+   *  itself must stay nullable per the migration's own definition). */
+  wallosSlotId: text("wallos_slot_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -1089,4 +1093,69 @@ export const shipmentEvents = pgTable("shipment_events", {
   eventType: text("event_type").notNull(),
   payload: jsonb("payload").notNull().default({}),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── WallOS hierarchy (BE-3.13/BE-3.14, 0050) ───────────────────────────────
+ * organizations -> venues -> buildings -> floors -> rooms_zones -> walls -> slots.
+ * A parallel structure to pw_slots, not a replacement — see the migration's
+ * own header. pw_slots.wallosSlotId (above) is the one bridge column. */
+
+export const organizations = pgTable("organizations", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const venues = pgTable("venues", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const buildings = pgTable("buildings", {
+  id: text("id").primaryKey(),
+  venueId: text("venue_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const floors = pgTable("floors", {
+  id: text("id").primaryKey(),
+  buildingId: text("building_id").notNull(),
+  name: text("name").notNull(),
+  level: integer("level").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const roomsZones = pgTable("rooms_zones", {
+  id: text("id").primaryKey(),
+  floorId: text("floor_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const walls = pgTable("walls", {
+  id: text("id").primaryKey(),
+  roomZoneId: text("room_zone_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** The hierarchy's leaf. `onChainSlotId` (BE-3.14) is nullable and unused for
+ *  MVP — on-chain WallOS slot registration is Growth-phase (docs/policy-engine.md). */
+export const wallosSlots = pgTable("slots", {
+  id: text("id").primaryKey(),
+  wallId: text("wall_id").notNull(),
+  label: text("label").notNull(),
+  onChainSlotId: text("on_chain_slot_id"),
+  pwSlotId: text("pw_slot_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
