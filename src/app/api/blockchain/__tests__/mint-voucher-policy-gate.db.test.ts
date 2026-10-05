@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 import { actAs } from "@/test/db-setup";
-import { makeArtwork, makeUser, purgeTestData, q, tid } from "@/test/fixtures";
+import { makeArtwork, makeProfile, makeUser, purgeTestData, q, tid } from "@/test/fixtures";
 
 /**
  * BE-3.03/BE-3.05: mint-voucher calls canMint, assembled from the real
@@ -66,6 +66,11 @@ describe("mint-voucher policy gate (BE-3.03/BE-3.05)", () => {
 
   it("the identical request succeeds once identity is verified, and the allow is logged", async () => {
     const artist = await makeUser();
+    // BC-1.15: mint-voucher now derives `to`/`royaltyReceiver` from the
+    // certificate owner's own registered wallet (never the request body),
+    // so this fixture needs an artist_profiles row with a wallet, same as
+    // nft-routes.db.test.ts's pinnedCert helper.
+    await makeProfile(artist.id, { wallet: WALLET });
     const art = await makeArtwork(artist.id);
     const certId = tid("coa");
     await q(

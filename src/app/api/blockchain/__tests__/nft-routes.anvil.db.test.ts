@@ -170,6 +170,10 @@ describe.runIf(haveFoundry)("NFT routes against a real local anvil chain (BC-2.1
 
     const artist = await makeUser();
     await makeProfile(artist.id, { wallet: wallet.address });
+    // BE-3.03/BE-3.05: mint-voucher now runs canMint, which requires a
+    // verified identity (never a collapsed status shortcut) — same fixture
+    // requirement nft-routes.db.test.ts's mint-voucher test sets up.
+    await q(`update "user" set identity_verified = true where id = $1`, [artist.id]);
     const art = await makeArtwork(artist.id);
     actAs(artist);
 
