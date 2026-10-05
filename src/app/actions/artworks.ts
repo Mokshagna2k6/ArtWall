@@ -13,6 +13,35 @@ import { db } from "@/lib/db/index";
 import { artworks } from "@/lib/db/schema";
 import { ARTWORK_CATEGORIES } from "@/features/marketplace/categories";
 import { toPaise } from "@/features/physical-wall/money";
+import { canPublishArtwork } from "@/features/policy/engine";
+import { logPolicyDecision } from "@/features/policy/log";
+import { assertArtworkTransition, type LifecycleStatus } from "@/features/artworks/state-machine";
+
+/**
+ * BE-3.03: gate every path that sets an artwork public. `canPublishArtwork`
+ * only needs the two facts it was built for (title, image) — no DB read
+ * inside the gate itself, per the PolicyEngine's calling convention
+ * (docs/policy-engine.md). Unpublishing (isPublic -> false) is never gated;
+ * there is no reason to block an artist from taking their own work down.
+ */
+async function assertCanPublish(
+  artworkId: string,
+  facts: { hasTitle: boolean; hasImage: boolean },
+  actorId: string | null
+) {
+  const decision = canPublishArtwork(facts);
+  await logPolicyDecision({
+    gate: "canPublishArtwork",
+    subjectType: "artwork",
+    subjectId: artworkId,
+    actorId,
+    decision,
+    inputs: facts,
+  });
+  if (!decision.allow) {
+    throw new Error(`Not eligible to publish: ${decision.reasons.join(", ")}`);
+  }
+}
 
 async function getUserId() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -75,18 +104,53 @@ export async function createArtwork(input: unknown) {
     throw new Error(
       "That artwork image could not be verified. Please upload it again."
     );
+  const artworkId = randomUUID();
+  let lifecycleStatus: LifecycleStatus = "draft";
+  if (data.isPublic) {
+    await assertCanPublish(
+      artworkId,
+      { hasTitle: data.title.trim().length > 0, hasImage: Boolean(data.imageUrl) },
+      userId
+    );
+    assertArtworkTransition("lifecycle", "draft", "published");
+    lifecycleStatus = "published";
+  }
   await db
     .insert(artworks)
-    .values({ id: randomUUID(), userId, ...data, pricePaise: price });
+    .values({ id: artworkId, userId, ...data, pricePaise: price, lifecycleStatus });
   expireCatalog();
   revalidatePath("/studio");
   revalidatePath("/studio/artworks");
 }
 export async function setArtworkPublic(id: string, isPublic: boolean) {
   const userId = await getUserId();
+  const [current] = await db
+    .select({ title: artworks.title, imageUrl: artworks.imageUrl, lifecycleStatus: artworks.lifecycleStatus })
+    .from(artworks)
+    .where(and(eq(artworks.id, id), eq(artworks.userId, userId)));
+  if (!current) throw new Error("Artwork not found");
+
+  // BE-3.07: lifecycle is one of the four orthogonal domains (0047) — the
+  // existing `isPublic` boolean this action has always written stays
+  // untouched (no caller of setArtworkPublic changes), but every transition
+  // it causes also goes through the lifecycle state machine so an illegal
+  // move (e.g. archived -> published without going through draft) is caught
+  // server-side rather than silently written.
+  const currentLifecycle = current.lifecycleStatus as LifecycleStatus;
+  const nextLifecycle: LifecycleStatus = isPublic ? "published" : "draft";
+  if (nextLifecycle !== currentLifecycle) {
+    assertArtworkTransition("lifecycle", currentLifecycle, nextLifecycle);
+  }
+  if (isPublic) {
+    await assertCanPublish(
+      id,
+      { hasTitle: Boolean(current.title?.trim()), hasImage: Boolean(current.imageUrl) },
+      userId
+    );
+  }
   const [row] = await db
     .update(artworks)
-    .set({ isPublic: Boolean(isPublic), updatedAt: new Date() })
+    .set({ isPublic: Boolean(isPublic), lifecycleStatus: nextLifecycle, updatedAt: new Date() })
     .where(and(eq(artworks.id, id), eq(artworks.userId, userId)))
     .returning({ id: artworks.id, isPublic: artworks.isPublic });
   if (!row) throw new Error("Artwork not found");

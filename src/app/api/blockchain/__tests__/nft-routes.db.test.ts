@@ -86,6 +86,11 @@ describe("NFT routes (/api/blockchain)", () => {
 
   it("mint-voucher: signs an EIP-712 voucher the contract's signer recovers; refuses others, bad input and done certs", async () => {
     const { artist, id } = await pinnedCert();
+    // BE-3.03/BE-3.05: mint-voucher now runs canMint, which reads real
+    // identityVerified off the user row — a voucher is a server signature
+    // authorising an on-chain mint, so the policy gate must see a verified
+    // identity, not just a pinned certificate.
+    await q(`update "user" set identity_verified = true where id = $1`, [artist.id]);
 
     actAs(null);
     expect((await voucher(post(voucherBody), params(id))).status).toBe(401);
@@ -132,6 +137,7 @@ describe("NFT routes (/api/blockchain)", () => {
     expect(await (await confirm(post({}), params(id))).json()).toEqual({ status: "minted", tokenId: "7" });
 
     const other = await pinnedCert();
+    await q(`update "user" set identity_verified = true where id = $1`, [other.artist.id]);
     await q(`update coa_certificates set status = 'minting', "txHash" = $2 where id = $1`, [other.id, `0x${"cd".repeat(32)}`]);
     chain.verdict = { state: "failed", reason: "transaction reverted" };
     expect(await (await confirm(post({}), params(other.id))).json()).toEqual({ status: "failed", error: "transaction reverted" });
