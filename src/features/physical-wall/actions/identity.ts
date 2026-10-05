@@ -3,17 +3,98 @@
 import { z } from "zod";
 
 import { recordAudit } from "@/features/physical-wall/audit";
-import { requireRole } from "@/features/physical-wall/authorize";
+import { getActor, hasRole, requireRole } from "@/features/physical-wall/authorize";
 import { notify } from "@/features/physical-wall/notifications";
 import {
   type ActionState,
+  attempt,
   fail,
   formInput,
   ok,
+  parseInput,
+  PreconditionError,
   readSafely,
+  type Result,
   toActionError,
 } from "@/features/physical-wall/actions/shared";
+import {
+  createSignedIdentityViewUrl,
+  createUploadSignature,
+  IDENTITY_DELIVERY_TYPE,
+  IDENTITY_DOC_FOLDER,
+  IMAGE_UPLOAD_FORMATS,
+  type UploadSignature,
+} from "@/lib/cloudinary";
 import { getSql } from "@/lib/db";
+
+/**
+ * SEC-2.08: a signed direct-upload for an identity document. Forces
+ * `type: "authenticated"` (private delivery - never resolvable by public id
+ * alone) via createUploadSignature's `type` option. No submission action
+ * writes pw_identity_verifications yet (see the comment on that table in
+ * src/lib/db/schema.ts), so nothing calls this today; it exists so whoever
+ * wires up the submission flow gets the authenticated delivery type for free
+ * instead of reaching for the public-upload signature every other photo path
+ * here uses.
+ */
+export async function requestIdentityUploadSignature(): Promise<Result<UploadSignature>> {
+  return attempt("requestIdentityUploadSignature", async () => {
+    await requireRole("artist");
+    return createUploadSignature(IDENTITY_DOC_FOLDER, {
+      allowedFormats: IMAGE_UPLOAD_FORMATS,
+      type: IDENTITY_DELIVERY_TYPE,
+    });
+  });
+}
+
+/**
+ * SEC-2.08: a short-lived signed URL to view one identity document.
+ *
+ * Gated to the verification's owner or an admin (the role that reviews
+ * identity documents here - see requireRole("admin") in reviewIdentity
+ * below; this codebase has no narrower "identity-review" role, so admin is
+ * the gate, same as the review action itself). Every successful access is
+ * audit-logged with the viewer and the verification, so "who looked at this
+ * person's ID and when" is answerable later.
+ */
+export async function getIdentityDocumentUrl(
+  verificationId: string
+): Promise<Result<{ url: string }>> {
+  return attempt("getIdentityDocumentUrl", async () => {
+    const actor = await getActor();
+    if (!actor) throw new PreconditionError("Sign in required.");
+
+    const id = parseInput(z.string().min(1).max(64), verificationId);
+
+    const sql = getSql();
+    const rows = (await sql`
+      select user_id, doc_cloudinary_id from pw_identity_verifications
+      where id = ${id}
+      limit 1
+    `) as { user_id: string; doc_cloudinary_id: string }[];
+    const verification = rows[0];
+    if (!verification) throw new PreconditionError("Not found.");
+
+    const isOwner = verification.user_id === actor.id;
+    // Not found, not "forbidden" - same reasoning as requireRolePage: telling
+    // a non-owner, non-admin caller that the row exists but they lack access
+    // would confirm the id is real and someone's identity document is behind
+    // it, for no benefit to them.
+    if (!isOwner && !hasRole(actor, "admin")) throw new PreconditionError("Not found.");
+
+    const url = await createSignedIdentityViewUrl(verification.doc_cloudinary_id);
+
+    await recordAudit({
+      actor,
+      action: "identity.document-viewed",
+      subjectType: "identity_verification",
+      subjectId: verificationId,
+      after: { viewerIsOwner: isOwner },
+    });
+
+    return { url };
+  });
+}
 
 export async function reviewIdentity(
   _previous: ActionState,
