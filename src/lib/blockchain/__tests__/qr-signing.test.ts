@@ -27,7 +27,7 @@ describe("QR token signing (BC-3.11)", () => {
 
   it("rejects a tampered payload (tagId swapped post-signature)", () => {
     const token = signQrToken("tag_abc", "art_123");
-    const [encoded, sig] = token.split(".");
+    const [, sig] = token.split(".");
     const tamperedPayload = JSON.stringify([1, "tag_EVIL", "art_123", Math.floor(Date.now() / 1000)]);
     const tamperedToken = `${Buffer.from(tamperedPayload).toString("base64url")}.${sig}`;
     const verdict = verifyQrToken(tamperedToken);
