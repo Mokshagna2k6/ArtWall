@@ -98,7 +98,16 @@ create trigger coa_certificates_sync_level_trg
 
 -- Re-run the backfill now that the trigger exists, for any row that drifted
 -- between 0046 and this migration.
-update coa_certificates set status = status;
+-- FE-3.xx verification (frontend-phase3-ui branch) found this cannot reach a
+-- revoked row either, for the same reason 0046's own backfill couldn't
+-- (coa_certificates_guard, 0029, forbids any update once status = 'revoked',
+-- unconditionally — confirmed against 7 real revoked rows on a live Neon
+-- branch). Excluded here rather than crashing every migrate run on a
+-- database with real revoked certificates; a revoked row's coa_level was
+-- already left at the column default by 0046's own fix for the same reason,
+-- so this changes nothing further for those rows, it just stops the
+-- migration from failing because of them.
+update coa_certificates set status = status where status <> 'revoked';
 
 -- ── artist_verification_status (on "user") ──────────────────────────────────
 
