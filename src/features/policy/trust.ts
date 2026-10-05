@@ -5,6 +5,7 @@ import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db/index";
 import { artTags, artworks, coaCertificates, curatorPicks, mintCommitments, user } from "@/lib/db/schema";
 import type { TrustDimensions } from "@/features/policy/engine";
+import { computeBindingLevel, computeProvenanceLevel } from "@/features/policy/levels";
 
 const COA_ISSUED_STATUSES = ["issued", "metadata_pinned", "minting", "minted"] as const;
 
@@ -46,10 +47,12 @@ export async function loadTrustDimensions(artworkId: string): Promise<TrustDimen
       blockchainAnchored: false,
       coaIssued: false,
       curationApproved: false,
+      provenanceLevel: "P0",
+      bindingLevel: "B0",
     };
   }
 
-  const [ownerRows, boundTagRows, mintedRows, coaRows, pickRows] = await Promise.all([
+  const [ownerRows, boundTagRows, mintedRows, coaRows, pickRows, provenanceLevel, bindingLevel] = await Promise.all([
     db.select({ identityVerified: user.identityVerified }).from(user).where(eq(user.id, artwork.userId)).limit(1),
     db
       .select({ id: artTags.id })
@@ -63,6 +66,14 @@ export async function loadTrustDimensions(artworkId: string): Promise<TrustDimen
       .limit(1),
     db.select({ status: coaCertificates.status }).from(coaCertificates).where(eq(coaCertificates.artworkId, artworkId)),
     db.select({ id: curatorPicks.id }).from(curatorPicks).where(eq(curatorPicks.artworkId, artworkId)).limit(1),
+    // BC-3.08/3.12: the granular on-chain provenance level and physical
+    // binding level, computed from the same tables above plus
+    // art_tag_scans — see levels.ts. Populating these alongside the plain
+    // booleans is what lets canExhibit (BC-3.15) enforce the stricter
+    // "anchored, not just a pending commitment" / "crypto-verified, not
+    // just installed" bar instead of a mere existence check.
+    computeProvenanceLevel(artworkId),
+    computeBindingLevel(artworkId),
   ]);
 
   return {
@@ -71,5 +82,7 @@ export async function loadTrustDimensions(artworkId: string): Promise<TrustDimen
     blockchainAnchored: mintedRows.length > 0,
     coaIssued: coaRows.some((r) => (COA_ISSUED_STATUSES as readonly string[]).includes(r.status)),
     curationApproved: pickRows.length > 0,
+    provenanceLevel,
+    bindingLevel,
   };
 }

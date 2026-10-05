@@ -22,20 +22,52 @@
  * follow-on concern from gating on it correctly.
  */
 
+/**
+ * BC-3.08: blockchain provenance level, computed from actual on-chain
+ * state (src/features/policy/levels.ts's computeProvenanceLevel) —
+ *   P0 none            — no COA, no mint commitment
+ *   P1 coa_issued       — a COA exists (off-chain certificate)
+ *   P2 commitment_pending — a mint_commitments row exists but isn't on-chain yet
+ *   P3 anchored         — the commitment's merkle root is confirmed on-chain
+ *   P4 minted           — a full certificate NFT is minted and confirmed
+ */
+export type ProvenanceLevel = "P0" | "P1" | "P2" | "P3" | "P4";
+
+/**
+ * BC-3.12: physical binding level, computed from the cryptographic tag
+ * verification state (levels.ts's computeBindingLevel) —
+ *   B0 unbound    — no tag bound to this artwork
+ *   B1 provisioned — a tag is bound, but no crypto-verified scan has ever
+ *                    succeeded for it (just-installed, not yet confirmed live)
+ *   B2 bound       — ownership-verified binding recorded in provenance
+ *   B3 verified    — at least one real SUN (NFC) or signed-QR scan has
+ *                    verified cryptographically against this tag
+ */
+export type BindingLevel = "B0" | "B1" | "B2" | "B3";
+
 /** The five independent trust dimensions (Bible section 3-11). */
 export interface TrustDimensions {
   /** Artist identity verified (DigiLocker / manual review). */
   identityVerified: boolean;
   /** The physical object is cryptographically bound to this artwork record
-   *  (NFC/QR tag bound, B-level per Bible section 14). */
+   *  (NFC/QR tag bound, B-level per Bible section 14). Derived from
+   *  `bindingLevel >= B2`; kept for callers that only need a boolean. */
   physicalBindingVerified: boolean;
   /** Blockchain provenance anchored: a mint or a merkle-root commitment is
-   *  confirmed on-chain for this artwork. */
+   *  confirmed on-chain for this artwork. Derived from
+   *  `provenanceLevel >= P3`; kept for callers that only need a boolean. */
   blockchainAnchored: boolean;
   /** A Certificate of Authenticity has been issued (COA level >= 1). */
   coaIssued: boolean;
   /** Curator or platform review has approved the artwork for public listing. */
   curationApproved: boolean;
+  /** BC-3.08: the granular on-chain provenance level. Optional so existing
+   *  callers assembling only the boolean dimensions keep compiling — a gate
+   *  that needs granularity (canExhibit) falls back to the boolean when this
+   *  is absent, same effective behavior as before BC-3.08/3.12 landed. */
+  provenanceLevel?: ProvenanceLevel;
+  /** BC-3.12: the granular physical binding level. Same optionality reasoning. */
+  bindingLevel?: BindingLevel;
 }
 
 export type ReasonCode =
@@ -86,16 +118,39 @@ export function canPublishArtwork(facts: PublishFacts): Decision {
   return decide(reasons);
 }
 
+const PROVENANCE_RANK: Record<ProvenanceLevel, number> = { P0: 0, P1: 1, P2: 2, P3: 3, P4: 4 };
+const BINDING_RANK: Record<BindingLevel, number> = { B0: 0, B1: 1, B2: 2, B3: 3 };
+
 /**
- * BE-3.04: the section-14 hard gate. An artwork is exhibitable only when
- * BOTH physical binding is verified AND blockchain provenance is anchored —
- * this is a literal AND, not "either dimension is enough". Identity, COA and
- * curation are not part of this specific gate; they gate other operations.
+ * BE-3.04/BC-3.15: the section-14 hard gate. An artwork is exhibitable only
+ * when BOTH physical binding is verified AND blockchain provenance is
+ * anchored — this is a literal AND, not "either dimension is enough".
+ * Identity, COA and curation are not part of this specific gate; they gate
+ * other operations.
+ *
+ * BC-3.15: when the caller supplies the granular `provenanceLevel`/
+ * `bindingLevel` (BC-3.08/3.12's real on-chain/crypto-verification state),
+ * this gate requires `provenanceLevel >= P3` (anchored on-chain, not merely
+ * a pending commitment) and `bindingLevel >= B2` (an ownership-verified
+ * binding, not just a tag installed with no confirmed scan) — strictly
+ * stronger than the plain booleans, which only ask "does a row exist".
+ * Falls back to the booleans when a caller hasn't wired the granular
+ * loader yet, so this stays backward compatible rather than breaking every
+ * existing caller in one commit.
  */
 export function canExhibit(facts: ExhibitFacts): Decision {
   const reasons: ReasonCode[] = [];
-  if (!facts.trust.physicalBindingVerified) reasons.push("PHYSICAL_BINDING_NOT_VERIFIED");
-  if (!facts.trust.blockchainAnchored) reasons.push("BLOCKCHAIN_NOT_ANCHORED");
+  const { trust } = facts;
+
+  const bindingOk = trust.bindingLevel
+    ? BINDING_RANK[trust.bindingLevel] >= BINDING_RANK.B2
+    : trust.physicalBindingVerified;
+  const provenanceOk = trust.provenanceLevel
+    ? PROVENANCE_RANK[trust.provenanceLevel] >= PROVENANCE_RANK.P3
+    : trust.blockchainAnchored;
+
+  if (!bindingOk) reasons.push("PHYSICAL_BINDING_NOT_VERIFIED");
+  if (!provenanceOk) reasons.push("BLOCKCHAIN_NOT_ANCHORED");
   return decide(reasons);
 }
 
