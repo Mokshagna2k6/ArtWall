@@ -6,6 +6,7 @@ import {
   listDeadNotifications,
   MAX_NOTIFICATION_ATTEMPTS,
   notify,
+  NOTIFICATION_SCHEMA_VERSION,
   retryDelayMinutes,
   queueScheduledNotifications,
   TEMPLATES,
@@ -54,6 +55,14 @@ describe("notification templates (BE-1.34)", () => {
       expect(body, kind).toContain("Artwall Labs");
     }
     expect(TEMPLATES["booking.confirmed"](SAMPLES["booking.confirmed"]).body).toContain("11,800");
+  });
+
+  it("BE-3.22: every queued row carries the outbox schema_version, with no producer change needed", async () => {
+    const user = await makeUser();
+    const id = await notify("system.notice", { userId: user.id, email: user.email }, { subject: "x", body: "y" });
+    const [row] = await q<{ schema_version: number }>(`select schema_version from pw_notifications where id = $1`, [id]);
+    expect(row.schema_version).toBe(NOTIFICATION_SCHEMA_VERSION);
+    expect(NOTIFICATION_SCHEMA_VERSION).toBe(1);
   });
 
   it("every kind is queued and delivered through Resend", async () => {
