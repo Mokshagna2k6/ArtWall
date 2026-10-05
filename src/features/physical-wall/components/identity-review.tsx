@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { IDLE } from "@/features/physical-wall/action-state";
-import { reviewIdentity } from "@/features/physical-wall/actions/identity";
+import { getIdentityDocumentUrl, reviewIdentity } from "@/features/physical-wall/actions/identity";
 import {
   FormStatus,
   SubmitButton,
@@ -42,6 +42,30 @@ export function IdentityReviewList({ items }: { items: Item[] }) {
 
 function ReviewCard({ item }: { item: Item }) {
   const [state, action] = useActionState(reviewIdentity, IDLE);
+  const [viewError, setViewError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState(false);
+
+  // SEC-2.08: no direct, permanent, unsigned Cloudinary URL for an identity
+  // document in this component or anywhere in its markup. The actual asset
+  // was uploaded with `type: "authenticated"` (private delivery, never
+  // resolvable by its id alone); viewing it goes through
+  // getIdentityDocumentUrl, which re-checks the caller is the document's
+  // owner or an admin, mints a short-lived (5 minute) signed URL via the
+  // Cloudinary SDK, and audit-logs the access before handing it back.
+  async function viewDocument() {
+    setViewError(null);
+    setViewing(true);
+    try {
+      const result = await getIdentityDocumentUrl(item.id);
+      if (!result.ok) {
+        setViewError(result.error);
+        return;
+      }
+      window.open(result.data.url, "_blank", "noopener,noreferrer");
+    } finally {
+      setViewing(false);
+    }
+  }
 
   return (
     <article className="border-hairline rounded-md border p-5">
@@ -54,20 +78,17 @@ function ReviewCard({ item }: { item: Item }) {
             {new Date(item.created_at).toLocaleDateString("en-IN")}
           </p>
         </div>
-        {/* SEC-2.08: no direct, permanent, unsigned Cloudinary URL for an
-            identity document — that's a public link to someone's ID with no
-            auth check, if the asset id is ever logged, cached, or screenshot.
-            There's no submission flow wired up yet to produce a real
-            doc_cloudinary_id (see src/features/physical-wall/actions/identity.ts),
-            so there's nothing here to link to today; when that flow exists,
-            it must upload with `type: "authenticated"` and this must view
-            through a route that checks requireRole("admin"), fetches with a
-            Cloudinary-signed short-lived URL or proxies the bytes server-side,
-            and audit-logs the view (recordAudit) — never a client-rendered
-            public URL. */}
-        <span className="text-ink-muted text-small">
-          Document: {item.doc_kind} ({item.doc_cloudinary_id})
-        </span>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            type="button"
+            onClick={viewDocument}
+            disabled={viewing}
+            className="border-hairline-strong hover:border-ink text-small inline-flex h-9 items-center rounded-md border px-3 disabled:opacity-50"
+          >
+            {viewing ? "Generating link…" : "View document"}
+          </button>
+          {viewError && <p className="text-xs text-red-600">{viewError}</p>}
+        </div>
       </div>
 
       <form action={action} className="mt-4 flex flex-wrap items-end gap-3">

@@ -2,6 +2,8 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
+import { v2 as cloudinarySdk } from "cloudinary";
+
 export class CloudinaryNotConfiguredError extends Error {
   constructor() {
     super("Cloudinary environment variables are not set.");
@@ -49,6 +51,13 @@ export interface UploadSignature {
    * upload as `allowed_formats`. Cloudinary rejects any other format.
    */
   allowedFormats?: string;
+  /**
+   * Present only for a private delivery type (SEC-2.08: identity documents
+   * upload as `type: "authenticated"`); must be sent with the upload as
+   * `type`. Omitted entirely for the default public `type: "upload"` every
+   * other asset in this project uses, so existing callers see no change.
+   */
+  type?: string;
 }
 
 interface CloudinaryCredentials {
@@ -131,7 +140,7 @@ function sign(params: Record<string, string>, apiSecret: string): string {
 
 export function createUploadSignature(
   folder: string,
-  options: { allowedFormats?: readonly string[] } = {}
+  options: { allowedFormats?: readonly string[]; type?: string } = {}
 ): UploadSignature {
   const { cloudName, apiKey, apiSecret } = readCredentials();
   const timestamp = Math.floor(Date.now() / 1000);
@@ -144,6 +153,7 @@ export function createUploadSignature(
   };
   if (moderation) params.moderation = moderation;
   if (allowedFormats) params.allowed_formats = allowedFormats;
+  if (options.type) params.type = options.type;
 
   return {
     signature: sign(params, apiSecret),
@@ -153,6 +163,7 @@ export function createUploadSignature(
     folder,
     moderation,
     allowedFormats,
+    type: options.type,
   };
 }
 
@@ -269,4 +280,57 @@ export async function destroyAsset(publicId: string): Promise<void> {
   if (!response.ok) {
     throw new Error(`Cloudinary destroy failed: ${response.status}`);
   }
+}
+
+/**
+ * Where identity documents (government ID uploads) live. SEC-2.08: uploaded
+ * with `type: "authenticated"` (readIdentityUploadOptions below), so the
+ * asset is never resolvable by its public id alone - only through a signed,
+ * expiring URL minted here and handed out by an owner/admin-gated route.
+ */
+export const IDENTITY_DOC_FOLDER = "artwall/identity";
+
+/** Pass as `type` to {@link createUploadSignature} for an identity document. */
+export const IDENTITY_DELIVERY_TYPE = "authenticated";
+
+/**
+ * A short-lived signed URL for a private (`type: "authenticated"`) asset.
+ *
+ * Uses the official Cloudinary SDK's `private_download_url`, which calls
+ * Cloudinary's Admin API `/download` endpoint with an `expires_at` Cloudinary
+ * itself enforces - this is a genuinely time-limited URL, not merely an HMAC
+ * we compute and hope is honoured. (Cloudinary's other private-asset signing
+ * path, `url({ sign_url: true })`, only adds a permanent signature; making it
+ * time-limited needs a separate "auth token" key configured on the account,
+ * which this project does not have, so it is not used here.)
+ *
+ * Deliberately not wired through global `cloudinary.config()` - credentials
+ * are passed per call, same as every other function in this file, so there is
+ * no hidden mutable SDK state shared across requests.
+ */
+export async function createSignedIdentityViewUrl(
+  publicId: string,
+  options: { format?: string; expiresInSeconds?: number } = {}
+): Promise<string> {
+  const { cloudName, apiKey, apiSecret } = readCredentials();
+  const expiresInSeconds = options.expiresInSeconds ?? 300; // 5 minutes
+  const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
+
+  // The SDK's own type for this options bag only lists resource_type/type/
+  // expires_at/attachment, but its implementation (lib/utils/index.js) also
+  // reads cloud_name/api_key/api_secret straight off it - the same shape
+  // config() would otherwise supply globally. Casting here avoids calling
+  // cloudinary.config() just to satisfy TypeScript.
+  type PrivateDownloadUrlOptions = Parameters<
+    typeof cloudinarySdk.utils.private_download_url
+  >[2];
+
+  return cloudinarySdk.utils.private_download_url(publicId, options.format ?? "jpg", {
+    resource_type: "image",
+    type: IDENTITY_DELIVERY_TYPE,
+    expires_at: expiresAt,
+    cloud_name: cloudName,
+    api_key: apiKey,
+    api_secret: apiSecret,
+  } as PrivateDownloadUrlOptions & { cloud_name: string; api_key: string; api_secret: string });
 }

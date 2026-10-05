@@ -751,11 +751,13 @@ export const pwSearchLog = pgTable("pw_search_log", {
 
 // SEC-2.08: docCloudinaryId must be uploaded with Cloudinary's
 // `type: "authenticated"` (a private asset type, not the default public
-// `type: "upload"` every other image path here uses) once a submission
-// action exists to write this table — there is none yet, only admin review.
-// Viewing it must go through a route that checks requireRole("admin"),
-// resolves a short-lived signed access to the asset, and calls recordAudit
-// for the view. See src/features/physical-wall/components/identity-review.tsx.
+// `type: "upload"` every other image path here uses) - requestIdentityUploadSignature
+// in src/features/physical-wall/actions/identity.ts already signs for this,
+// ready for whoever wires up the submission action that writes this table
+// (none exists yet, only admin review). Viewing an existing row's document
+// goes through getIdentityDocumentUrl in the same file: owner-or-admin gated,
+// mints a short-lived Cloudinary-signed URL, and calls recordAudit for the
+// view. See src/features/physical-wall/components/identity-review.tsx.
 export const pwIdentityVerifications = pgTable("pw_identity_verifications", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
