@@ -129,8 +129,17 @@ const DELETE_REVOKED = ["pw_ledger", "pw_audit_log", "pw_condition_photos", "pw_
 // pw_consents (0048), demand_signals (0045) and admin_role_assignments
 // (0049) guard DELETE via trigger only (DELETE is not revoked from the app
 // role for them), so each only needs its trigger disabled for the purge,
-// not the GRANT DELETE step DELETE_REVOKED tables need.
-const TRIGGER_ONLY_GUARDED = ["pw_consents", "demand_signals", "admin_role_assignments", "commission_policy_versions"];
+// not the GRANT DELETE step DELETE_REVOKED tables need. policy_decisions
+// (0043, BE-3.06) and exhibition_transitions (0051, BE-3.08) are the same
+// append-only-by-trigger pattern.
+const TRIGGER_ONLY_GUARDED = [
+  "pw_consents",
+  "demand_signals",
+  "admin_role_assignments",
+  "commission_policy_versions",
+  "policy_decisions",
+  "exhibition_transitions",
+];
 const GUARDED = [...DELETE_REVOKED, "provenance_events", "coa_certificates", ...TRIGGER_ONLY_GUARDED];
 
 /**
@@ -191,8 +200,17 @@ export async function purgeTestData() {
     await client.query(`delete from mint_commitments where artwork_id in (${arts}) or user_id like $1`, [like]);
     await client.query(`delete from coa_certificates where artwork_id in (${arts}) or user_id like $1`, [like]);
     await client.query(`delete from editions where artwork_id in (${arts}) or user_id like $1`, [like]);
-    await client.query(`delete from exhibition_artworks where exhibition_id like $1`, [like]);
+    // Exhibition ids are exh_<random>, not betest_-prefixed, so both deletes
+    // below also reach via the (betest-prefixed) owner, same as the
+    // `exhibitions` delete itself two lines down.
+    const exhs = `select id from exhibitions where id like $1 or user_id like $1`;
+    await client.query(`delete from exhibition_artworks where exhibition_id in (${exhs})`, [like]);
+    await client.query(`delete from exhibition_transitions where exhibition_id in (${exhs})`, [like]);
     await client.query(`delete from exhibitions where id like $1 or user_id like $1`, [like]);
+    await client.query(
+      `delete from policy_decisions where subject_id in (${arts}) or subject_id like $1 or actor_id like $1`,
+      [like]
+    );
     await client.query(`delete from curators where id like $1 or user_id like $1`, [like]);
     await client.query(`delete from artworks where "userId" like $1`, [like]);
     await client.query(`delete from artist_profiles where "userId" like $1`, [like]);
