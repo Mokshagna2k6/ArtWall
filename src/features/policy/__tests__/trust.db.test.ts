@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { makeArtwork, makeUser, purgeTestData, q, tid } from "@/test/fixtures";
 import { loadTrustDimensions } from "@/features/policy/trust";
+import { canExhibit } from "@/features/policy/engine";
 
 afterAll(purgeTestData);
 
@@ -16,6 +17,9 @@ describe("loadTrustDimensions", () => {
       blockchainAnchored: false,
       coaIssued: false,
       curationApproved: false,
+      // BC-3.08/3.12: granular levels, absent any backing state.
+      provenanceLevel: "P0",
+      bindingLevel: "B0",
     });
   });
 
@@ -74,6 +78,121 @@ describe("loadTrustDimensions", () => {
       blockchainAnchored: false,
       coaIssued: false,
       curationApproved: false,
+      provenanceLevel: "P0",
+      bindingLevel: "B0",
     });
+  });
+
+  // BC-3.08/3.12: the granular provenance/binding levels advance through
+  // their real intermediate states, not just the collapsed booleans.
+  it("provenanceLevel climbs P0 -> P1 -> P2 -> P3, independent of a 1:1 NFT mint", async () => {
+    const artist = await makeUser();
+    const art = await makeArtwork(artist.id);
+
+    expect((await loadTrustDimensions(art)).provenanceLevel).toBe("P0");
+
+    const coaId = tid("coa");
+    await q(
+      `insert into coa_certificates (id, artwork_id, user_id, metadata_hash, status, issued_at) values ($1, $2, $3, $1, 'issued', now())`,
+      [coaId, art, artist.id],
+    );
+    expect((await loadTrustDimensions(art)).provenanceLevel).toBe("P1");
+
+    const mintId = tid("mint");
+    await q(
+      `insert into mint_commitments (id, artwork_id, user_id, leaf_hash, status) values ($1, $2, $3, $1, 'pending')`,
+      [mintId, art, artist.id],
+    );
+    expect((await loadTrustDimensions(art)).provenanceLevel).toBe("P2");
+
+    // A commitment's merkle root confirmed on-chain (gateway.ts's
+    // recordOnChainProvenance) is P3 — anchored — even though no separate
+    // ArtwallCOA NFT has been minted for this artwork yet.
+    await q(`update mint_commitments set status = 'minted', token_id = '1', mint_tx_hash = '0xabc' where id = $1`, [
+      mintId,
+    ]);
+    expect((await loadTrustDimensions(art)).provenanceLevel).toBe("P3");
+  });
+
+  it("provenanceLevel reaches P4 only when the COA certificate itself is minted", async () => {
+    const artist = await makeUser();
+    const art = await makeArtwork(artist.id);
+    const coaId = tid("coa");
+    await q(
+      `insert into coa_certificates
+         (id, artwork_id, user_id, metadata_hash, status, "txHash", "tokenId", "chainId", "contractAddr", "mintedAt")
+       values ($1, $2, $3, $1, 'minted', '0xabc', '1', 84532, '0xcontract', now())`,
+      [coaId, art, artist.id],
+    );
+    expect((await loadTrustDimensions(art)).provenanceLevel).toBe("P4");
+  });
+
+  it("bindingLevel climbs B0 -> B2 -> B3 as a tag is bound then actually scanned", async () => {
+    const artist = await makeUser();
+    const art = await makeArtwork(artist.id);
+
+    expect((await loadTrustDimensions(art)).bindingLevel).toBe("B0");
+
+    const tagId = tid("tag");
+    await q(`insert into art_tags (id, tag_uid) values ($1, $1)`, [tagId]);
+    await q(`update art_tags set artwork_id = $2, bound_at = now(), bound_by = $3 where id = $1`, [
+      tagId,
+      art,
+      artist.id,
+    ]);
+    expect((await loadTrustDimensions(art)).bindingLevel).toBe("B2");
+
+    // A scan row only ever exists after resolveTagScan's crypto verification
+    // succeeded (BC-3.09/3.11) — its mere presence is what B3 means.
+    await q(`insert into art_tag_scans (id, tag_id) values ($1, $2)`, [tid("tscan"), tagId]);
+    expect((await loadTrustDimensions(art)).bindingLevel).toBe("B3");
+  });
+
+  // BC-3.15 end-to-end: canExhibit against loadTrustDimensions's real output
+  // for an artwork that is genuinely bound AND anchored, vs. one that is
+  // bound but NOT anchored (still P2, a pending commitment) — F71's hard
+  // gate, driven by the real BC-3.08/3.12 levels instead of placeholder
+  // booleans.
+  it("canExhibit denies a bound-but-not-anchored artwork, then allows once anchored (end-to-end)", async () => {
+    const artist = await makeUser();
+    const art = await makeArtwork(artist.id);
+
+    const tagId = tid("tag");
+    await q(`insert into art_tags (id, tag_uid) values ($1, $1)`, [tagId]);
+    await q(`update art_tags set artwork_id = $2, bound_at = now(), bound_by = $3 where id = $1`, [
+      tagId,
+      art,
+      artist.id,
+    ]);
+
+    const mintId = tid("mint");
+    await q(
+      `insert into mint_commitments (id, artwork_id, user_id, leaf_hash, status) values ($1, $2, $3, $1, 'pending')`,
+      [mintId, art, artist.id],
+    );
+
+    // Bound (B2) but only a pending commitment (P2) — the hard gate must
+    // still deny: physical binding alone is not enough, same as before, but
+    // now it's also checking that P2 does not pass as "anchored".
+    let trust = await loadTrustDimensions(art);
+    expect(trust.bindingLevel).toBe("B2");
+    expect(trust.provenanceLevel).toBe("P2");
+    expect(canExhibit({ trust }).allow).toBe(false);
+
+    // Anchor the commitment on-chain (gateway.ts's recordOnChainProvenance
+    // path) -> P3. Binding is still only B2 (no verified scan yet) -> still denied.
+    await q(`update mint_commitments set status = 'minted', token_id = '1', mint_tx_hash = '0xabc' where id = $1`, [
+      mintId,
+    ]);
+    trust = await loadTrustDimensions(art);
+    expect(trust.provenanceLevel).toBe("P3");
+    expect(canExhibit({ trust }).allow).toBe(true); // B2 + P3 already clears the bar
+
+    // A real verified scan (BC-3.09/3.11's resolveTagScan) pushes binding to
+    // B3 — exhibitable and at the strongest state on both dimensions.
+    await q(`insert into art_tag_scans (id, tag_id) values ($1, $2)`, [tid("tscan"), tagId]);
+    trust = await loadTrustDimensions(art);
+    expect(trust.bindingLevel).toBe("B3");
+    expect(canExhibit({ trust }).allow).toBe(true);
   });
 });

@@ -11,11 +11,9 @@ import {ArtwallCOA} from "../src/ArtwallCOA.sol";
  * covered there too), wrong chainId, replayed nonce (already covered),
  * royalty cap (already covered), and role checks (MINTER/SIGNER/ADMIN).
  *
- * Pause behavior: ArtwallCOA is NOT Pausable (no pause()/unpause(), no
- * OpenZeppelin Pausable import) — grep of src/ArtwallCOA.sol confirms this.
- * Pause-behavior tests are therefore out of scope for BC-2.01 until BC-3.02
- * (if any) adds Pausable to the contract; this file documents that
- * dependency instead of faking pause coverage.
+ * Pause behavior: ArtwallCOA became Pausable in BC-3.02 — see
+ * ArtwallCOAGovernance.t.sol for pause/unpause and role-separation coverage
+ * (PAUSER_ROLE, ANCHOR_ROLE, the per-period mint cap).
  */
 contract ArtwallCOASecurityTest is Test {
     ArtwallCOA coa;

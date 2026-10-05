@@ -59,6 +59,43 @@ describe("canExhibit (section 14 hard gate)", () => {
     expect(d.allow).toBe(true);
     expect(d.reasons).toEqual([]);
   });
+
+  // BC-3.15: when the caller supplies the granular provenanceLevel/bindingLevel
+  // (BC-3.08/3.12), the gate enforces the stricter real-state bar instead of
+  // the plain existence-only booleans.
+  describe("with granular BC-3.08/3.12 levels", () => {
+    it("denies P2 (commitment pending, not yet anchored) even if blockchainAnchored boolean were true", () => {
+      const d = canExhibit({
+        trust: { ...NO_TRUST, bindingLevel: "B2", provenanceLevel: "P2", blockchainAnchored: true, physicalBindingVerified: true },
+      });
+      expect(d.allow).toBe(false);
+      expect(d.reasons).toContain("BLOCKCHAIN_NOT_ANCHORED");
+    });
+
+    it("allows P3 (anchored) with B2 (bound)", () => {
+      const d = canExhibit({ trust: { ...NO_TRUST, bindingLevel: "B2", provenanceLevel: "P3" } });
+      expect(d.allow).toBe(true);
+    });
+
+    it("allows P4 (minted) with B3 (crypto-verified)", () => {
+      const d = canExhibit({ trust: { ...NO_TRUST, bindingLevel: "B3", provenanceLevel: "P4" } });
+      expect(d.allow).toBe(true);
+    });
+
+    it("denies B1 (provisioned, not bound) even at P4", () => {
+      const d = canExhibit({ trust: { ...NO_TRUST, bindingLevel: "B1", provenanceLevel: "P4" } });
+      expect(d.allow).toBe(false);
+      expect(d.reasons).toContain("PHYSICAL_BINDING_NOT_VERIFIED");
+    });
+
+    it("denies B0/P0", () => {
+      const d = canExhibit({ trust: { ...NO_TRUST, bindingLevel: "B0", provenanceLevel: "P0" } });
+      expect(d.allow).toBe(false);
+      expect(d.reasons).toEqual(
+        expect.arrayContaining(["PHYSICAL_BINDING_NOT_VERIFIED", "BLOCKCHAIN_NOT_ANCHORED"]),
+      );
+    });
+  });
 });
 
 describe("canSecondarySell", () => {

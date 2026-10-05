@@ -233,6 +233,11 @@ contract ArtwallCOATest is Test {
 
     // ── commitRoot (signer-gated provenance anchoring) ─────────────────────
 
+    // BC-3.01: commitRoot is gated by ANCHOR_ROLE (split out from
+    // SIGNER_ROLE as its own role), granted to BOTH admin and signer at
+    // construction — signer keeps working unchanged (gateway.ts's
+    // submitRootOnChain signs with the same key today), while the admin
+    // multisig can later delegate ANCHOR_ROLE to a narrower dedicated key.
     function testCommitRootBySignerSucceeds() public {
         bytes32 root = keccak256("root1");
         vm.prank(signer);
@@ -240,11 +245,18 @@ contract ArtwallCOATest is Test {
         assertTrue(coa.committedRoots(root));
     }
 
-    function testCommitRootByNonSignerReverts() public {
+    function testCommitRootByNonAnchorReverts() public {
         bytes32 root = keccak256("root2");
         vm.prank(stranger);
-        vm.expectRevert("not signer");
+        vm.expectRevert("not anchor");
         coa.commitRoot(root);
+    }
+
+    function testCommitRootByAdminSucceeds() public {
+        bytes32 root = keccak256("root-admin");
+        vm.prank(admin);
+        coa.commitRoot(root);
+        assertTrue(coa.committedRoots(root));
     }
 
     function testCommitRootDuplicateReverts() public {
