@@ -24,11 +24,16 @@ import {
   readSafely,
   type Result,
 } from "@/features/physical-wall/actions/shared";
-import { canExhibit } from "@/features/policy/engine";
+import { canExhibit, type Decision } from "@/features/policy/engine";
 import { logPolicyDecision } from "@/features/policy/log";
 import { loadTrustDimensions } from "@/features/policy/trust";
 import { assertArtworkTransition, type ExhibitionStatus } from "@/features/artworks/state-machine";
-import { assertExhibitionTransition, type ExhibitionStage } from "@/features/exhibitions/lifecycle";
+import {
+  canTransitionExhibition,
+  EXHIBITION_STAGES,
+  assertExhibitionTransition,
+  type ExhibitionStage,
+} from "@/features/exhibitions/lifecycle";
 
 async function getUserId() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -233,6 +238,64 @@ export async function publishExhibition(
     revalidatePath("/studio/exhibitions");
     revalidatePath(`/exhibitions/${row.id}`);
     return { id: row.id, status: row.status };
+  });
+}
+
+/**
+ * FE-3.05/3.11: the real `canExhibit` decision for every artwork already
+ * added to this exhibition, fetched from the server — never computed on the
+ * client. The studio exhibitions page renders these through
+ * `EligibilityNotice` so an artist sees exactly why an artwork isn't
+ * exhibitable (binding missing, provenance missing) before they try to
+ * publish, using the same gate `publishExhibition` itself enforces.
+ */
+export async function getExhibitionEligibility(
+  exhibitionId: string
+): Promise<Record<string, Decision>> {
+  return readSafely("getExhibitionEligibility", {}, async () => {
+    const exhId = parseInput(id, exhibitionId);
+    const userId = await getUserId();
+    const [exh] = await db
+      .select({ id: exhibitions.id })
+      .from(exhibitions)
+      .where(and(eq(exhibitions.id, exhId), eq(exhibitions.userId, userId)));
+    if (!exh) return {};
+
+    const memberRows = await db
+      .select({ artworkId: exhibitionArtworks.artworkId })
+      .from(exhibitionArtworks)
+      .where(eq(exhibitionArtworks.exhibitionId, exh.id));
+
+    const entries = await Promise.all(
+      memberRows.map(async ({ artworkId }) => {
+        const trust = await loadTrustDimensions(artworkId);
+        return [artworkId, canExhibit({ trust })] as const;
+      })
+    );
+    return Object.fromEntries(entries);
+  });
+}
+
+/**
+ * FE-3.10: the exhibition's current 15-stage lifecycle position and the
+ * allowed next stages, read from the real transition graph
+ * (`src/features/exhibitions/lifecycle.ts`) — the studio UI shows both
+ * instead of guessing which moves are legal.
+ */
+export async function getExhibitionLifecycleState(
+  exhibitionId: string
+): Promise<{ stage: ExhibitionStage; allowedNext: ExhibitionStage[] } | null> {
+  return readSafely("getExhibitionLifecycleState", null, async () => {
+    const exhId = parseInput(id, exhibitionId);
+    const userId = await getUserId();
+    const [exh] = await db
+      .select({ status: exhibitions.status })
+      .from(exhibitions)
+      .where(and(eq(exhibitions.id, exhId), eq(exhibitions.userId, userId)));
+    if (!exh) return null;
+    const stage = exh.status as ExhibitionStage;
+    const allowedNext = EXHIBITION_STAGES.filter((next) => canTransitionExhibition(stage, next));
+    return { stage, allowedNext };
   });
 }
 

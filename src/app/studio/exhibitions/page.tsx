@@ -10,7 +10,11 @@ import {
   StudioEmptyState,
   StudioPageHeader,
 } from "@/components/dashboard/studio-shell";
-import { getExhibitions } from "@/features/exhibitions/actions";
+import {
+  getExhibitionEligibility,
+  getExhibitionLifecycleState,
+  getExhibitions,
+} from "@/features/exhibitions/actions";
 import { db } from "@/lib/db/index";
 import { exhibitionArtworks } from "@/lib/db/schema";
 
@@ -29,6 +33,15 @@ export default async function ExhibitionsPage() {
         )
     : [];
   const title = new Map(artworks.map((a) => [a.id, a.title]));
+
+  // FE-3.05/3.10/3.11: per-exhibition eligibility decisions and lifecycle
+  // state, fetched from the server for every exhibition on this page.
+  const [eligibilityByExhibition, lifecycleByExhibition] = await Promise.all([
+    Promise.all(items.map((item) => getExhibitionEligibility(item.id))),
+    Promise.all(items.map((item) => getExhibitionLifecycleState(item.id))),
+  ]);
+  const eligibilityMap = new Map(items.map((item, i) => [item.id, eligibilityByExhibition[i]]));
+  const lifecycleMap = new Map(items.map((item, i) => [item.id, lifecycleByExhibition[i]]));
 
   return (
     <div className="flex flex-col gap-8">
@@ -82,12 +95,24 @@ export default async function ExhibitionsPage() {
                     Public page →
                   </Link>
                 )}
+                {/* FE-3.10: current 15-stage lifecycle position + the allowed
+                    next moves, read from the server's real transition graph. */}
+                {lifecycleMap.get(item.id)?.allowedNext.length ? (
+                  <p className="text-studio-muted mt-2 text-xs">
+                    Next: {lifecycleMap.get(item.id)!.allowedNext.join(", ")}
+                  </p>
+                ) : null}
                 <ExhibitionControls
                   exhibitionId={item.id}
                   status={item.status}
                   artworks={artworks
                     .filter((a) => !inShow.includes(a.id))
                     .map((a) => ({ id: a.id, title: a.title }))}
+                  memberArtworks={inShow.map((id) => ({
+                    id,
+                    title: title.get(id) ?? "Untitled",
+                  }))}
+                  eligibility={eligibilityMap.get(item.id) ?? {}}
                 />
               </article>
             );
