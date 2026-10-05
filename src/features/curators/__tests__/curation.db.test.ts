@@ -22,11 +22,34 @@ const errorOf = (r: Result<unknown>) => (r.ok ? null : r.error);
 
 const complete = { startDate: "2031-03-01", endDate: "2031-03-31" };
 
+/**
+ * BE-3.03/BE-3.04: publishExhibition now runs every member artwork through
+ * canExhibit (physical binding verified AND blockchain anchored). These
+ * exhibition CRUD/permission tests predate that gate and otherwise test
+ * ownership/validation, not trust dimensions — so give the fixture artwork
+ * a bound tag and a minted commitment to clear the gate, same as
+ * trust.db.test.ts's own real-row setup.
+ */
+async function makeExhibitableArtwork(userId: string) {
+  const art = await makeArtwork(userId);
+  const tag = tid("tag");
+  await q(`insert into art_tags (id, tag_uid) values ($1, $1)`, [tag]);
+  await q(`update art_tags set artwork_id = $2, bound_at = now(), bound_by = $3 where id = $1`, [tag, art, userId]);
+  const mint = tid("mint");
+  await q(`insert into mint_commitments (id, artwork_id, user_id, leaf_hash, status) values ($1, $2, $3, $1, 'pending')`, [
+    mint,
+    art,
+    userId,
+  ]);
+  await q(`update mint_commitments set status = 'minted', token_id = '1', mint_tx_hash = '0xabc' where id = $1`, [mint]);
+  return art;
+}
+
 describe("exhibitions (BE-1.23)", () => {
   it("owner publishes a draft; it becomes public; others can't; only own works can be added", async () => {
     const owner = await makeUser();
     await makeProfile(owner.id);
-    const mine = await makeArtwork(owner.id);
+    const mine = await makeExhibitableArtwork(owner.id);
     const theirs = await makeArtwork((await makeUser()).id);
 
     actAs(owner);
@@ -49,7 +72,7 @@ describe("exhibitions (BE-1.23)", () => {
     const owner = await makeUser();
     actAs(owner);
     const id = data(await createExhibition({ title: "betest show 2", ...complete }));
-    data(await addArtworkToExhibition(id, await makeArtwork(owner.id)));
+    data(await addArtworkToExhibition(id, await makeExhibitableArtwork(owner.id)));
     const admin = await makeUser("admin");
     actAs(admin);
     data(await publishExhibition(id));
