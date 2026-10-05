@@ -1,4 +1,6 @@
--- 0044: SEC-2.11 — capture the actor's IP on every audit log entry.
+-- 0054 (renumbered from 0044 during 6-branch integration merge — collided with
+-- Database Phase 3's unrelated 0044_db3_commission_policy_versions.sql, since both
+-- branches diverged before either existed): SEC-2.11 — capture the actor's IP on every audit log entry.
 --
 -- pw_audit_log already records actor, action, subject and timestamp, but
 -- never the caller's IP — so "this admin did this" couldn't be tied to

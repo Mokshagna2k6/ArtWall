@@ -4,7 +4,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { actAs } from "@/test/db-setup";
-import { makeArtwork, makeUser, purgeTestData, q } from "@/test/fixtures";
+import { makeArtwork, makeProfile, makeUser, purgeTestData, q } from "@/test/fixtures";
 
 /**
  * The NFT routes (/api/blockchain/**) against the real database. Only the
@@ -32,8 +32,18 @@ vi.mock("@/lib/blockchain/chain", async (original) => ({
   ...(await original<typeof import("@/lib/blockchain/chain")>()),
   verifyMintTx: vi.fn(async (hash: string) => chain.byHash[hash] ?? chain.verdict),
 }));
+const pinnedJson = vi.hoisted(() => ({ lastMetadata: null as Record<string, unknown> | null }));
 vi.mock("@/lib/blockchain/pinata", () => ({
-  pinata: { upload: { public: { json: vi.fn(async () => ({ cid: "bafytestmetadata" })) } } },
+  pinata: {
+    upload: {
+      public: {
+        json: vi.fn(async (metadata: Record<string, unknown>) => {
+          pinnedJson.lastMetadata = metadata;
+          return { cid: "bafytestmetadata" };
+        }),
+      },
+    },
+  },
 }));
 
 const { POST: createCert } = await import("@/app/api/blockchain/certificates/route");
@@ -49,13 +59,13 @@ beforeEach(() => {
 });
 
 const WALLET = "0x1111111111111111111111111111111111111111";
-const post = (body: unknown) =>
+const post = (body: unknown = {}) =>
   new NextRequest("http://localhost/api", { method: "POST", body: JSON.stringify(body), headers: { "content-type": "application/json" } });
 const params = (id: string) => ({ params: Promise.resolve({ id }) });
-const voucherBody = { to: WALLET, royaltyReceiver: WALLET, royaltyFeeBps: 500 };
 
-async function pinnedCert() {
+async function pinnedCert(opts: { wallet?: string | null } = {}) {
   const artist = await makeUser();
+  await makeProfile(artist.id, { wallet: "wallet" in opts ? opts.wallet : WALLET });
   const art = await makeArtwork(artist.id);
   actAs(artist);
   const res = await createCert(post({ artworkId: art, imageCid: "bafyimage", creatorName: "Asha" }));
@@ -84,7 +94,19 @@ describe("NFT routes (/api/blockchain)", () => {
     expect((await createCert(post({ artworkId: art, imageCid: "c", creatorName: "n" }))).status).toBe(404);
   });
 
-  it("mint-voucher: signs an EIP-712 voucher the contract's signer recovers; refuses others, bad input and done certs", async () => {
+  it("create: the pinned IPFS metadata embeds this certificate's content hash (BC-2.09)", async () => {
+    const { id } = await pinnedCert();
+    const [row] = await q<{ metadata_hash: string }>(
+      `select metadata_hash from coa_certificates where id = $1`,
+      [id]
+    );
+    // The on-chain tokenURI → IPFS metadata → content_hash chain: the JSON
+    // actually pinned to IPFS (captured by the pinata mock above) must carry
+    // the same hash as the DB record /verify/[hash] is keyed by.
+    expect(pinnedJson.lastMetadata?.content_hash).toBe(row.metadata_hash);
+  });
+
+  it("mint-voucher: signs an EIP-712 voucher from verified DB state; refuses others, no-wallet, in-flight and done certs", async () => {
     const { artist, id } = await pinnedCert();
     // BE-3.03/BE-3.05: mint-voucher now runs canMint, which reads real
     // identityVerified off the user row — a voucher is a server signature
@@ -93,17 +115,21 @@ describe("NFT routes (/api/blockchain)", () => {
     await q(`update "user" set identity_verified = true where id = $1`, [artist.id]);
 
     actAs(null);
-    expect((await voucher(post(voucherBody), params(id))).status).toBe(401);
+    expect((await voucher(post(), params(id))).status).toBe(401);
     actAs(await makeUser());
-    expect((await voucher(post(voucherBody), params(id))).status).toBe(404);
+    expect((await voucher(post(), params(id))).status).toBe(404);
 
     actAs(artist);
-    expect((await voucher(post({ ...voucherBody, to: "not-an-address" }), params(id))).status).toBe(422);
-    expect((await voucher(post({ ...voucherBody, royaltyFeeBps: 10_001 }), params(id))).status).toBe(422);
-
-    const res = await voucher(post(voucherBody), params(id));
+    const res = await voucher(post(), params(id));
     expect(res.status).toBe(200);
     const body = await res.json();
+    // BC-1.15: recipient and royalty receiver are the certificate owner's own
+    // registered wallet — never anything the request body could supply.
+    expect(body.voucher.to.toLowerCase()).toBe(WALLET.toLowerCase());
+    expect(body.voucher.royaltyReceiver.toLowerCase()).toBe(WALLET.toLowerCase());
+    // BC-1.16: royalty bps comes from the seeded commission_policies row, not
+    // a client-supplied value, and is well under the on-chain cap.
+    expect(body.voucher.royaltyFeeBps).toBe(400);
     expect(body.voucher.uri).toBe("ipfs://bafytestmetadata");
     const signer = await recoverTypedDataAddress({
       domain: { ...MINT_VOUCHER_DOMAIN, chainId: 84532, verifyingContract: env.NEXT_PUBLIC_NFT_CONTRACT_ADDRESS as `0x${string}` },
@@ -128,10 +154,20 @@ describe("NFT routes (/api/blockchain)", () => {
     expect(auditRow.actor_id).toBe(artist.id);
     expect(auditRow.actor_ip).toBeTruthy();
 
+    // BC-1.17: a mint already in progress refuses a second, independent voucher.
+    await q(`update coa_certificates set status = 'minting', "txHash" = $2 where id = $1`, [id, `0x${"11".repeat(32)}`]);
+    expect((await voucher(post(), params(id))).status).toBe(409);
+
     // A revoked certificate is never put back into the mint flow.
     await q(`update coa_certificates set status = 'revoked', revoked_at = now() where id = $1`, [id]);
-    expect((await voucher(post(voucherBody), params(id))).status).toBe(409);
+    expect((await voucher(post(), params(id))).status).toBe(409);
     expect(await statusOf(id)).toBe("revoked");
+  });
+
+  it("mint-voucher: refuses to mint without a connected wallet", async () => {
+    const { artist, id } = await pinnedCert({ wallet: null });
+    actAs(artist);
+    expect((await voucher(post(), params(id))).status).toBe(409);
   });
 
   it("confirm: pending stays minting, a failed tx is recorded, a confirmed one is minted once", async () => {
@@ -153,7 +189,7 @@ describe("NFT routes (/api/blockchain)", () => {
     await q(`update coa_certificates set status = 'minting', "txHash" = $2 where id = $1`, [other.id, `0x${"cd".repeat(32)}`]);
     chain.verdict = { state: "failed", reason: "transaction reverted" };
     expect(await (await confirm(post({}), params(other.id))).json()).toEqual({ status: "failed", error: "transaction reverted" });
-    expect((await voucher(post(voucherBody), params(other.id))).status).toBe(200); // failed → retry with a fresh voucher
+    expect((await voucher(post(), params(other.id))).status).toBe(200); // failed → retry with a fresh voucher
   });
 
   it("reconcile-mints cron: needs the secret; settles stale 'minting' certificates", async () => {
