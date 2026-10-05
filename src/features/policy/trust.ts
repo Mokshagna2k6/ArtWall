@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, eq, isNotNull } from "drizzle-orm";
 
-import { db } from "@/lib/db/index";
+import { db, pool } from "@/lib/db/index";
 import { artTags, artworks, coaCertificates, curatorPicks, mintCommitments, user } from "@/lib/db/schema";
 import type { TrustDimensions } from "@/features/policy/engine";
 
@@ -71,5 +71,61 @@ export async function loadTrustDimensions(artworkId: string): Promise<TrustDimen
     blockchainAnchored: mintedRows.length > 0,
     coaIssued: coaRows.some((r) => (COA_ISSUED_STATUSES as readonly string[]).includes(r.status)),
     curationApproved: pickRows.length > 0,
+  };
+}
+
+/**
+ * DB-3.01: the real GRADED trust-dimension levels, for the trust-panel UI
+ * (FE-3.01-3.04, not yet built) that needs "COA level 2 of 3", not just a
+ * checkmark. This is a separate, narrower concern from
+ * {@link loadTrustDimensions} above: that loader feeds the PolicyEngine's
+ * yes/no gates; this one surfaces the graded state those yes/no facts are
+ * collapsed from. See migration 0052 for exactly how each level is derived
+ * and why (generated column vs view, per dimension).
+ */
+export interface TrustDimensionLevels {
+  /** unverified | pending | approved | rejected. Stored on "user" (0052). */
+  artistVerificationStatus: string;
+  /** 0-3. Stored on coa_certificates, backfilled from status (0046, DB-3.02). */
+  coaLevel: number;
+  /** 0-4 (P0-P4). Read from the artwork_provenance_levels view (0052). */
+  provenanceLevel: number;
+  /** 0-3 (B0-B3). Generated column on the artwork's bound art_tags row, 0 if
+   *  unbound or no tag exists (0052). */
+  bindingLevel: number;
+  /** Literally canSecondarySell's three preconditions, read live (0052). */
+  transactionEligible: boolean;
+}
+
+export async function loadTrustDimensionLevels(artworkId: string): Promise<TrustDimensionLevels> {
+  const { rows } = await pool.query<{
+    artist_verification_status: string | null;
+    coa_level: number | null;
+    provenance_level: number;
+    binding_level: number | null;
+    transaction_eligible: boolean | null;
+  }>(
+    `select
+       u.artist_verification_status,
+       (select max(c.coa_level) from coa_certificates c where c.artwork_id = a.id) as coa_level,
+       coalesce(p.provenance_level, 0) as provenance_level,
+       (select max(t.binding_level) from art_tags t where t.artwork_id = a.id) as binding_level,
+       e.transaction_eligible
+     from artworks a
+     join "user" u on u.id = a."userId"
+     left join artwork_provenance_levels p on p.artwork_id = a.id
+     left join artwork_transaction_eligibility e on e.artwork_id = a.id
+     where a.id = $1
+     limit 1`,
+    [artworkId]
+  );
+
+  const row = rows[0];
+  return {
+    artistVerificationStatus: row?.artist_verification_status ?? "unverified",
+    coaLevel: row?.coa_level ?? 0,
+    provenanceLevel: row?.provenance_level ?? 0,
+    bindingLevel: row?.binding_level ?? 0,
+    transactionEligible: row?.transaction_eligible ?? false,
   };
 }
