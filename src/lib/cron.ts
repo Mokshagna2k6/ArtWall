@@ -2,6 +2,8 @@ import "server-only";
 
 import { timingSafeEqual } from "node:crypto";
 
+import { alertAdmins } from "@/features/physical-wall/notifications";
+
 /**
  * Vercel Cron sends `Authorization: Bearer $CRON_SECRET`. Fails closed: with no
  * secret configured, `Bearer undefined` must not be a valid credential.
@@ -19,6 +21,14 @@ export function isCronAuthorized(request: Request): boolean {
  * end with duration and processed count, or one with the error. `processed` is
  * what the job reports as the work it did; the rest of its result is returned
  * as the response body. The error text is logged, never returned.
+ *
+ * On failure, also alerts admins (PERF-3.01) via the existing `alertAdmins`
+ * queue (Resend-backed, deduped by key) rather than a new
+ * monitoring/error-tracking dependency — one alert per job PER RUN (keyed by
+ * job + start timestamp), so a job that fails on every 5-minute tick doesn't
+ * spam, but a run that fails after a prior run succeeded still pages someone.
+ * Best-effort: alertAdmins swallows its own errors, so a mail outage never
+ * turns a job failure into an unhandled rejection here.
  */
 export async function runCron<T extends { processed: number }>(
   job: string,
@@ -38,15 +48,17 @@ export async function runCron<T extends { processed: number }>(
     );
     return Response.json(result);
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error(
       JSON.stringify({
         event: "cron.error",
         job,
         ok: false,
         durationMs: Date.now() - started,
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       })
     );
+    await alertAdmins(`cron.error:${job}:${started}`, `Cron job failed: ${job}`, `${job} failed at ${new Date(started).toISOString()}.\n\n${message}`);
     return Response.json({ error: "Cron job failed. See logs." }, { status: 500 });
   }
 }

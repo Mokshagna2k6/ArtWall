@@ -3,6 +3,19 @@ src = "src"
 out = "out"
 libs = ["lib"]
 solc = "0.8.24"
+remappings = [
+  "forge-std/=lib/forge-std/src/",
+  "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+]
+
+
+# BC-2.02: the invariant handler signs a real ECDSA voucher (vm.sign) on
+# every call, so the default depth (500) with 256 runs is far too slow
+# (observed: did not finish in 3+ minutes). 64 runs x depth 25 still
+# explores plenty of mint sequences while finishing in single-digit seconds.
+[invariant]
+runs = 64
+depth = 25
 
 [rpc_endpoints]
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"

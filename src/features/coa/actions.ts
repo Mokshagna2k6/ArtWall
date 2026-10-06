@@ -17,6 +17,7 @@ import {
   artistProfiles,
 } from "@/lib/db/schema";
 import { computeMetadataHash, computeLeafHash } from "@/features/coa/hash";
+import { getActiveCommissionPolicy } from "@/features/policy/commission";
 import {
   attempt,
   parseInput,
@@ -267,20 +268,6 @@ export async function addProvenanceEvent(raw: z.input<typeof provenanceSchema>):
 
 /* ── Mint Commitments ────────────────────────────────────────────────────── */
 
-/**
- * ERC-2981 royalty for new mints, in basis points. Interim: one platform-wide
- * value from MINT_ROYALTY_BPS (default 400 = 4%) until per-artist royalty
- * policy exists. Misconfiguration refuses rather than minting a wrong royalty.
- */
-function mintRoyaltyBps(): number {
-  const raw = process.env.MINT_ROYALTY_BPS ?? "400";
-  const bps = Number(raw);
-  if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) {
-    throw new PreconditionError(`Minting is misconfigured (MINT_ROYALTY_BPS "${raw}"). Contact ArtWall.`);
-  }
-  return bps;
-}
-
 export async function createMintCommitment(artworkId: string): Promise<Result<{ id: string; leafHash: string }>> {
   return attempt("createMintCommitment", async () => {
     const artId = parseInput(id, artworkId);
@@ -302,7 +289,7 @@ export async function createMintCommitment(artworkId: string): Promise<Result<{ 
     if (!/^0x[0-9a-fA-F]{40}$/.test(wallet) || /^0x0{40}$/.test(wallet)) {
       throw new PreconditionError("Connect a wallet before minting: it receives the token and your royalties.");
     }
-    const royaltyBps = mintRoyaltyBps();
+    const royaltyBps = (await getActiveCommissionPolicy("mint_royalty")).rateBps;
     const leafHash = computeLeafHash({
       artworkId: artId,
       metadataHash: cert.metadataHash,

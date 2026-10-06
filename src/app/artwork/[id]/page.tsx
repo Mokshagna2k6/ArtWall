@@ -8,10 +8,21 @@ import { getProvenanceTimeline } from "@/features/coa/actions";
 import { formatINR } from "@/features/physical-wall/money";
 import { JsonLd } from "@/components/seo/json-ld";
 import { cachedCatalog } from "@/lib/catalog-cache";
+import { loadTrustDimensionLevels } from "@/features/policy/trust";
+import { TrustPanel } from "@/features/policy/trust-panel";
+import { loadDemandSignal } from "@/features/demand/aggregate";
+import { DemandMeter } from "@/features/demand/demand-meter";
 
 // Same for every visitor: served from the catalogue cache (PERF-2.06).
 const loadArtwork = cachedCatalog(getArtworkDetail, "artwork-detail", 3600);
 const loadTimeline = cachedCatalog(getProvenanceTimeline, "provenance", 3600);
+// FE-3.01-3.04: the trust panel's five dimensions, same cache window as the
+// rest of this page's catalogue data — they change only on review/mint
+// events, not per request.
+const loadTrustLevels = cachedCatalog(loadTrustDimensionLevels, "trust-levels", 3600);
+// FE-3.06: the demand meter reads the pre-aggregated table (PERF-3.04), so
+// this is cheap enough to cache on the same window too.
+const loadDemand = cachedCatalog(loadDemandSignal, "demand-signal", 3600);
 
 export async function generateMetadata({
   params,
@@ -39,6 +50,8 @@ export default async function ArtworkDetailPage({
   if (!artwork) notFound();
 
   const timeline = await loadTimeline(id);
+  const trustLevels = await loadTrustLevels(id);
+  const demand = await loadDemand(id);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
@@ -78,6 +91,8 @@ export default async function ArtworkDetailPage({
               {formatINR(artwork.pricePaise)}
             </p>
           )}
+
+          <DemandMeter signal={demand} />
 
           <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
             {artwork.medium && (
@@ -138,6 +153,9 @@ export default async function ArtworkDetailPage({
               </ul>
             </section>
           )}
+
+          {/* Trust & provenance */}
+          <TrustPanel levels={trustLevels} />
 
           {/* Artist */}
           <section className="border-hairline mt-8 border-t pt-6">

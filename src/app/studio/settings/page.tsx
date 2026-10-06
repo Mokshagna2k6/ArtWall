@@ -1,6 +1,8 @@
 import { getStudioArtistProfile } from "@/app/actions/artist-profile";
 import { ArtistProfileForm } from "@/components/dashboard/artist-profile-form";
 import { StudioPageHeader } from "@/components/dashboard/studio-shell";
+import { WalletProviders } from "@/components/blockchain/wallet-providers";
+import { WalletLinkPanel } from "@/components/blockchain/wallet-link-panel";
 
 export default async function SettingsPage() {
   const profile = await getStudioArtistProfile();
@@ -17,8 +19,9 @@ export default async function SettingsPage() {
       <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-lg font-semibold">Blockchain wallet</h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Your on-chain wallet is created automatically when COA minting is
-          configured. Used for royalty payments and provenance.
+          Connect a wallet and sign a short message to prove you own it. This
+          is the wallet your NFT certificates mint to and your royalties pay
+          out to — linking a wallet replaces the previous one.
         </p>
         <div className="mt-4 rounded-lg bg-zinc-50 px-4 py-3 font-mono text-sm dark:bg-zinc-800">
           {wallet ? (
@@ -26,8 +29,13 @@ export default async function SettingsPage() {
               {wallet.slice(0, 6)}...{wallet.slice(-4)}
             </span>
           ) : (
-            <span className="text-zinc-400">Not provisioned yet</span>
+            <span className="text-zinc-400">No wallet linked yet</span>
           )}
+        </div>
+        <div className="mt-4">
+          <WalletProviders>
+            <WalletLinkPanel linkedWallet={wallet} />
+          </WalletProviders>
         </div>
       </section>
     </div>

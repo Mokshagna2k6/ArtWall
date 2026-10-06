@@ -1,7 +1,7 @@
-import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 import { actAs } from "@/test/db-setup";
-import { makeArtwork, makeProfile, makeUser, purgeTestData, q } from "@/test/fixtures";
+import { makeArtwork, makeProfile, makeUser, purgeTestData, q, tid } from "@/test/fixtures";
 import { applyCurator, approveCurator, suspendCurator } from "@/features/curators/actions";
 import {
   addArtworkToExhibition,
@@ -12,9 +12,6 @@ import {
 import type { Result } from "@/features/physical-wall/action-state";
 
 afterAll(purgeTestData);
-afterEach(() => {
-  delete process.env.CURATOR_COMMISSION_BPS;
-});
 
 /** The data of an ok result; fails the test with the message otherwise. */
 function data<T>(r: Result<T>): T {
@@ -25,11 +22,34 @@ const errorOf = (r: Result<unknown>) => (r.ok ? null : r.error);
 
 const complete = { startDate: "2031-03-01", endDate: "2031-03-31" };
 
+/**
+ * BE-3.03/BE-3.04: publishExhibition now runs every member artwork through
+ * canExhibit (physical binding verified AND blockchain anchored). These
+ * exhibition CRUD/permission tests predate that gate and otherwise test
+ * ownership/validation, not trust dimensions — so give the fixture artwork
+ * a bound tag and a minted commitment to clear the gate, same as
+ * trust.db.test.ts's own real-row setup.
+ */
+async function makeExhibitableArtwork(userId: string) {
+  const art = await makeArtwork(userId);
+  const tag = tid("tag");
+  await q(`insert into art_tags (id, tag_uid) values ($1, $1)`, [tag]);
+  await q(`update art_tags set artwork_id = $2, bound_at = now(), bound_by = $3 where id = $1`, [tag, art, userId]);
+  const mint = tid("mint");
+  await q(`insert into mint_commitments (id, artwork_id, user_id, leaf_hash, status) values ($1, $2, $3, $1, 'pending')`, [
+    mint,
+    art,
+    userId,
+  ]);
+  await q(`update mint_commitments set status = 'minted', token_id = '1', mint_tx_hash = '0xabc' where id = $1`, [mint]);
+  return art;
+}
+
 describe("exhibitions (BE-1.23)", () => {
   it("owner publishes a draft; it becomes public; others can't; only own works can be added", async () => {
     const owner = await makeUser();
     await makeProfile(owner.id);
-    const mine = await makeArtwork(owner.id);
+    const mine = await makeExhibitableArtwork(owner.id);
     const theirs = await makeArtwork((await makeUser()).id);
 
     actAs(owner);
@@ -52,7 +72,7 @@ describe("exhibitions (BE-1.23)", () => {
     const owner = await makeUser();
     actAs(owner);
     const id = data(await createExhibition({ title: "betest show 2", ...complete }));
-    data(await addArtworkToExhibition(id, await makeArtwork(owner.id)));
+    data(await addArtworkToExhibition(id, await makeExhibitableArtwork(owner.id)));
     const admin = await makeUser("admin");
     actAs(admin);
     data(await publishExhibition(id));
@@ -90,7 +110,7 @@ describe("exhibition publish validation (BE-2.18)", () => {
 });
 
 describe("curators (BE-1.24 – 1.26, BE-2.19)", () => {
-  it("admin approves (commission fixed from env) and suspends, each audited; non-admins refused", async () => {
+  it("admin approves (commission fixed from the active commission_policies row) and suspends, each audited; non-admins refused", async () => {
     const applicant = await makeUser();
     actAs(applicant);
     const id = data(await applyCurator({ displayName: "betest curator" }));
@@ -98,21 +118,36 @@ describe("curators (BE-1.24 – 1.26, BE-2.19)", () => {
 
     const admin = await makeUser("admin");
     actAs(admin);
-    process.env.CURATOR_COMMISSION_BPS = "1250";
-    expect(data(await approveCurator(id))).toEqual({ id, status: "active", commissionBps: 1250, unchanged: false });
-
-    expect(errorOf(await suspendCurator(id, " "))).toMatch(/reason/);
-    expect(data(await suspendCurator(id, "betest policy breach")).status).toBe("suspended");
-    expect(errorOf(await approveCurator(id))).toMatch(/suspended, not pending/);
-
-    const audit = await q<{ action: string; actor_id: string }>(
-      `select action, actor_id from pw_audit_log where subject_id = $1 order by at, id`,
-      [id]
+    // BE-3.09/3.10: the rate comes from the active commission_policies row,
+    // not an env var. Swap "active" to a fresh betest rate for this run, and
+    // put the real one back afterward — commission_policies is append-only
+    // in spirit (BE-3.09) but has no DB trigger stopping `active` flips, so
+    // the test must restore it itself.
+    const policyId = tid("cpol");
+    await q(`update commission_policies set active = false where kind = 'curator_commission' and active`);
+    await q(
+      `insert into commission_policies (id, kind, rate_bps, active, note) values ($1, 'curator_commission', 1250, true, 'betest override')`,
+      [policyId]
     );
-    expect(audit).toEqual([
-      { action: "curator.approved", actor_id: admin.id },
-      { action: "curator.suspended", actor_id: admin.id },
-    ]);
+    try {
+      expect(data(await approveCurator(id))).toEqual({ id, status: "active", commissionBps: 1250, unchanged: false });
+
+      expect(errorOf(await suspendCurator(id, " "))).toMatch(/reason/);
+      expect(data(await suspendCurator(id, "betest policy breach")).status).toBe("suspended");
+      expect(errorOf(await approveCurator(id))).toMatch(/suspended, not pending/);
+
+      const audit = await q<{ action: string; actor_id: string }>(
+        `select action, actor_id from pw_audit_log where subject_id = $1 order by at, id`,
+        [id]
+      );
+      expect(audit).toEqual([
+        { action: "curator.approved", actor_id: admin.id },
+        { action: "curator.suspended", actor_id: admin.id },
+      ]);
+    } finally {
+      await q(`delete from commission_policies where id = $1`, [policyId]);
+      await q(`update commission_policies set active = true where kind = 'curator_commission' and id = 'cpol_curator_v1'`);
+    }
   });
 
   it("approving an already-active curator is a no-op: same state, no second audit row, even concurrently", async () => {

@@ -10,6 +10,7 @@ import { db } from "@/lib/db/index";
 import { curators, curatorPicks, artworks, artistProfiles, user } from "@/lib/db/schema";
 import { recordAuditIn } from "@/features/physical-wall/audit";
 import { requireRole } from "@/features/physical-wall/authorize";
+import { getActiveCommissionPolicy } from "@/features/policy/commission";
 import {
   attempt,
   inTransaction,
@@ -112,21 +113,6 @@ export async function getCuratorPicks(curatorId: string) {
   });
 }
 
-/**
- * Curator commission, fixed at approval time (BE-1.26). Interim policy: one
- * platform-wide rate from CURATOR_COMMISSION_BPS (default 1000 = 10%) until a
- * tiered commission policy exists. Stored on the curator row so a later policy
- * change never re-prices an approved curator.
- */
-function curatorCommissionBps(): number {
-  const raw = process.env.CURATOR_COMMISSION_BPS ?? "1000";
-  const bps = Number(raw);
-  if (!Number.isInteger(bps) || bps < 0 || bps > 10_000) {
-    throw new Error(`CURATOR_COMMISSION_BPS must be an integer 0–10000, got "${raw}"`);
-  }
-  return bps;
-}
-
 type CuratorState = { id: string; status: string; commissionBps: number; unchanged: boolean };
 
 /**
@@ -140,7 +126,8 @@ type CuratorState = { id: string; status: string; commissionBps: number; unchang
  */
 async function moveCurator(curatorId: string, from: string, to: string, action: string, reason: string | null) {
   const actor = await requireRole("admin");
-  const commissionBps = to === "active" ? curatorCommissionBps() : null;
+  const commissionBps =
+    to === "active" ? (await getActiveCommissionPolicy("curator_commission")).rateBps : null;
   const row = await inTransaction(async (client): Promise<CuratorState> => {
     const { rows } = await client.query<{ id: string; status: string; commission_bps: number }>(
       `update curators
