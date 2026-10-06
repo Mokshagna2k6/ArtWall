@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 
 import { actAs } from "@/test/db-setup";
-import { makeArtwork, makeProfile, makeUser, purgeTestData, q, tid } from "@/test/fixtures";
+import { grantTestAdminRole, makeArtwork, makeProfile, makeUser, purgeTestData, q, tid } from "@/test/fixtures";
 import { applyCurator, approveCurator, suspendCurator } from "@/features/curators/actions";
 import {
   addArtworkToExhibition,
@@ -117,6 +117,7 @@ describe("curators (BE-1.24 – 1.26, BE-2.19)", () => {
     expect(errorOf(await approveCurator(id))).toMatch(/admin access/);
 
     const admin = await makeUser("admin");
+    await grantTestAdminRole(admin.id, "curator_admin");
     actAs(admin);
     // BE-3.09/3.10: the rate comes from the active commission_policies row,
     // not an env var. Swap "active" to a fresh betest rate for this run, and
@@ -153,7 +154,9 @@ describe("curators (BE-1.24 – 1.26, BE-2.19)", () => {
   it("approving an already-active curator is a no-op: same state, no second audit row, even concurrently", async () => {
     actAs(await makeUser());
     const id = data(await applyCurator({ displayName: "betest curator 2" }));
-    actAs(await makeUser("admin"));
+    const approver = await makeUser("admin");
+    await grantTestAdminRole(approver.id, "curator_admin");
+    actAs(approver);
 
     // Five approvals at once (double clicks, two admins): one transition.
     const results = (await Promise.all([1, 2, 3, 4, 5].map(() => approveCurator(id)))).map(data);

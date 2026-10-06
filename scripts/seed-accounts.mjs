@@ -3,8 +3,18 @@
  *
  * Roles already exist on the user row (see src/features/physical-wall/authorize.ts);
  * this just creates real credential logins for each one so the admin console,
- * the staff surfaces and an ordinary artist journey can all be exercised
- * without waiting for the ADMIN_EMAILS bootstrap to promote someone.
+ * the staff surfaces and an ordinary artist journey can all be exercised.
+ *
+ * SEC-3.02/3.03: this script (run once, out-of-band, never from live
+ * request-handling code) is now the ONLY bootstrap for the first admin.
+ * There is no live-request path that promotes anyone to `admin` anymore
+ * (the old ADMIN_EMAILS allowlist check inside `getActor` was removed) —
+ * grants after this point go through `grantAdminRole`
+ * (src/features/physical-wall/actions/admin-roles.ts), which itself
+ * requires an existing `super_admin`. So the master admin seeded here is
+ * also given the `super_admin` admin role directly in the database, below,
+ * the one place it is still acceptable to assign a role without going
+ * through that action — this script IS the bootstrap of first resort.
  *
  * Passwords are hashed with Better Auth's own hasher, so these sign in through
  * the normal /sign-in form with no special-casing anywhere in the app.
@@ -101,6 +111,28 @@ for (const { email, name, role } of ACCOUNTS) {
       values
         (${randomUUID()}, ${userId}, 'credential', ${userId}, ${hash}, now(), now())
     `;
+  }
+
+  // SEC-3.03: give the master admin the super_admin named role too, so there
+  // is a real super-admin able to grant the other 7 roles via grantAdminRole
+  // once seeding is done. Idempotent via the live-assignment unique index.
+  if (role === "admin") {
+    const [superAdminRole] = await sql`
+      select id from admin_roles where name = 'super_admin' limit 1
+    `;
+    if (superAdminRole) {
+      const [existing] = await sql`
+        select id from admin_role_assignments
+        where user_id = ${userId} and role_id = ${superAdminRole.id} and revoked_at is null
+        limit 1
+      `;
+      if (!existing) {
+        await sql`
+          insert into admin_role_assignments (id, user_id, role_id, granted_by)
+          values (${`ara_seed_${userId}`}, ${userId}, ${superAdminRole.id}, null)
+        `;
+      }
+    }
   }
 
   console.log(`  ${role.padEnd(6)}  ${email}`);
