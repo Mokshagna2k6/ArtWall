@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 
 import { actAs } from "@/test/db-setup";
-import { makeBooking, makeSlots, makeUser, purgeTestData, q } from "@/test/fixtures";
+import { grantTestAdminRole, makeBooking, makeSlots, makeUser, purgeTestData, q } from "@/test/fixtures";
 import { db } from "@/lib/db/index";
 import { pwSlots, walls, wallosSlots } from "@/lib/db/schema";
 import {
@@ -38,6 +38,19 @@ function data<T>(r: Result<T>): T {
 }
 const errorOf = (r: Result<unknown>) => (r.ok ? null : r.error);
 
+/**
+ * FE-3.17: WallOS writes now require the `venue_admin` named role, not just
+ * the broad `admin` (a clean 1:1 mapping, same proof-point pattern as
+ * compliance_admin/curator_admin before it — see wallos/actions.ts's header).
+ * Every fixture admin in this file needs the role actually granted, same as
+ * admin-roles.db.test.ts grants super_admin via this helper.
+ */
+async function makeVenueAdmin() {
+  const admin = await makeUser("admin");
+  await grantTestAdminRole(admin.id, "venue_admin");
+  return admin;
+}
+
 const created: { table: string; id: string }[] = [];
 function track(table: string, id: string) {
   created.push({ table, id });
@@ -57,7 +70,7 @@ afterEach(purgeTestData);
 
 describe("WallOS hierarchy CRUD (BE-3.13)", () => {
   it("admin can create/read/update/delete a full org->venue->building->floor->zone->wall chain", async () => {
-    const admin = await makeUser("admin");
+    const admin = await makeVenueAdmin();
     actAs(admin);
 
     const orgId = track("organizations", data(await createWallosNode("organization", { name: "Test Org" })));
@@ -93,7 +106,7 @@ describe("WallOS hierarchy CRUD (BE-3.13)", () => {
   });
 
   it("rejects a venue with an invalid/non-existent organization id (parent-child integrity)", async () => {
-    actAs(await makeUser("admin"));
+    actAs(await makeVenueAdmin());
     const result = await createWallosNode("venue", { name: "Orphan Venue", parentId: "org_does_not_exist" });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toMatch(/No organization with id/);
@@ -107,14 +120,14 @@ describe("WallOS hierarchy CRUD (BE-3.13)", () => {
   });
 
   it("creating a slot under a non-existent wall is rejected", async () => {
-    actAs(await makeUser("admin"));
+    actAs(await makeVenueAdmin());
     const result = await createWallosSlot({ wallId: "wall_does_not_exist", label: "A1" });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toMatch(/No wall with id/);
   });
 
   it("full chain + slot CRUD, including update and FK-guarded delete", async () => {
-    actAs(await makeUser("admin"));
+    actAs(await makeVenueAdmin());
     const orgId = track("organizations", data(await createWallosNode("organization", { name: "Slot Org" })));
     const venueId = track("venues", data(await createWallosNode("venue", { name: "Slot Venue", parentId: orgId })));
     const bldgId = track("buildings", data(await createWallosNode("building", { name: "Slot Bldg", parentId: venueId })));
@@ -142,7 +155,7 @@ describe("WallOS hierarchy CRUD (BE-3.13)", () => {
   // createWallosSlot's pwSlotId option is the real fix: a fresh unlinked
   // pw_slots row becomes bookable through the hierarchy picker end-to-end.
   it("createWallosSlot(pwSlotId) links a fresh, unlinked pw_slots row into the hierarchy", async () => {
-    actAs(await makeUser("admin"));
+    actAs(await makeVenueAdmin());
     const [pwSlotId] = await makeSlots(1);
 
     const before = await listUnlinkedPwSlots();

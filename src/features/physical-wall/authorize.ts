@@ -242,6 +242,51 @@ export async function requireAdminRole(required: AdminRoleName): Promise<Actor> 
   return actor;
 }
 
+/**
+ * FE-3.17: every named admin role this actor currently holds (live,
+ * unrevoked rows only — same "no caching" reasoning as `hasAdminRole`). Used
+ * to decide which admin-console sections to show/allow, where a single
+ * `hasAdminRole` check per role would mean one query per section per page
+ * render instead of one query total.
+ */
+export async function listOwnAdminRoles(actor: Actor | null): Promise<AdminRoleName[]> {
+  if (!actor) return [];
+  try {
+    const sql = getSql();
+    const rows = (await sql`
+      select r.name from admin_role_assignments a
+      join admin_roles r on r.id = a.role_id
+      where a.user_id = ${actor.id} and a.revoked_at is null
+    `) as { name: string }[];
+    return rows.map((r) => r.name).filter((n): n is AdminRoleName =>
+      (ADMIN_ROLES as readonly string[]).includes(n)
+    );
+  } catch (error) {
+    console.error("[physical-wall] Could not read admin role assignments", error);
+    return [];
+  }
+}
+
+/**
+ * Require *any one* of a set of named admin roles in a **page**, redirecting
+ * if the caller holds none of them. `super_admin` is always accepted
+ * (FE-3.17: the top role sees everything) even if it is not in `allowed`.
+ *
+ * Same "signed out -> sign in, signed in but lacking role -> public wall"
+ * behaviour as `requireRolePage`, since confirming a gated admin section
+ * exists to someone who can't reach it is not useful to them.
+ */
+export async function requireAnyAdminRolePage(
+  allowed: readonly AdminRoleName[],
+  returnTo: string
+): Promise<Actor> {
+  const actor = await requireRolePage("admin", returnTo);
+  const held = await listOwnAdminRoles(actor);
+  const ok = held.includes("super_admin") || allowed.some((role) => held.includes(role));
+  if (!ok) redirect("/physical-wall/admin");
+  return actor;
+}
+
 export class NotAuthorisedAdminRoleError extends Error {
   readonly status = 403;
   constructor(required: AdminRoleName) {
