@@ -11,18 +11,45 @@ import {
   MessageSquareWarning,
   Network,
   ScrollText,
+  ShieldCheck,
   SquareX,
   TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
 
-import { requireRolePage } from "@/features/physical-wall/authorize";
+import {
+  listOwnAdminRoles,
+  requireRolePage,
+  type AdminRoleName,
+} from "@/features/physical-wall/authorize";
 
-const ITEMS = [
+/**
+ * FE-3.17: which of the 8 named admin roles may see each section's nav link.
+ *
+ * `undefined` means the section stays on the broad `requireRole("admin")`
+ * catch-all (docs/policy-engine.md's documented scope decision) — any admin
+ * sees it, same as today. A section listed here has a real, server-enforced
+ * role requirement behind it (its page and/or its write actions call
+ * `requireAdminRole`/`requireAnyAdminRolePage`), so hiding its link for a
+ * role-less admin is not cosmetic: the route itself redirects them away too.
+ * `super_admin` always sees everything — handled once in `visibleItems`
+ * below rather than listed on every row.
+ */
+const ITEMS: {
+  href: string;
+  label: string;
+  icon: typeof TrendingUp;
+  roles?: readonly AdminRoleName[];
+}[] = [
   { href: "/physical-wall/admin", label: "Overview", icon: TrendingUp },
   { href: "/physical-wall/admin/grid", label: "Wall map", icon: LayoutGrid },
-  { href: "/physical-wall/admin/wallos", label: "WallOS hierarchy", icon: Network },
+  {
+    href: "/physical-wall/admin/wallos",
+    label: "WallOS hierarchy",
+    icon: Network,
+    roles: ["venue_admin"],
+  },
   { href: "/physical-wall/admin/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/physical-wall/admin/bookings", label: "Bookings", icon: FileText },
   { href: "/physical-wall/admin/queue", label: "Queue", icon: Users },
@@ -31,9 +58,25 @@ const ITEMS = [
   { href: "/physical-wall/admin/revenue", label: "Revenue", icon: IndianRupee },
   { href: "/physical-wall/admin/moderation", label: "Moderation", icon: ImageIcon },
   { href: "/physical-wall/admin/grievances", label: "Grievances", icon: MessageSquareWarning },
-  { href: "/physical-wall/admin/identity", label: "Identity", icon: IdCard },
-  { href: "/physical-wall/admin/curators", label: "Curators", icon: BadgeCheck },
+  {
+    href: "/physical-wall/admin/identity",
+    label: "Identity",
+    icon: IdCard,
+    roles: ["compliance_admin"],
+  },
+  {
+    href: "/physical-wall/admin/curators",
+    label: "Curators",
+    icon: BadgeCheck,
+    roles: ["curator_admin"],
+  },
   { href: "/physical-wall/admin/audit", label: "Audit log", icon: ScrollText },
+  {
+    href: "/physical-wall/admin/roles",
+    label: "Admin roles",
+    icon: ShieldCheck,
+    roles: ["super_admin"],
+  },
   // The virtual wall's tile takedown console lives outside /physical-wall.
   { href: "/admin", label: "Virtual wall tiles", icon: SquareX },
 ] as const;
@@ -54,11 +97,25 @@ const ITEMS = [
  * `grantAdminRole`, so a user is already an `admin` (and already holds any
  * specific admin_roles role an action further requires) by the time they
  * reach this layout.
+ *
+ * FE-3.17: the nav itself is filtered by the actor's live named admin
+ * roles — a `curator_admin` with no other role sees "Curators" but not
+ * "Identity" or "Admin roles". This is a display convenience, not the real
+ * guard: the gated pages (identity, curators, wallos, roles) each call
+ * `requireAnyAdminRolePage`/`requireAdminRole` themselves, so a hidden link
+ * is also an unreachable route, not just a cosmetic hide. `super_admin`
+ * always sees every item.
  */
 export default async function PhysicalWallAdminLayout({
   children,
 }: LayoutProps<"/physical-wall/admin">) {
   const actor = await requireRolePage("admin", "/physical-wall/admin");
+  const heldRoles = await listOwnAdminRoles(actor);
+  const isSuperAdmin = heldRoles.includes("super_admin");
+  const visibleItems = ITEMS.filter(
+    (item) =>
+      !item.roles || isSuperAdmin || item.roles.some((role) => heldRoles.includes(role))
+  );
 
   return (
     <div className="mx-auto max-w-7xl px-5 pt-24 pb-24 sm:px-8 sm:pt-28">
@@ -70,7 +127,7 @@ export default async function PhysicalWallAdminLayout({
 
           <nav aria-label="Wall management" className="mt-4">
             <ul className="-mx-1 flex gap-1 overflow-x-auto pb-2 lg:mx-0 lg:flex-col lg:overflow-visible lg:pb-0">
-              {ITEMS.map((item) => (
+              {visibleItems.map((item) => (
                 <li key={item.href} className="shrink-0">
                   <Link
                     href={item.href}
