@@ -1,7 +1,7 @@
 import "server-only";
 
 import { revalidateTag, unstable_cache } from "next/cache";
-import { eq, or } from "drizzle-orm";
+import { and, eq, ne, or } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { artistProfiles, artworks, coaCertificates } from "@/lib/db/schema";
@@ -68,6 +68,10 @@ export function cachedCatalog<A extends unknown[], R>(
  * the cache - so one cached copy serves every visitor. A certificate only
  * changes through issue/revoke/mint, which all expire the tag, so the long
  * window (a day) just bounds how long a forgotten writer could leave it stale.
+ *
+ * FE-2.09: a "draft" certificate has never been issued, so its details (and
+ * the fact that it exists at all) are not public yet - excluded here rather
+ * than filtered on the page, so a draft can never reach the client at all.
  */
 export const getCertificateForVerify = cachedCatalog(
   async (hash: string) => {
@@ -92,13 +96,20 @@ export const getCertificateForVerify = cachedCatalog(
         chainId: coaCertificates.chainId,
         metadataUri: coaCertificates.metadataUri,
         ownerWallet: artistProfiles.walletAddress,
+        // On-chain anchor (FE-2.10): null fields mean "not anchored".
+        txHash: coaCertificates.txHash,
       })
       .from(coaCertificates)
       .innerJoin(artworks, eq(coaCertificates.artworkId, artworks.id))
       .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
       // By metadata hash (COA PDFs, artwork pages) or by certificate id: NFT
       // metadata can't embed its own hash, so its external_url uses the id.
-      .where(or(eq(coaCertificates.metadataHash, hash), eq(coaCertificates.id, hash)));
+      .where(
+        and(
+          or(eq(coaCertificates.metadataHash, hash), eq(coaCertificates.id, hash)),
+          ne(coaCertificates.status, "draft")
+        )
+      );
     return cert ?? null;
   },
   "verify",

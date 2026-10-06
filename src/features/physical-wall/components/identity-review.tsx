@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { IDLE } from "@/features/physical-wall/action-state";
 import { getIdentityDocumentUrl, reviewIdentity } from "@/features/physical-wall/actions/identity";
 import {
+  ConfirmStep,
   FormStatus,
   SubmitButton,
   inputClass,
@@ -96,14 +97,20 @@ function ReviewCard({ item }: { item: Item }) {
         <input
           name="note"
           placeholder="Note (optional)"
+          aria-label={`Note for ${item.name} (optional)`}
           className={`${inputClass} max-w-xs`}
         />
         <SubmitButton variant="quiet" name="verdict" value="approved">
           Approve
         </SubmitButton>
-        <SubmitButton variant="danger" name="verdict" value="rejected">
-          Reject
-        </SubmitButton>
+        <ConfirmStep
+          label="Reject"
+          warning={`Reject ${item.name}'s identity document? They will have to submit a new one.`}
+        >
+          <SubmitButton variant="danger" name="verdict" value="rejected">
+            Confirm reject
+          </SubmitButton>
+        </ConfirmStep>
       </form>
       <FormStatus state={state} />
     </article>

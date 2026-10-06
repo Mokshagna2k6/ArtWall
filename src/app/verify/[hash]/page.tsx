@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { cache } from "react";
 import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 
 import { CertificateMintPanel } from "@/components/blockchain/certificate-mint-panel";
@@ -18,10 +20,10 @@ const loadTimeline = cachedCatalog(getProvenanceTimeline, "provenance", 3600);
 
 /**
  * coa_certificates.status (CHECK 0015) → what a stranger checking the work
- * should read. Only "revoked" may say revoked; a draft was never issued.
+ * should read. "draft" never appears here: getCertificateForVerify excludes
+ * it, so an unissued certificate 404s like any other unknown hash (FE-2.09).
  */
 const STATUS: Record<string, { label: string; tone: "ok" | "warn" | "bad" }> = {
-  draft: { label: "Not issued (draft)", tone: "warn" },
   issued: { label: "Issued", tone: "ok" },
   revoked: { label: "Revoked", tone: "bad" },
   metadata_pinned: { label: "Issued · not yet minted", tone: "ok" },
@@ -35,10 +37,26 @@ const TONE = {
   bad: "text-red-700 bg-red-500",
 };
 
-export const metadata: Metadata = {
-  title: "Verify Certificate",
-  description: "Verify an ArtWall Certificate of Authenticity",
-};
+// Hashes are hex digests and ids are short tokens; anything else is not worth a query.
+// Cached per-request so generateMetadata and the page body share one lookup.
+const load = cache((hash: string) =>
+  /^[\w-]{1,128}$/.test(hash) ? verifyCertificateByHash(hash) : Promise.resolve(null)
+);
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ hash: string }>;
+}): Promise<Metadata> {
+  const cert = await load((await params).hash);
+  if (!cert) return { title: "Certificate not found", robots: { index: false } };
+  return {
+    title: `Verify: ${cert.artworkTitle} · ${cert.artistName}`,
+    description: `Certificate of Authenticity for ${cert.artworkTitle} by ${cert.artistName} on ArtWall.`,
+    // Only an issued, non-revoked certificate is worth indexing.
+    robots: { index: cert.status !== "revoked" },
+  };
+}
 
 export default async function VerifyPage({
   params,
@@ -46,19 +64,9 @@ export default async function VerifyPage({
   params: Promise<{ hash: string }>;
 }) {
   const { hash } = await params;
-  const cert = await verifyCertificateByHash(hash);
-
-  if (!cert) {
-    return (
-      <main className="mx-auto max-w-2xl px-6 py-24 text-center">
-        <h1 className="text-display font-heading">Certificate not found</h1>
-        <p className="text-ink-muted mt-4">
-          No certificate matches this hash. The work may not have been certified
-          on ArtWall, or the hash may be incorrect.
-        </p>
-      </main>
-    );
-  }
+  const cert = await load(hash);
+  // A real 404 (status code too, see not-found.tsx) for an unknown or draft hash.
+  if (!cert) notFound();
 
   const timeline = await loadTimeline(cert.artworkId);
   const status = STATUS[cert.status] ?? {
@@ -177,6 +185,41 @@ export default async function VerifyPage({
         </div>
       )}
 
+      <section className="mt-10" aria-labelledby="chain-heading">
+        <h2 id="chain-heading" className="text-section font-heading">
+          On-chain verification
+        </h2>
+        {cert.txHash && cert.tokenId ? (
+          <dl className="mt-3 grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <dt className="text-ink-muted">Token ID</dt>
+              <dd className="font-mono text-xs">{cert.tokenId}</dd>
+            </div>
+            {cert.chainId && (
+              <div>
+                <dt className="text-ink-muted">Chain ID</dt>
+                <dd>{cert.chainId}</dd>
+              </div>
+            )}
+            {cert.contractAddr && (
+              <div className="col-span-2">
+                <dt className="text-ink-muted">Contract</dt>
+                <dd className="break-all font-mono text-xs">{cert.contractAddr}</dd>
+              </div>
+            )}
+            <div className="col-span-2">
+              <dt className="text-ink-muted">Transaction</dt>
+              <dd className="break-all font-mono text-xs">{cert.txHash}</dd>
+            </div>
+          </dl>
+        ) : (
+          <p className="text-ink-muted mt-3 text-sm">
+            Not anchored on-chain. This certificate is an authentic ArtWall record,
+            but it has not been minted as an NFT yet.
+          </p>
+        )}
+      </section>
+
       {timeline.length > 0 && (
         <section className="mt-12">
           <h2 className="text-section font-heading">Provenance</h2>
@@ -204,7 +247,7 @@ export default async function VerifyPage({
           </h2>
           <div className="mt-4">
             <WalletProviders>
-              <CertificateMintPanel certificateId={cert.id} />
+              <CertificateMintPanel certificateId={cert.id} initialStatus={cert.status} />
             </WalletProviders>
           </div>
         </section>

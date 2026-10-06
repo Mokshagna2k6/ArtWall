@@ -8,6 +8,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/index";
 import { artTags, artTagScans, artworks, artistProfiles, provenanceEvents } from "@/lib/db/schema";
+import { clientIp, limitRequest } from "@/lib/rate-limit";
 import {
   attempt,
   parseInput,
@@ -41,8 +42,6 @@ const createTagSchema = z
   );
 const scanSchema = z.object({
   tagUid: z.string().trim().min(1).max(128),
-  ip: z.string().max(64).optional(),
-  ua: z.string().max(512).optional(),
   // BC-3.09: present only for an 'nfc' tag's SUN message — the NTAG424's
   // SDM-appended picc_data/cmac query params, hex-encoded.
   piccData: z.string().trim().regex(/^[0-9a-fA-F]*$/).optional(),
@@ -206,19 +205,19 @@ export async function unbindTag(tagId: string): Promise<Result> {
  *   - 'qr' tags: `tagUid` (really a signed Ed25519 token minted by
  *     createTag, see qr-signing.ts) must verify; a plain unsigned string no
  *     longer resolves to anything (BC-3.11).
+ *
+ * Takes no caller-supplied ip/ua (those were spoofable client input on a
+ * public action) and reads the request itself. A scan counts at most once per
+ * IP per tag per 10 minutes, so a reload or a scripted loop cannot inflate
+ * scan_count (FE-2.11 cleanup, same commit as the privacy fix below).
  */
-export async function resolveTagScan(
-  tagUid: string,
-  ip?: string,
-  ua?: string,
-  sun?: { piccData?: string; cmac?: string },
-) {
+export async function resolveTagScan(tagUid: string, sun?: { piccData?: string; cmac?: string }) {
   return readSafely("resolveTagScan", null, () =>
-    recordScan(parseInput(scanSchema, { tagUid, ip, ua, piccData: sun?.piccData, cmac: sun?.cmac })),
+    recordScan(parseInput(scanSchema, { tagUid, piccData: sun?.piccData, cmac: sun?.cmac })),
   );
 }
 
-async function recordScan({ tagUid, ip, ua, piccData, cmac }: z.infer<typeof scanSchema>) {
+async function recordScan({ tagUid, piccData, cmac }: z.infer<typeof scanSchema>) {
   const [tag] = await db
     .select({
       id: artTags.id,
@@ -257,22 +256,38 @@ async function recordScan({ tagUid, ip, ua, piccData, cmac }: z.infer<typeof sca
     if (!verdict.ok) return null;
   }
 
-  await db.insert(artTagScans).values({
-    id: newId("tscan"),
-    tagId: tag.id,
-    ipAddress: ip ?? null,
-    userAgent: ua ?? null,
-  });
+  const h = await headers();
+  const fresh = await limitRequest(
+    `tag-scan:${tag.id}`,
+    { limit: 1, windowMs: 10 * 60 * 1000 },
+    null,
+    h
+  );
+  if (fresh.ok) {
+    await db.insert(artTagScans).values({
+      id: newId("tscan"),
+      tagId: tag.id,
+      ipAddress: clientIp(h),
+      userAgent: h.get("user-agent")?.slice(0, 512) ?? null,
+    });
+    await db
+      .update(artTags)
+      .set({ scanCount: sql`scan_count + 1` })
+      .where(eq(artTags.id, tag.id));
+  }
 
-  await db
-    .update(artTags)
-    .set({
-      scanCount: sql`scan_count + 1`,
-      ...(verifiedCounter !== null ? { sunCounterLastSeen: verifiedCounter } : {}),
-    })
-    .where(eq(artTags.id, tag.id));
+  // BC-3.09: persist the verified SUN counter on every successful
+  // verification (not just the rate-limited/"counted" scans above) — the
+  // anti-replay guarantee depends on this always advancing, independent of
+  // whether this particular scan bumped the user-facing scan_count.
+  if (verifiedCounter !== null) {
+    await db
+      .update(artTags)
+      .set({ sunCounterLastSeen: verifiedCounter })
+      .where(eq(artTags.id, tag.id));
+  }
 
-  if (!tag.artworkId) return { tagId: tag.id, artworkId: null };
+  if (!tag.artworkId) return { tagId: tag.id, artwork: null };
 
   const [artwork] = await db
     .select({
@@ -295,5 +310,9 @@ async function recordScan({ tagUid, ip, ua, piccData, cmac }: z.infer<typeof sca
       )
     );
 
-  return { tagId: tag.id, artwork: artwork ?? null, private: !artwork };
+  // FE-2.11: a bound-but-private work and an unbound tag must look identical
+  // to the caller — neither "artwork" nor "owner" is revealed either way, so
+  // the `private` flag that used to distinguish them is gone. The page shows
+  // one generic message for both.
+  return { tagId: tag.id, artwork: artwork ?? null };
 }
