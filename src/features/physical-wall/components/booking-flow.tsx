@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, Circle, CheckCircle2 } from "lucide-react";
 
@@ -83,6 +89,17 @@ export function BookingFlow({
   const [pricing, startPricing] = useTransition();
 
   const [state, formAction] = useActionState(reserveBooking, IDLE);
+
+  // Moving between steps swaps the whole panel; send focus to the new step's
+  // heading so keyboard and screen-reader users land on it (FE-2.18). Skipped
+  // on first render so the page doesn't steal focus on load.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const shownStep = useRef(step);
+  useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    headingRef.current?.focus();
+  }, [step]);
 
   // Re-price whenever the basket changes. The empty-basket case is derived in
   // render rather than cleared here — a setState called synchronously inside an
@@ -172,7 +189,7 @@ export function BookingFlow({
         <div className="border-hairline min-w-0 rounded-md border p-5 sm:p-6">
           {step === 1 && (
             <section>
-              <h2 className="font-heading text-section">Choose your position</h2>
+              <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">Choose your position</h2>
               <p className="text-ink-muted mt-2 text-sm leading-6">
                 {available} of {slots.length} slots open. Each is drawn at its
                 real proportions — prices are per day, before duration discounts.
@@ -192,7 +209,7 @@ export function BookingFlow({
 
           {step === 2 && (
             <section>
-              <h2 className="font-heading text-section">How long for?</h2>
+              <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">How long for?</h2>
               <p className="text-ink-muted mt-2 text-sm leading-6">
                 Longer stays cost less per day.
               </p>
@@ -245,7 +262,7 @@ export function BookingFlow({
 
           {step === 3 && (
             <section>
-              <h2 className="font-heading text-section">What are you hanging?</h2>
+              <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">What are you hanging?</h2>
               <p className="text-ink-muted mt-2 text-sm leading-6">
                 You can decide later — but the work has to be attached before a
                 staff member can install it.
@@ -287,7 +304,7 @@ export function BookingFlow({
 
           {step === 4 && (
             <section>
-              <h2 className="font-heading text-section">Anything else?</h2>
+              <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">Anything else?</h2>
               <p className="text-ink-muted mt-2 text-sm leading-6">
                 Optional. Priced as one-off items, not per day or per slot.
               </p>
@@ -337,7 +354,7 @@ export function BookingFlow({
 
           {step === 5 && (
             <section>
-              <h2 className="font-heading text-section">
+              <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">
                 The exhibition agreement
               </h2>
               <p className="text-ink-muted mt-2 text-sm leading-6">
@@ -422,7 +439,7 @@ export function BookingFlow({
               </button>
             ) : (
               <div className="flex flex-col items-end gap-2">
-                <SubmitButton>
+                <SubmitButton disabled={!canContinue}>
                   Sign and hold{" "}
                   {shownQuote ? `· ${formatINR(shownQuote.totalPaise)}` : ""}
                 </SubmitButton>
