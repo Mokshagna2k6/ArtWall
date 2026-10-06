@@ -9,6 +9,7 @@ import {
   IndianRupee,
   LayoutGrid,
   MessageSquareWarning,
+  Network,
   ScrollText,
   SquareX,
   TrendingUp,
@@ -21,6 +22,7 @@ import { requireRolePage } from "@/features/physical-wall/authorize";
 const ITEMS = [
   { href: "/physical-wall/admin", label: "Overview", icon: TrendingUp },
   { href: "/physical-wall/admin/grid", label: "Wall map", icon: LayoutGrid },
+  { href: "/physical-wall/admin/wallos", label: "WallOS hierarchy", icon: Network },
   { href: "/physical-wall/admin/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/physical-wall/admin/bookings", label: "Bookings", icon: FileText },
   { href: "/physical-wall/admin/queue", label: "Queue", icon: Users },
