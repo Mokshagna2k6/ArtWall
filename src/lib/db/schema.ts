@@ -25,6 +25,10 @@ export const user = pgTable("user", {
   verificationMethod: text("verificationMethod"),
   /** Set when a pw_identity_verifications review is approved (0009). Payout gate. */
   identityVerified: boolean("identity_verified").notNull().default(false),
+  /** unverified | pending | approved | rejected (DB-3.01, 0052). Same write
+   *  path as identityVerified (reviewIdentity); this is the graded status,
+   *  identityVerified stays the simple payout-gate boolean. */
+  artistVerificationStatus: text("artist_verification_status").notNull().default("unverified"),
   /** Self-declared 18+. Null means not yet asked (DPDP §5.4). */
   ageDeclaredAdult: boolean("ageDeclaredAdult"),
   onboardedAt: timestamp("onboardedAt", { withTimezone: true }),
@@ -94,6 +98,11 @@ export const artworks = pgTable("artworks", {
   description: text("description"),
   dimensions: text("dimensions"),
   status: text("status").notNull().default("available"),
+  /** Orthogonal status domains (DB-3.03, 0047). status above is untouched. */
+  lifecycleStatus: text("lifecycle_status").notNull().default("draft"),
+  commerceStatus: text("commerce_status").notNull().default("unlisted"),
+  exhibitionStatus: text("exhibition_status").notNull().default("not_exhibited"),
+  custodyStatus: text("custody_status").notNull().default("with_artist"),
   imageUrl: text("imageUrl"),
   imagePublicId: text("imagePublicId"),
   isPublic: boolean("isPublic").notNull().default(true),
@@ -621,6 +630,8 @@ export const pwAuditLog = pgTable("pw_audit_log", {
   before: jsonb("before"),
   after: jsonb("after"),
   at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  /** SEC-2.11 (0044): the caller's IP, when written from a request context. */
+  actorIp: text("actor_ip"),
 });
 
 /* ── Production readiness (migration 0009) ──────────────────────────────────── */
@@ -747,6 +758,15 @@ export const pwSearchLog = pgTable("pw_search_log", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// SEC-2.08: docCloudinaryId must be uploaded with Cloudinary's
+// `type: "authenticated"` (a private asset type, not the default public
+// `type: "upload"` every other image path here uses) - requestIdentityUploadSignature
+// in src/features/physical-wall/actions/identity.ts already signs for this,
+// ready for whoever wires up the submission action that writes this table
+// (none exists yet, only admin review). Viewing an existing row's document
+// goes through getIdentityDocumentUrl in the same file: owner-or-admin gated,
+// mints a short-lived Cloudinary-signed URL, and calls recordAudit for the
+// view. See src/features/physical-wall/components/identity-review.tsx.
 export const pwIdentityVerifications = pgTable("pw_identity_verifications", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
@@ -795,6 +815,8 @@ export const coaCertificates = pgTable("coa_certificates", {
    *               metadata_pinned | minting | minted | failed  (NFT mint flow)
    */
   status: text("status").notNull().default("draft"),
+  /** 0-3, DB-3.02. Real stored state, backfilled from status (0046). */
+  coaLevel: integer("coa_level").notNull().default(0),
   issuedAt: timestamp("issued_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   revokeReason: text("revoke_reason"),
@@ -878,6 +900,17 @@ export const exhibitionArtworks = pgTable("exhibition_artworks", {
   displayOrder: integer("display_order").notNull().default(0),
 }, (t) => [primaryKey({ columns: [t.exhibitionId, t.artworkId] })]);
 
+/** Append-only audit trail of every exhibition lifecycle move (BE-3.08, 0051). */
+export const exhibitionTransitions = pgTable("exhibition_transitions", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  exhibitionId: text("exhibition_id").notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  actorId: text("actor_id"),
+  note: text("note"),
+  transitionedAt: timestamp("transitioned_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const curators = pgTable("curators", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
@@ -906,6 +939,55 @@ export const artTags = pgTable("art_tags", {
   boundBy: text("bound_by"),
   boundAt: timestamp("bound_at", { withTimezone: true }),
   scanCount: integer("scan_count").notNull().default(0),
+  /** Opaque KMS key reference for this tag's diversified AES-128 keys
+   *  (BC-3.10, DB-3.11). Null for 'qr' tags (they use the Ed25519 signing
+   *  key instead). Never raw key material — see src/lib/blockchain/kms.ts. */
+  keyReference: text("key_reference"),
+  /** Replay-rejection high-water mark: the highest NTAG424 SDM read counter
+   *  this server has accepted for this tag (BC-3.09). */
+  sunCounterLastSeen: integer("sun_counter_last_seen"),
+  /** Provisioning/binding lifecycle: unprovisioned | provisioned | bound |
+   *  revoked (DB-3.11 originally shipped unbound|bound|revoked; BC-3.13
+   *  needed to distinguish "row exists, no KMS key yet" from "KMS key
+   *  issued, not yet bound" — widened in 0055, see that migration's header
+   *  for the reconciliation). */
+  bindingStatus: text("binding_status").notNull().default("unprovisioned"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** 0-3, generated from binding_status/key_reference/sun_counter_last_seen
+   *  on this same row (DB-3.01, 0052). Read-only — Postgres computes it, this
+   *  is a plain column decl for typed reads only, never written from here. */
+  bindingLevel: integer("binding_level"),
+});
+
+/* ── PolicyEngine (Phase 3) ───────────────────────────────────────────────── */
+
+/** Append-only audit trail of PolicyEngine gate calls (BE-3.06). */
+export const policyDecisions = pgTable("policy_decisions", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  gate: text("gate").notNull(),
+  subjectType: text("subject_type").notNull(),
+  subjectId: text("subject_id"),
+  actorId: text("actor_id"),
+  allowed: boolean("allowed").notNull(),
+  reasons: jsonb("reasons").notNull().default([]),
+  inputs: jsonb("inputs").notNull().default({}),
+  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Versioned commission/royalty rates (BE-3.09, BE-3.10). Only one row per
+ * `kind` may be `active` (partial unique index in the migration). A
+ * transaction reads the active row's id at the moment it runs and stores that
+ * id on the ledger entry it produces, so a later rate change never re-prices
+ * a past transaction.
+ */
+export const commissionPolicies = pgTable("commission_policies", {
+  id: text("id").primaryKey(),
+  kind: text("kind").notNull(),
+  rateBps: integer("rate_bps").notNull(),
+  active: boolean("active").notNull().default(false),
+  note: text("note"),
+  createdBy: text("created_by"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -916,4 +998,95 @@ export const artTagScans = pgTable("art_tag_scans", {
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   location: jsonb("location"),
+});
+
+/* ── Database Phase 3 additions (0044-0049) ─────────────────────────────── */
+
+/** Versioned whole-transaction commission split (DB-3.04, 0044). Immutable once effective. */
+export const commissionPolicyVersions = pgTable("commission_policy_versions", {
+  id: text("id").primaryKey(),
+  version: integer("version").notNull(),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+  effectiveTo: timestamp("effective_to", { withTimezone: true }),
+  platformBps: integer("platform_bps").notNull(),
+  artistBps: integer("artist_bps").notNull(),
+  curatorBps: integer("curator_bps").notNull(),
+  venueBps: integer("venue_bps").notNull(),
+  royaltyBps: integer("royalty_bps").notNull(),
+  note: text("note"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Demand Engine (DB-3.14, 0045). Append-only event log. */
+export const demandSignals = pgTable("demand_signals", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  artworkId: text("artwork_id").notNull(),
+  signalType: text("signal_type").notNull(),
+  weight: integer("weight").notNull(),
+  value: integer("value").notNull().default(1),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Demand Engine aggregate (DB-3.14, 0045), upserted by the aggregation job. */
+export const demandAggregates = pgTable("demand_aggregates", {
+  artworkId: text("artwork_id").primaryKey(),
+  score: integer("score").notNull().default(0),
+  thresholdCrossedAt: timestamp("threshold_crossed_at", { withTimezone: true }),
+  computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Escrow (DB-3.09, 0049). Linked to pw_bookings (this codebase's "order"). */
+export const escrowHolds = pgTable("escrow_holds", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  amountPaise: integer("amount_paise").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const escrowReleases = pgTable("escrow_releases", {
+  id: text("id").primaryKey(),
+  escrowHoldId: text("escrow_hold_id").notNull(),
+  ledgerId: text("ledger_id"),
+  amountPaise: integer("amount_paise").notNull(),
+  releasedTo: text("released_to"),
+  releasedAt: timestamp("released_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Admin roles (DB-3.10, 0049): the 8 Bible roles + user assignment + audit trail. */
+export const adminRoles = pgTable("admin_roles", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+});
+
+export const adminRoleAssignments = pgTable("admin_role_assignments", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  roleId: text("role_id").notNull(),
+  grantedBy: text("granted_by"),
+  grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedBy: text("revoked_by"),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
+/** Shipments (DB-3.15, 0049), for Shiprocket. */
+export const shipments = pgTable("shipments", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id"),
+  provider: text("provider").notNull().default("shiprocket"),
+  providerShipmentId: text("provider_shipment_id"),
+  status: text("status").notNull().default("created"),
+  trackingUrl: text("tracking_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const shipmentEvents = pgTable("shipment_events", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  shipmentId: text("shipment_id").notNull(),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").notNull().default({}),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -35,6 +35,12 @@ const STAND_INS = {
   // SEC-1.13 gates every physical-wall action/route on this flag; the whole
   // suite exercises that feature, so it must read as on with no .env (CI).
   PHYSICAL_WALL_ENABLED: "true",
+  // BC-3.11: createTag's 'qr' path signs every QR token with this KMS-held
+  // Ed25519 seed (qr-signing.ts refuses to run with none set, by design —
+  // never a hardcoded fallback in app code). A fixed 32-byte hex stand-in is
+  // fine here: no real token verification depends on signature continuity
+  // across test runs, same spirit as MINT_SIGNER_PRIVATE_KEY below.
+  QR_SIGNING_ED25519_SEED: "11".repeat(32),
 };
 const fromProcess = Object.fromEntries(
   Object.keys(STAND_INS).flatMap((k) => (process.env[k] ? [[k, process.env[k]]] : []))

@@ -1,12 +1,36 @@
 import { NextResponse } from "next/server";
 
 import { features } from "@/config/site";
+import { alertAdmins } from "@/features/physical-wall/notifications";
 import { settleFromWebhook } from "@/features/physical-wall/settlement";
 import { validateRazorpayConfig, verifyWebhookSignature } from "@/features/physical-wall/razorpay";
+import { getSql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
 validateRazorpayConfig();
+
+/**
+ * Uptime check (PERF-3.02). The webhook itself is POST-only and signature
+ * gated, so an external uptime monitor has nothing to poll — this GET is that
+ * endpoint. Checks the one dependency this route actually needs (the
+ * database) plus that Razorpay config is present; either failing means the
+ * POST handler would also fail, so this is a true "is this route up" signal,
+ * not just "is the server running".
+ */
+export async function GET() {
+  if (!features.physicalWall) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    await getSql()`select 1`;
+  } catch (error) {
+    console.error("[physical-wall] Webhook health check: database unreachable", error);
+    return NextResponse.json({ status: "down", reason: "database" }, { status: 503 });
+  }
+  if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
+    return NextResponse.json({ status: "down", reason: "config" }, { status: 503 });
+  }
+  return NextResponse.json({ status: "ok" });
+}
 
 /**
  * Razorpay webhook (F17).
@@ -28,10 +52,20 @@ validateRazorpayConfig();
  *    the payment id on pw_payments.payment_id (unique); both are checked under
  *    the booking's row lock, so a redelivery — sequential or concurrent — is a
  *    no-op rather than a second payment or ledger entry.
+ *  - **Replay window (SEC-2.14).** A signature alone proves the body was signed
+ *    by Razorpay at *some* point — it says nothing about *when*. A captured
+ *    signed payload replayed a year later would still verify and would still
+ *    settle (the event/payment id dedup only catches a SECOND delivery of an
+ *    event we already recorded, not a first-looking delivery of an old,
+ *    previously-unprocessed one). Razorpay's own payload carries a top-level
+ *    unix `created_at`; requests outside a tight window of "now" are rejected
+ *    before touching the database.
  *  - **Always 200 on a handled event.** A non-2xx makes Razorpay retry, which
  *    is right for a transient failure and wrong for "we already have this" or
  *    "this event isn't one we care about".
  */
+const WEBHOOK_REPLAY_WINDOW_SECONDS = 5 * 60;
+
 export async function POST(request: Request) {
   if (!features.physicalWall) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const rawBody = await request.text();
@@ -46,6 +80,7 @@ export async function POST(request: Request) {
 
   let event: {
     event?: string;
+    created_at?: number;
     payload?: {
       payment?: {
         entity?: {
@@ -63,6 +98,21 @@ export async function POST(request: Request) {
     event = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "unparseable body" }, { status: 400 });
+  }
+
+  // SEC-2.14: reject a signed payload whose own `created_at` is not within a
+  // tight window of now, in either direction. Caught *after* signature
+  // verification (so a forged/garbage timestamp from a non-Razorpay sender
+  // never reaches this check) and before any booking lookup or settlement.
+  if (typeof event.created_at === "number") {
+    const ageSeconds = Math.abs(Date.now() / 1000 - event.created_at);
+    if (ageSeconds > WEBHOOK_REPLAY_WINDOW_SECONDS) {
+      console.warn("[physical-wall] Rejected a Razorpay webhook outside the replay window", {
+        createdAt: event.created_at,
+        ageSeconds,
+      });
+      return NextResponse.json({ error: "stale event" }, { status: 401 });
+    }
   }
 
   // Only captures move money. `payment.authorized` means funds are held, not
@@ -114,6 +164,15 @@ export async function POST(request: Request) {
     // A 500 here is deliberate: it asks Razorpay to retry, which is what we
     // want when our own database was briefly unavailable.
     console.error("[physical-wall] Could not settle webhook", error);
+    // PERF-3.01: alert on webhook failure. Deduped per payment id, so a burst
+    // of Razorpay retries for the same failing payment pages once, not per
+    // retry; a different payment id (i.e. the failure is spreading, not one
+    // stuck payment) pages again.
+    await alertAdmins(
+      `webhook.razorpay.failed:${payment.id}`,
+      "Razorpay webhook settlement failed",
+      `payment ${payment.id} (order ${payment.order_id ?? "?"}): ${error instanceof Error ? error.message : String(error)}`
+    );
     return NextResponse.json({ error: "could not settle" }, { status: 500 });
   }
 }

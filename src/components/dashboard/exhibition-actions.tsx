@@ -8,6 +8,8 @@ import {
   createExhibition,
   publishExhibition,
 } from "@/features/exhibitions/actions";
+import type { Decision } from "@/features/policy/engine";
+import { REASON_COPY } from "@/features/policy/reason-codes";
 
 function useAction() {
   const router = useRouter();
@@ -81,16 +83,41 @@ export function ExhibitionControls({
   exhibitionId,
   status,
   artworks,
+  memberArtworks = [],
+  eligibility = {},
 }: {
   exhibitionId: string;
   status: string;
   /** The artist's works not yet in this exhibition. */
   artworks: { id: string; title: string }[];
+  /** Works already added to this exhibition. */
+  memberArtworks?: { id: string; title: string }[];
+  /** FE-3.05/3.11: the real `canExhibit` decision per member artwork, fetched
+   *  from the server — never computed here. */
+  eligibility?: Record<string, Decision>;
 }) {
   const { pending, error, run } = useAction();
   const [artworkId, setArtworkId] = useState("");
+  const notEligible = memberArtworks.filter((a) => eligibility[a.id] && !eligibility[a.id].allow);
   return (
     <div className="mt-4 flex flex-col gap-3">
+      {/* FE-3.05/3.11: why an artwork isn't exhibitable yet (binding missing,
+          provenance missing), from the real PolicyEngine reason codes. */}
+      {notEligible.length > 0 && (
+        <div className="border-studio-border rounded-xl border border-dashed p-3">
+          <p className="text-studio-muted text-xs font-medium">
+            Not eligible to exhibit yet
+          </p>
+          <ul className="text-studio-muted mt-1.5 flex flex-col gap-1 text-xs">
+            {notEligible.map((a) => (
+              <li key={a.id}>
+                <span className="font-medium">{a.title}</span>:{" "}
+                {eligibility[a.id].reasons.map((r) => REASON_COPY[r]).join(" ")}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {artworks.length > 0 && (
         <div className="flex flex-wrap gap-2">
           <select
@@ -126,7 +153,12 @@ export function ExhibitionControls({
         <button
           type="button"
           className="studio-button self-start"
-          disabled={pending}
+          disabled={pending || notEligible.length > 0}
+          title={
+            notEligible.length > 0
+              ? "Resolve the eligibility issues above before publishing."
+              : undefined
+          }
           onClick={() =>
             run(() => publishExhibition(exhibitionId), "Could not publish.")
           }

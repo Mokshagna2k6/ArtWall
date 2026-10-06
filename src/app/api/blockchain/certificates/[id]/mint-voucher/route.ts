@@ -1,26 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { z } from "zod";
-import { isAddress, getAddress } from "viem";
+import { getAddress } from "viem";
 import { eq, and } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { expireCatalog } from "@/lib/catalog-cache";
-import { coaCertificates } from "@/lib/db/schema";
+import { coaCertificates, artistProfiles } from "@/lib/db/schema";
 import { getApiUser } from "@/lib/blockchain/auth";
 import { apiError, handleRouteError, requestId } from "@/lib/blockchain/http";
 import { limitRequest, tooManyRequests } from "@/lib/rate-limit";
 import { newVoucherNonce, signMintVoucher } from "@/lib/blockchain/mint-voucher";
+import { getActiveCommissionPolicy } from "@/features/policy/commission";
+import { canMint } from "@/features/policy/engine";
+import { logPolicyDecision } from "@/features/policy/log";
+import { loadTrustDimensions } from "@/features/policy/trust";
+import { limitPolicyOperation } from "@/features/policy/rate-limit";
+import { getActor } from "@/features/physical-wall/authorize";
+import { recordAudit } from "@/features/physical-wall/audit";
 
 export const runtime = "nodejs";
 
-const bodySchema = z.object({
-  to: z.string().refine(isAddress, "invalid address"),
-  royaltyReceiver: z.string().refine(isAddress, "invalid address"),
-  royaltyFeeBps: z.number().int().min(0).max(10_000),
-});
+const WALLET_RE = /^0x[0-9a-fA-F]{40}$/;
 
 export async function POST(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const reqId = requestId();
@@ -33,6 +35,15 @@ export async function POST(
     // is generous; beyond that someone is farming signatures.
     const rl = await limitRequest("mint-voucher", { limit: 10, windowMs: 60 * 60 * 1000 }, user.id);
     if (!rl.ok) return tooManyRequests(rl, { error: { code: "rate_limited", reqId } });
+
+    // PERF-3.03: the PolicyEngine-gated per-role mint limit, separate bucket
+    // from the per-endpoint one above (that one caps voucher-signing retries
+    // regardless of role; this one is the role-aware ceiling on the
+    // PolicyEngine operation itself, same shape as every other rate-limited
+    // call site).
+    const role = (await getActor())?.role ?? "visitor";
+    const policyRl = await limitPolicyOperation("mint", role, user.id);
+    if (!policyRl.ok) return tooManyRequests(policyRl, { error: { code: "rate_limited", reqId } });
 
     const { id } = await params;
     const [cert] = await db
@@ -52,16 +63,60 @@ export async function POST(
     if (cert.status === "revoked" || cert.status === "issued") {
       return apiError("conflict", { reqId, details: `cannot mint a ${cert.status} certificate` });
     }
+    // BC-1.17: at most one active (unexpired) voucher per certificate. The
+    // voucher's own on-chain deadline is the expiry; a certificate already
+    // sitting in 'minting' has a voucher in flight (recorded via PATCH after
+    // signing) and must not get a second, independent one.
+    if (cert.status === "minting") {
+      return apiError("conflict", { reqId, details: "a mint is already in progress for this certificate" });
+    }
 
-    const { to, royaltyReceiver, royaltyFeeBps } = bodySchema.parse(await req.json());
+    // BE-3.03/BE-3.05: the PolicyEngine gate, reading from the five real trust
+    // dimensions (never a collapsed status shortcut).
+    const trust = await loadTrustDimensions(cert.artworkId);
+    const decision = canMint({ trust, alreadyMinted: cert.status === "minted" });
+    await logPolicyDecision({
+      gate: "canMint",
+      subjectType: "certificate",
+      subjectId: id,
+      actorId: user.id,
+      decision,
+      inputs: { trust, alreadyMinted: cert.status === "minted" },
+    });
+    if (!decision.allow) {
+      return apiError("conflict", {
+        reqId,
+        details: `not eligible to mint: ${decision.reasons.join(", ")}`,
+      });
+    }
+
+    // BC-1.15: recipient and royalty receiver come from verified DB state only
+    // (the certificate owner's own registered wallet) — never from the
+    // request body, which a client fully controls.
+    const [profile] = await db
+      .select({ walletAddress: artistProfiles.walletAddress })
+      .from(artistProfiles)
+      .where(eq(artistProfiles.userId, user.id));
+
+    const wallet = profile?.walletAddress?.trim() ?? "";
+    if (!WALLET_RE.test(wallet) || /^0x0{40}$/.test(wallet)) {
+      return apiError("conflict", { reqId, details: "connect a wallet before minting" });
+    }
+    const to = getAddress(wallet);
+    const royaltyReceiver = to; // same wallet receives the token and its royalties
+
+    // BC-1.16: royalty bps from the real commission policy, never the request
+    // body — a client cannot raise it, and the on-chain contract also caps it
+    // (ArtwallCOA.MAX_ROYALTY_BPS) as a second line of defence.
+    const { rateBps: royaltyFeeBps } = await getActiveCommissionPolicy("mint_royalty");
 
     const nonce = newVoucherNonce();
     const deadline = Math.floor(Date.now() / 1000) + 30 * 60;
 
     const { voucher, signature } = await signMintVoucher({
-      to: getAddress(to),
+      to,
       uri: cert.metadataUri,
-      royaltyReceiver: getAddress(royaltyReceiver),
+      royaltyReceiver,
       royaltyFeeBps,
       nonce,
       deadline,
@@ -73,14 +128,17 @@ export async function POST(
       .where(eq(coaCertificates.id, id));
     expireCatalog();
 
-    return NextResponse.json({
-      voucher: {
-        ...voucher,
-        royaltyFeeBps: voucher.royaltyFeeBps,
-        deadline: voucher.deadline,
-      },
-      signature,
+    // SEC-2.11: a mint voucher is a server signature authorising an on-chain
+    // mint — accountable the same way a refund or role grant is.
+    await recordAudit({
+      actor: user,
+      action: "certificate.mint_voucher_issued",
+      subjectType: "coa_certificate",
+      subjectId: id,
+      after: { to, royaltyReceiver, royaltyFeeBps, nonce, deadline },
     });
+
+    return NextResponse.json({ voucher, signature });
   } catch (err) {
     return handleRouteError(err, { route: "POST /api/blockchain/certificates/[id]/mint-voucher", reqId });
   }

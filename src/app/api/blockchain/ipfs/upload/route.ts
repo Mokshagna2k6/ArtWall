@@ -2,19 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { pinata } from "@/lib/blockchain/pinata";
 import { getApiUser } from "@/lib/blockchain/auth";
 import { apiError, handleRouteError, requestId } from "@/lib/blockchain/http";
+import { sniffImageType } from "@/lib/blockchain/file-sniff";
 import { limitRequest, tooManyRequests } from "@/lib/rate-limit";
+import { verifyCid } from "@/lib/blockchain/cid";
 
 export const runtime = "nodejs";
 
 const MAX_BYTES = 25 * 1024 * 1024;
-const ALLOWED_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "image/tiff",
-  "image/avif",
-]);
 
 export async function POST(req: NextRequest) {
   const reqId = requestId();
@@ -33,11 +27,31 @@ export async function POST(req: NextRequest) {
       return apiError("validation_failed", { reqId, details: "No file provided" });
     }
     if (file.size > MAX_BYTES) return apiError("payload_too_large", { reqId });
-    if (!ALLOWED_TYPES.has(file.type)) {
+
+    // SEC-2.07 / BC-1.20: never trust the client-sent file.type — sniff the
+    // real magic bytes server-side, same detector every other image upload
+    // path uses, rather than anything the request's headers claim.
+    const head = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+    const sniffed = sniffImageType(head);
+    if (!sniffed) {
       return apiError("unsupported_media_type", { reqId });
     }
 
     const upload = await pinata.upload.public.file(file);
+
+    // BC-2.08: don't trust the pinning provider's returned CID blindly —
+    // re-derive it locally from the exact uploaded bytes and compare. A
+    // mismatch means the pin does not actually correspond to what we sent
+    // (compromised/misbehaving provider, or a UnixFS/dag-pb-wrapped CID
+    // this function cannot re-derive); either way we must not hand back a
+    // CID we have not verified corresponds to our bytes.
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const verdict = verifyCid(bytes, upload.cid);
+    if (!verdict.verified) {
+      console.error("[ipfs-upload] CID verification failed", { reqId, cid: upload.cid, reason: verdict.reason });
+      return apiError("internal_error", { reqId, details: `CID verification failed: ${verdict.reason}` });
+    }
+
     return NextResponse.json({ cid: upload.cid });
   } catch (err) {
     return handleRouteError(err, { route: "POST /api/blockchain/ipfs/upload", reqId });

@@ -207,6 +207,12 @@ export async function eraseUserIn(client: PoolClient, userId: string): Promise<{
     `delete from exhibition_artworks where artwork_id in (${mine})
        or exhibition_id in (select id from exhibitions where user_id = $1)`
   );
+  // exhibition_transitions (BE-3.08, 0051/0053) FKs to exhibitions on delete
+  // restrict, and its own trigger permits DELETE for exactly this case —
+  // erasing the exhibition's owner — the same erasing_user session setting
+  // set above governs it (0053), so a plain delete inside this transaction
+  // is all that's needed, no privileged trigger-disable required.
+  await run(`delete from exhibition_transitions where exhibition_id in (select id from exhibitions where user_id = $1)`);
   await run(`delete from exhibitions where user_id = $1`);
   await run(
     `delete from curator_picks where artwork_id in (${mine})

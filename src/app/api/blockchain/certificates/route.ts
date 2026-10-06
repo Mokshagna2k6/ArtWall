@@ -47,8 +47,12 @@ export async function POST(req: NextRequest) {
 
     const certId = `coa_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
 
-    // Build ERC-721 metadata
-    const metadata: NftMetadata = {
+    // Build ERC-721 metadata. The content hash (BC-2.09) is computed over
+    // this object BEFORE content_hash is added to it — it describes the
+    // metadata's actual content, not itself — then embedded into the final
+    // JSON that gets pinned, so a verifier can fetch the IPFS JSON and
+    // check its own embedded hash against this certificate's DB record.
+    const unhashed: Omit<NftMetadata, "content_hash"> = {
       name: artwork.title,
       description: `Certificate of Authenticity for "${artwork.title}" by ${input.creatorName}.`,
       image: `ipfs://${input.imageCid}`,
@@ -62,8 +66,9 @@ export async function POST(req: NextRequest) {
       ],
     };
 
-    const canonical = JSON.stringify(metadata);
+    const canonical = JSON.stringify(unhashed);
     const metadataHash = createHash("sha256").update(canonical).digest("hex");
+    const metadata: NftMetadata = { ...unhashed, content_hash: metadataHash };
     const pinned = await pinata.upload.public.json(metadata);
 
     await db.insert(coaCertificates).values({

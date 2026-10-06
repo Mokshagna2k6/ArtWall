@@ -126,7 +126,21 @@ export async function makeBooking(
  * them before COMMIT. No other session ever sees the guard down.
  */
 const DELETE_REVOKED = ["pw_ledger", "pw_audit_log", "pw_condition_photos", "pw_damage_records"];
-const GUARDED = [...DELETE_REVOKED, "provenance_events", "coa_certificates"];
+// pw_consents (0048), demand_signals (0045) and admin_role_assignments
+// (0049) guard DELETE via trigger only (DELETE is not revoked from the app
+// role for them), so each only needs its trigger disabled for the purge,
+// not the GRANT DELETE step DELETE_REVOKED tables need. policy_decisions
+// (0043, BE-3.06) and exhibition_transitions (0051, BE-3.08) are the same
+// append-only-by-trigger pattern.
+const TRIGGER_ONLY_GUARDED = [
+  "pw_consents",
+  "demand_signals",
+  "admin_role_assignments",
+  "commission_policy_versions",
+  "policy_decisions",
+  "exhibition_transitions",
+];
+const GUARDED = [...DELETE_REVOKED, "provenance_events", "coa_certificates", ...TRIGGER_ONLY_GUARDED];
 
 /**
  * Delete every row a test run created, children first. Tables are listed
@@ -153,6 +167,12 @@ export async function purgeTestData() {
     await client.query(`delete from pw_ugc_submissions where id in (${ugc})`, [like]);
     // Bookings created through app code get bk_ ids; they belong to betest_ artists.
     const bks = `select id from pw_bookings where id like $1 or artist_id like $1`;
+    // Database Phase 3 additions that FK to pw_bookings/pw_ledger (0049):
+    // must go before pw_bookings/pw_ledger themselves are deleted below.
+    await client.query(`delete from escrow_releases where escrow_hold_id in (select id from escrow_holds where booking_id in (${bks}) or id like $1)`, [like]);
+    await client.query(`delete from escrow_holds where booking_id in (${bks}) or id like $1`, [like]);
+    await client.query(`delete from shipment_events where shipment_id in (select id from shipments where booking_id in (${bks}) or id like $1)`, [like]);
+    await client.query(`delete from shipments where booking_id in (${bks}) or id like $1`, [like]);
     await client.query(`delete from pw_invoices where booking_id in (${bks})`, [like]);
     await client.query(
       `delete from pw_ledger where booking_id in (${bks}) or created_by like $1 or source_ref like '%' || $1`,
@@ -180,14 +200,28 @@ export async function purgeTestData() {
     await client.query(`delete from mint_commitments where artwork_id in (${arts}) or user_id like $1`, [like]);
     await client.query(`delete from coa_certificates where artwork_id in (${arts}) or user_id like $1`, [like]);
     await client.query(`delete from editions where artwork_id in (${arts}) or user_id like $1`, [like]);
-    await client.query(`delete from exhibition_artworks where exhibition_id like $1`, [like]);
+    // Exhibition ids are exh_<random>, not betest_-prefixed, so both deletes
+    // below also reach via the (betest-prefixed) owner, same as the
+    // `exhibitions` delete itself two lines down.
+    const exhs = `select id from exhibitions where id like $1 or user_id like $1`;
+    await client.query(`delete from exhibition_artworks where exhibition_id in (${exhs})`, [like]);
+    await client.query(`delete from exhibition_transitions where exhibition_id in (${exhs})`, [like]);
     await client.query(`delete from exhibitions where id like $1 or user_id like $1`, [like]);
+    await client.query(
+      `delete from policy_decisions where subject_id in (${arts}) or subject_id like $1 or actor_id like $1`,
+      [like]
+    );
     await client.query(`delete from curators where id like $1 or user_id like $1`, [like]);
     await client.query(`delete from artworks where "userId" like $1`, [like]);
     await client.query(`delete from artist_profiles where "userId" like $1`, [like]);
     await client.query(`delete from session where "userId" like $1`, [like]);
     await client.query(`delete from account where "userId" like $1`, [like]);
     await client.query(`delete from "user" where id like $1`, [like]);
+    // Database Phase 3 additions (0044-0049) not already handled above.
+    await client.query(`delete from commission_policy_versions where id like $1`, [like]);
+    await client.query(`delete from demand_aggregates where artwork_id like $1`, [like]);
+    await client.query(`delete from demand_signals where artwork_id like $1`, [like]);
+    await client.query(`delete from admin_role_assignments where id like $1`, [like]);
     for (const t of DELETE_REVOKED) await client.query(`revoke delete on ${t} from current_user`);
     for (const t of GUARDED) await client.query(`alter table ${t} enable trigger user`);
     await client.query("commit");
