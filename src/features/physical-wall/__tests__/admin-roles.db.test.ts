@@ -1,13 +1,13 @@
 import { afterAll, describe, expect, it } from "vitest";
 
-import { actAs } from "@/test/db-setup";
+import { actAs, type TestUser } from "@/test/db-setup";
 import { grantTestAdminRole, makeUser, purgeTestData, q } from "@/test/fixtures";
 import {
   grantAdminRole,
   revokeAdminRole,
   listAdminRoleAssignments,
 } from "@/features/physical-wall/actions/admin-roles";
-import { getActor, hasAdminRole } from "@/features/physical-wall/authorize";
+import { getActor, hasAdminRole, listOwnAdminRoles } from "@/features/physical-wall/authorize";
 
 /**
  * SEC-3.03: role grants require an existing super-admin, are audit-logged,
@@ -154,5 +154,74 @@ describe("grantAdminRole / revokeAdminRole (SEC-3.03)", () => {
 
     const rows = await listAdminRoleAssignments();
     expect(rows.some((r) => r.user_id === target.id && r.role === "venue_admin")).toBe(true);
+  });
+});
+
+/**
+ * FE-3.17: `listOwnAdminRoles` is what the admin layout's nav filter and
+ * `requireAnyAdminRolePage` both key off. Real fixture users holding
+ * different single roles, confirming each sees exactly their own role(s)
+ * back and nothing else — the same per-role isolation the admin console's
+ * nav/page gating depends on.
+ *
+ * `listOwnAdminRoles` takes an `Actor` (has `.role`), not the bare
+ * `TestUser` `makeUser` returns — same as every other authorize.ts function
+ * in this file (`hasAdminRole`), so `asActor` resolves one via `getActor()`
+ * after `actAs()`, exactly how a real request would.
+ */
+async function asActor(user: TestUser) {
+  actAs(user);
+  const actor = await getActor();
+  if (!actor) throw new Error("getActor() returned null for a just-created fixture user");
+  return actor;
+}
+
+describe("listOwnAdminRoles (FE-3.17)", () => {
+  it("a role-less admin holds no named roles", async () => {
+    const admin = await asActor(await makeUser("admin"));
+    expect(await listOwnAdminRoles(admin)).toEqual([]);
+  });
+
+  it("a single-role admin holds exactly that role, not others", async () => {
+    const venueAdminUser = await makeUser("admin");
+    await grantTestAdminRole(venueAdminUser.id, "venue_admin");
+    expect(await listOwnAdminRoles(await asActor(venueAdminUser))).toEqual(["venue_admin"]);
+
+    const complianceAdminUser = await makeUser("admin");
+    await grantTestAdminRole(complianceAdminUser.id, "compliance_admin");
+    expect(await listOwnAdminRoles(await asActor(complianceAdminUser))).toEqual(["compliance_admin"]);
+  });
+
+  it("a multi-role admin holds every role granted, in one read", async () => {
+    const multiUser = await makeUser("admin");
+    await grantTestAdminRole(multiUser.id, "curator_admin");
+    await grantTestAdminRole(multiUser.id, "finance_admin");
+    const held = await listOwnAdminRoles(await asActor(multiUser));
+    expect(held).toEqual(expect.arrayContaining(["curator_admin", "finance_admin"]));
+    expect(held).toHaveLength(2);
+  });
+
+  it("super_admin is reported like any other held role (the layout's own code decides it means 'see everything')", async () => {
+    const superAdminUser = await makeUser("admin");
+    await grantTestAdminRole(superAdminUser.id, "super_admin");
+    expect(await listOwnAdminRoles(await asActor(superAdminUser))).toEqual(["super_admin"]);
+  });
+
+  it("a revoked role no longer shows up", async () => {
+    const adminUser = await makeUser("admin");
+    await grantTestAdminRole(adminUser.id, "curator_admin");
+    const actor = await asActor(adminUser);
+    expect(await listOwnAdminRoles(actor)).toEqual(["curator_admin"]);
+
+    await q(
+      `update admin_role_assignments set revoked_at = now()
+       where user_id = $1 and revoked_at is null`,
+      [adminUser.id]
+    );
+    expect(await listOwnAdminRoles(actor)).toEqual([]);
+  });
+
+  it("null actor (signed out) holds no roles", async () => {
+    expect(await listOwnAdminRoles(null)).toEqual([]);
   });
 });

@@ -16,7 +16,7 @@ import {
   walls,
   wallosSlots,
 } from "@/lib/db/schema";
-import { requireRole } from "@/features/physical-wall/authorize";
+import { requireAdminRole } from "@/features/physical-wall/authorize";
 import {
   attempt,
   fail,
@@ -75,13 +75,19 @@ async function assertParentExists(level: Level, parentId: string | undefined): P
   if (!row) throw new PreconditionError(`No ${level.parent.label} with id "${parentId}".`);
 }
 
-/** Create a row at `level`. Admin-only; parent existence is checked before the insert (clean error, not a raw FK violation). */
+/**
+ * Create a row at `level`. FE-3.17: `venue_admin` ("Physical wall / venue
+ * operations" per admin_roles.description) is a clean 1:1 match for the
+ * whole WallOS hierarchy, same kind of proof point as
+ * compliance_admin/curator_admin before it; parent existence is checked
+ * before the insert (clean error, not a raw FK violation).
+ */
 export async function createWallosNode(
   level: LevelName,
   raw: { name: string; parentId?: string }
 ): Promise<Result<string>> {
   return attempt(`createWallosNode(${level})`, async () => {
-    await requireRole("admin");
+    await requireAdminRole("venue_admin");
     const def = LEVELS[level];
     const input = parseInput(nameSchema, raw);
     await assertParentExists(def, input.parentId);
@@ -112,7 +118,7 @@ export async function listWallosNodes(level: LevelName, parentId?: string) {
 /** Rename a row at `level`. Admin-only. */
 export async function updateWallosNode(level: LevelName, id: string, name: string): Promise<Result<void>> {
   return attempt(`updateWallosNode(${level})`, async () => {
-    await requireRole("admin");
+    await requireAdminRole("venue_admin");
     const def = LEVELS[level];
     const input = parseInput(z.object({ id: idSchema, name: nameSchema.shape.name }), { id, name });
     const rows = await db.update(def.table as PgTable).set({ name: input.name } as never).where(eq(def.table.id, input.id)).returning({ id: def.table.id });
@@ -123,7 +129,7 @@ export async function updateWallosNode(level: LevelName, id: string, name: strin
 /** Delete a row at `level`. Admin-only. A row with children, or a slot still referenced by pw_slots, is rejected by the DB's `restrict` FKs — surfaced here as a clean error. */
 export async function deleteWallosNode(level: LevelName, id: string): Promise<Result<void>> {
   return attempt(`deleteWallosNode(${level})`, async () => {
-    await requireRole("admin");
+    await requireAdminRole("venue_admin");
     const def = LEVELS[level];
     const nodeId = parseInput(idSchema, id);
     try {
@@ -172,7 +178,7 @@ export async function createWallosSlot(raw: {
   pwSlotId?: string;
 }): Promise<Result<string>> {
   return attempt("createWallosSlot", async () => {
-    await requireRole("admin");
+    await requireAdminRole("venue_admin");
     const input = parseInput(slotSchema, raw);
     const [wall] = await db.select({ id: walls.id }).from(walls).where(eq(walls.id, input.wallId));
     if (!wall) throw new PreconditionError(`No wall with id "${input.wallId}".`);
@@ -209,7 +215,7 @@ export async function listWallosSlots(wallId: string) {
 
 export async function updateWallosSlot(id: string, label: string): Promise<Result<void>> {
   return attempt("updateWallosSlot", async () => {
-    await requireRole("admin");
+    await requireAdminRole("venue_admin");
     const input = parseInput(z.object({ id: idSchema, label: slotSchema.shape.label }), { id, label });
     const rows = await db.update(wallosSlots).set({ label: input.label }).where(eq(wallosSlots.id, input.id)).returning({ id: wallosSlots.id });
     if (rows.length === 0) throw new PreconditionError(`No slot with id "${id}".`);
@@ -218,7 +224,7 @@ export async function updateWallosSlot(id: string, label: string): Promise<Resul
 
 export async function deleteWallosSlot(id: string): Promise<Result<void>> {
   return attempt("deleteWallosSlot", async () => {
-    await requireRole("admin");
+    await requireAdminRole("venue_admin");
     const slotId = parseInput(idSchema, id);
     try {
       const rows = await db.delete(wallosSlots).where(eq(wallosSlots.id, slotId)).returning({ id: wallosSlots.id });
