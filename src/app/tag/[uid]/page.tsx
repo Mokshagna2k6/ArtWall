@@ -27,8 +27,37 @@ export default async function TagPage({
   const { picc_data, cmac } = await searchParams;
   const result = await resolveTagScan(uid, { piccData: picc_data, cmac });
 
-  // An unknown uid is a real 404 (status code too, see not-found.tsx).
-  if (!result) notFound();
+  // An unknown/revoked uid is a real 404 (status code too, see not-found.tsx).
+  if (result.status === "not_found") notFound();
+
+  // FE-3.20: a registered tag whose signature/CMAC failed to verify is a
+  // materially different, more alarming state than "unknown tag" — it means
+  // someone scanned a real tag's URL/QR but the crypto proof didn't check
+  // out (tampered payload, replayed SUN counter, or a copied/stale link).
+  // This must never be silently treated as a successful scan or folded into
+  // the generic "no public artwork" message below.
+  if (result.status === "unverified") {
+    const copy = {
+      bad_signature: {
+        heading: "Signature could not be verified",
+        body: "This tag's cryptographic signature did not check out. It may be damaged, copied, or counterfeit.",
+      },
+      replay: {
+        heading: "This scan was rejected",
+        body: "This tag's scan counter has already been used. If you scanned the physical tag directly, try again — this usually means a stale or reused link.",
+      },
+      malformed: {
+        heading: "Scan could not be verified",
+        body: "This link is missing the data needed to verify the tag. Scan the physical NFC tag or QR code directly rather than reusing a saved link.",
+      },
+    }[result.reason];
+    return (
+      <main className="mx-auto max-w-lg px-6 py-24 text-center">
+        <h1 className="text-display font-heading">{copy.heading}</h1>
+        <p className="text-ink-muted mt-4">{copy.body}</p>
+      </main>
+    );
+  }
 
   if (!result.artwork) {
     // FE-2.11: one generic message whether the tag is unbound or bound to a
