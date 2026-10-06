@@ -1,7 +1,8 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
+import { updateTag } from "next/cache";
 import { z } from "zod";
 
 import { db } from "@/lib/db/index";
@@ -9,6 +10,7 @@ import {
   buildings,
   floors,
   organizations,
+  pwSlots,
   roomsZones,
   venues,
   walls,
@@ -17,10 +19,14 @@ import {
 import { requireRole } from "@/features/physical-wall/authorize";
 import {
   attempt,
+  fail,
   newId,
+  ok,
   parseInput,
   PreconditionError,
   readSafely,
+  WALL_TAG,
+  type ActionState,
   type Result,
 } from "@/features/physical-wall/actions/shared";
 
@@ -151,20 +157,47 @@ function columnKey(column: AnyPgColumn): string {
 const slotSchema = z.object({
   wallId: z.string().trim().min(1).max(64),
   label: z.string({ error: "Give the slot a label." }).trim().min(1, "Give the slot a label.").max(160),
+  // FE-3.13: lets a new hierarchy slot be linked to an existing flat pw_slots
+  // row at creation time (the mirror of 0050's one-time backfill, which only
+  // ever covered rows that existed when that migration ran — a pw_slots row
+  // created afterwards, e.g. by the seed script, has no hierarchy leaf and
+  // no link until an admin makes one here).
+  pwSlotId: z.string().trim().min(1).max(64).optional(),
 });
 
 /** Create a slot under a wall. `onChainSlotId` (BE-3.14) is never set here — Growth-phase, N/A for MVP. */
-export async function createWallosSlot(raw: { wallId: string; label: string }): Promise<Result<string>> {
+export async function createWallosSlot(raw: {
+  wallId: string;
+  label: string;
+  pwSlotId?: string;
+}): Promise<Result<string>> {
   return attempt("createWallosSlot", async () => {
     await requireRole("admin");
     const input = parseInput(slotSchema, raw);
     const [wall] = await db.select({ id: walls.id }).from(walls).where(eq(walls.id, input.wallId));
     if (!wall) throw new PreconditionError(`No wall with id "${input.wallId}".`);
 
+    if (input.pwSlotId) {
+      const [flatSlot] = await db.select({ id: pwSlots.id, wallosSlotId: pwSlots.wallosSlotId }).from(pwSlots).where(eq(pwSlots.id, input.pwSlotId));
+      if (!flatSlot) throw new PreconditionError(`No physical-wall slot with id "${input.pwSlotId}".`);
+      if (flatSlot.wallosSlotId) throw new PreconditionError("That slot is already linked to a hierarchy slot.");
+    }
+
     const id = newId("slot");
-    await db.insert(wallosSlots).values({ id, wallId: input.wallId, label: input.label });
+    await db.insert(wallosSlots).values({ id, wallId: input.wallId, label: input.label, pwSlotId: input.pwSlotId });
+    if (input.pwSlotId) {
+      await db.update(pwSlots).set({ wallosSlotId: id }).where(eq(pwSlots.id, input.pwSlotId));
+      updateTag(WALL_TAG);
+    }
     return id;
   });
+}
+
+/** pw_slots rows with no hierarchy leaf yet — what an admin can link a new slot to. */
+export async function listUnlinkedPwSlots() {
+  return readSafely("listUnlinkedPwSlots", [], () =>
+    db.select({ id: pwSlots.id, label: pwSlots.label }).from(pwSlots).where(isNull(pwSlots.wallosSlotId))
+  );
 }
 
 export async function listWallosSlots(wallId: string) {
@@ -215,4 +248,201 @@ export async function getSlotOrganization(slotId: string) {
       .where(and(eq(wallosSlots.id, parsedSlotId)));
     return row ?? null;
   });
+}
+
+/**
+ * FE-3.13: every wall that has at least one slot linked to a real, bookable
+ * pw_slots row, with those slots' live state — what the booking flow's
+ * hierarchy picker walks (organization -> venue -> wall -> slot) instead of
+ * the flat grid. A wall with no linked slots is left out rather than shown
+ * as a dead end: see this module's header comment on the data gap this
+ * closes (only pw_slots rows that existed when migration 0050 ran were
+ * backfilled; anything the seed script inserts afterwards starts unlinked
+ * until createWallosSlot's pwSlotId option links it).
+ */
+export async function listBookableWallosHierarchy() {
+  return readSafely("listBookableWallosHierarchy", [], async () => {
+    const rows = await db
+      .select({
+        organizationId: organizations.id,
+        organizationName: organizations.name,
+        venueId: venues.id,
+        venueName: venues.name,
+        wallId: walls.id,
+        wallName: walls.name,
+        slotId: wallosSlots.id,
+        slotLabel: wallosSlots.label,
+        pwSlotId: pwSlots.id,
+        pwSlotLabel: pwSlots.label,
+        pwSlotState: pwSlots.state,
+      })
+      .from(wallosSlots)
+      .innerJoin(pwSlots, eq(pwSlots.wallosSlotId, wallosSlots.id))
+      .innerJoin(walls, eq(wallosSlots.wallId, walls.id))
+      .innerJoin(roomsZones, eq(walls.roomZoneId, roomsZones.id))
+      .innerJoin(floors, eq(roomsZones.floorId, floors.id))
+      .innerJoin(buildings, eq(floors.buildingId, buildings.id))
+      .innerJoin(venues, eq(buildings.venueId, venues.id))
+      .innerJoin(organizations, eq(venues.organizationId, organizations.id));
+
+    const orgMap = new Map<string, HierarchyOrg>();
+    for (const row of rows) {
+      let org = orgMap.get(row.organizationId);
+      if (!org) {
+        org = { id: row.organizationId, name: row.organizationName, venues: new Map() };
+        orgMap.set(row.organizationId, org);
+      }
+      let venue = org.venues.get(row.venueId);
+      if (!venue) {
+        venue = { id: row.venueId, name: row.venueName, walls: new Map() };
+        org.venues.set(row.venueId, venue);
+      }
+      let wall = venue.walls.get(row.wallId);
+      if (!wall) {
+        wall = { id: row.wallId, name: row.wallName, slots: [] };
+        venue.walls.set(row.wallId, wall);
+      }
+      wall.slots.push({
+        id: row.slotId,
+        label: row.slotLabel,
+        pwSlotId: row.pwSlotId,
+        pwSlotLabel: row.pwSlotLabel,
+        available: row.pwSlotState === "available",
+      });
+    }
+
+    return Array.from(orgMap.values()).map((org) => ({
+      id: org.id,
+      name: org.name,
+      venues: Array.from(org.venues.values()).map((venue) => ({
+        id: venue.id,
+        name: venue.name,
+        walls: Array.from(venue.walls.values()).map((wall) => ({
+          id: wall.id,
+          name: wall.name,
+          slots: wall.slots,
+        })),
+      })),
+    }));
+  });
+}
+
+interface HierarchySlot {
+  id: string;
+  label: string;
+  pwSlotId: string;
+  pwSlotLabel: string;
+  available: boolean;
+}
+interface HierarchyWall {
+  id: string;
+  name: string;
+  slots: HierarchySlot[];
+}
+interface HierarchyVenue {
+  id: string;
+  name: string;
+  walls: Map<string, HierarchyWall>;
+}
+interface HierarchyOrg {
+  id: string;
+  name: string;
+  venues: Map<string, HierarchyVenue>;
+}
+
+// ── Form-action wrappers (FE-3.12) ──────────────────────────────────────────
+// The CRUD functions above return Result<T>, the shape every physical-wall
+// server action returns (BE-2.15); a <form action={fn}> wired through
+// useActionState needs `(previous, formData) => ActionState` instead (see
+// actions/catalogs.ts). Thin adapters here, rather than changing the CRUD
+// functions' signature or duplicating their logic — the admin UI is the only
+// caller that needs the form shape; the DB tests call the Result functions
+// directly.
+
+const levelSchema = z.enum(["organization", "venue", "building", "floor", "roomZone", "wall"]);
+
+function levelLabel(level: LevelName): string {
+  return level === "roomZone" ? "room/zone" : level;
+}
+
+const nodeFormSchema = z.object({ level: levelSchema, name: z.string().optional(), parentId: z.string().optional() });
+const nodeIdFormSchema = z.object({ level: levelSchema, id: z.string(), name: z.string().optional() });
+const slotFormSchema = z.object({ wallId: z.string(), label: z.string().optional(), pwSlotId: z.string().optional() });
+const slotIdFormSchema = z.object({ id: z.string(), label: z.string().optional() });
+
+export async function createWallosNodeForm(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const parsed = nodeFormSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return fail("Unknown hierarchy level.");
+    const { level, name, parentId } = parsed.data;
+    const result = await createWallosNode(level, { name: name ?? "", parentId });
+    updateTag(WALL_TAG);
+    return result.ok ? ok(`${levelLabel(level)} created.`, result.data) : fail(result.error);
+  } catch {
+    return fail("That didn't work.");
+  }
+}
+
+export async function updateWallosNodeForm(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const parsed = nodeIdFormSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return fail("Unknown hierarchy level.");
+    const { level, id, name } = parsed.data;
+    const result = await updateWallosNode(level, id, name ?? "");
+    updateTag(WALL_TAG);
+    return result.ok ? ok(`${levelLabel(level)} renamed.`) : fail(result.error);
+  } catch {
+    return fail("That didn't work.");
+  }
+}
+
+export async function deleteWallosNodeForm(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const parsed = nodeIdFormSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return fail("Unknown hierarchy level.");
+    const { level, id } = parsed.data;
+    const result = await deleteWallosNode(level, id);
+    updateTag(WALL_TAG);
+    return result.ok ? ok(`${levelLabel(level)} deleted.`) : fail(result.error);
+  } catch {
+    return fail("That didn't work.");
+  }
+}
+
+export async function createWallosSlotForm(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const parsed = slotFormSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return fail("Give the wall and a slot label.");
+    const { wallId, label, pwSlotId } = parsed.data;
+    const result = await createWallosSlot({ wallId, label: label ?? "", pwSlotId: pwSlotId || undefined });
+    updateTag(WALL_TAG);
+    return result.ok ? ok("Slot created.", result.data) : fail(result.error);
+  } catch {
+    return fail("That didn't work.");
+  }
+}
+
+export async function updateWallosSlotForm(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const parsed = slotIdFormSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return fail("Which slot?");
+    const { id, label } = parsed.data;
+    const result = await updateWallosSlot(id, label ?? "");
+    updateTag(WALL_TAG);
+    return result.ok ? ok("Slot renamed.") : fail(result.error);
+  } catch {
+    return fail("That didn't work.");
+  }
+}
+
+export async function deleteWallosSlotForm(_previous: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const parsed = slotIdFormSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return fail("Which slot?");
+    const result = await deleteWallosSlot(parsed.data.id);
+    updateTag(WALL_TAG);
+    return result.ok ? ok("Slot deleted.") : fail(result.error);
+  } catch {
+    return fail("That didn't work.");
+  }
 }
