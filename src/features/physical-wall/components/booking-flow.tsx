@@ -21,6 +21,10 @@ import {
   inputClass,
   SubmitButton,
 } from "@/features/physical-wall/components/form-bits";
+import {
+  HierarchySlotPicker,
+  type HierarchyOrg,
+} from "@/features/physical-wall/components/hierarchy-slot-picker";
 import { Stepper } from "@/features/physical-wall/components/stepper";
 import { WallGrid } from "@/features/physical-wall/components/wall-grid";
 import { formatINR } from "@/features/physical-wall/money";
@@ -65,6 +69,7 @@ export function BookingFlow({
   venueName,
   refundPercentage,
   gstRatePct,
+  hierarchy,
 }: {
   slots: SlotWithCatalog[];
   rowCount: number;
@@ -75,10 +80,15 @@ export function BookingFlow({
   venueName: string;
   refundPercentage: number | null;
   gstRatePct: number;
+  /** FE-3.13: the WallOS hierarchy, for the venue/wall/slot picker alongside
+   *  the flat grid. Empty when nothing is linked yet (see that component's
+   *  own empty state) — never blocks the grid, which still works either way. */
+  hierarchy: HierarchyOrg[];
 }) {
   const [step, setStep] = useState(1);
   const [furthest, setFurthest] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
+  const [pickerMode, setPickerMode] = useState<"grid" | "hierarchy">("grid");
   const [durationDays, setDurationDays] = useState(7);
   const [startDate, setStartDate] = useState(today);
   const [addonIds, setAddonIds] = useState<string[]>([]);
@@ -189,20 +199,51 @@ export function BookingFlow({
         <div className="border-hairline min-w-0 rounded-md border p-5 sm:p-6">
           {step === 1 && (
             <section>
-              <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">Choose your position</h2>
-              <p className="text-ink-muted mt-2 text-sm leading-6">
-                {available} of {slots.length} slots open. Each is drawn at its
-                real proportions — prices are per day, before duration discounts.
-              </p>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">Choose your position</h2>
+                  <p className="text-ink-muted mt-2 text-sm leading-6">
+                    {pickerMode === "grid"
+                      ? `${available} of ${slots.length} slots open. Each is drawn at its real proportions — prices are per day, before duration discounts.`
+                      : "Pick a venue, then a wall, then a slot."}
+                  </p>
+                </div>
+                <div className="border-hairline-strong inline-flex rounded-md border p-0.5 text-xs">
+                  <button
+                    type="button"
+                    aria-pressed={pickerMode === "grid"}
+                    onClick={() => setPickerMode("grid")}
+                    className={`rounded-[5px] px-3 py-1.5 transition-colors ${pickerMode === "grid" ? "bg-ink text-wall-paper" : "text-ink-muted hover:text-ink"}`}
+                  >
+                    Wall map
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={pickerMode === "hierarchy"}
+                    onClick={() => setPickerMode("hierarchy")}
+                    className={`rounded-[5px] px-3 py-1.5 transition-colors ${pickerMode === "hierarchy" ? "bg-ink text-wall-paper" : "text-ink-muted hover:text-ink"}`}
+                  >
+                    By venue
+                  </button>
+                </div>
+              </div>
               <div className="mt-6">
-                <WallGrid
-                  slots={slots}
-                  rowCount={rowCount}
-                  colCount={colCount}
-                  mode="select"
-                  selected={selected}
-                  onToggle={toggleSlot}
-                />
+                {pickerMode === "grid" ? (
+                  <WallGrid
+                    slots={slots}
+                    rowCount={rowCount}
+                    colCount={colCount}
+                    mode="select"
+                    selected={selected}
+                    onToggle={toggleSlot}
+                  />
+                ) : (
+                  <HierarchySlotPicker
+                    hierarchy={hierarchy}
+                    selected={selected}
+                    onToggle={toggleSlot}
+                  />
+                )}
               </div>
             </section>
           )}

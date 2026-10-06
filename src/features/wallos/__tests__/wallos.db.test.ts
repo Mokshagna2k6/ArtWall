@@ -4,13 +4,15 @@ import { eq } from "drizzle-orm";
 import { actAs } from "@/test/db-setup";
 import { makeBooking, makeSlots, makeUser, purgeTestData, q } from "@/test/fixtures";
 import { db } from "@/lib/db/index";
-import { walls, wallosSlots } from "@/lib/db/schema";
+import { pwSlots, walls, wallosSlots } from "@/lib/db/schema";
 import {
   createWallosNode,
   createWallosSlot,
   deleteWallosNode,
   deleteWallosSlot,
   getSlotOrganization,
+  listBookableWallosHierarchy,
+  listUnlinkedPwSlots,
   listWallosNodes,
   updateWallosNode,
   updateWallosSlot,
@@ -129,6 +131,52 @@ describe("WallOS hierarchy CRUD (BE-3.13)", () => {
     const org = await getSlotOrganization(slotId);
     expect(org?.organizationId).toBe(orgId);
 
+    data(await deleteWallosSlot(slotId));
+    created.pop();
+  });
+
+  // FE-3.13: closes the data gap noted in wallos/actions.ts's own header —
+  // migration 0050's backfill only ever covered pw_slots rows that existed
+  // when it ran, so a pw_slots row created afterwards (by the seed script,
+  // or by anything else) starts with no hierarchy leaf at all. This proves
+  // createWallosSlot's pwSlotId option is the real fix: a fresh unlinked
+  // pw_slots row becomes bookable through the hierarchy picker end-to-end.
+  it("createWallosSlot(pwSlotId) links a fresh, unlinked pw_slots row into the hierarchy", async () => {
+    actAs(await makeUser("admin"));
+    const [pwSlotId] = await makeSlots(1);
+
+    const before = await listUnlinkedPwSlots();
+    expect(before.map((s) => s.id)).toContain(pwSlotId);
+
+    const orgId = track("organizations", data(await createWallosNode("organization", { name: "Link Org" })));
+    const venueId = track("venues", data(await createWallosNode("venue", { name: "Link Venue", parentId: orgId })));
+    const bldgId = track("buildings", data(await createWallosNode("building", { name: "Link Bldg", parentId: venueId })));
+    const floorId = track("floors", data(await createWallosNode("floor", { name: "Link Floor", parentId: bldgId })));
+    const zoneId = track("rooms_zones", data(await createWallosNode("roomZone", { name: "Link Zone", parentId: floorId })));
+    const wallId = track("walls", data(await createWallosNode("wall", { name: "Link Wall", parentId: zoneId })));
+
+    const slotId = track("slots", data(await createWallosSlot({ wallId, label: "Linked A1", pwSlotId })));
+
+    const [flat] = await db.select({ wallosSlotId: pwSlots.wallosSlotId }).from(pwSlots).where(eq(pwSlots.id, pwSlotId));
+    expect(flat.wallosSlotId).toBe(slotId);
+
+    const after = await listUnlinkedPwSlots();
+    expect(after.map((s) => s.id)).not.toContain(pwSlotId);
+
+    // The booking flow's hierarchy picker resolves this slot back to the
+    // same pw_slots.id reserveBooking already expects.
+    const hierarchy = await listBookableWallosHierarchy();
+    const org = hierarchy.find((o) => o.id === orgId);
+    const slot = org?.venues[0]?.walls[0]?.slots[0];
+    expect(slot?.pwSlotId).toBe(pwSlotId);
+    expect(slot?.available).toBe(true);
+
+    // Linking an already-linked pw_slots row again is rejected.
+    const dupe = await createWallosSlot({ wallId, label: "Dup", pwSlotId });
+    expect(dupe.ok).toBe(false);
+    if (!dupe.ok) expect(dupe.error).toMatch(/already linked/);
+
+    await db.update(pwSlots).set({ wallosSlotId: null }).where(eq(pwSlots.id, pwSlotId));
     data(await deleteWallosSlot(slotId));
     created.pop();
   });
