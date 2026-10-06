@@ -190,7 +190,7 @@ Before production launch:
 - [ ] Move all secrets to Vercel environment variables (server-only; never `NEXT_PUBLIC_`)
 - [ ] Create Razorpay webhook endpoint; set `RAZORPAY_WEBHOOK_SECRET`
 - [ ] Verify `NEXT_PUBLIC_RAZORPAY_KEY_ID` matches live mode keys
-- [ ] Set `ADMIN_EMAILS` allowlist for founder admin bootstrap
+- [ ] Run `scripts/seed-accounts.mjs` (or an equivalent one-time DB write) to create the first admin + `super_admin` — SEC-3.02 removed the live `ADMIN_EMAILS` allowlist bootstrap; see `docs/policy-engine.md`'s "Admin roles" section
 - [ ] Configure Cloudinary production cloud + signed upload preset
 
 ### Database

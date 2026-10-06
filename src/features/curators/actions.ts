@@ -9,7 +9,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/index";
 import { curators, curatorPicks, artworks, artistProfiles, user } from "@/lib/db/schema";
 import { recordAuditIn } from "@/features/physical-wall/audit";
-import { requireRole } from "@/features/physical-wall/authorize";
+import { requireAdminRole, requireRole } from "@/features/physical-wall/authorize";
 import { getActiveCommissionPolicy } from "@/features/policy/commission";
 import {
   attempt,
@@ -125,7 +125,11 @@ type CuratorState = { id: string; status: string; commissionBps: number; unchang
  * no 'pending' row and reads the committed 'active' one.
  */
 async function moveCurator(curatorId: string, from: string, to: string, action: string, reason: string | null) {
-  const actor = await requireRole("admin");
+  // SEC-3.02: curator approve/suspend maps directly onto the Bible's
+  // curator_admin role ("Curation and exhibition approvals" per
+  // admin_roles.description) — the other proof point for the new
+  // granular-role system, alongside identity review's compliance_admin.
+  const actor = await requireAdminRole("curator_admin");
   const commissionBps =
     to === "active" ? (await getActiveCommissionPolicy("curator_commission")).rateBps : null;
   const row = await inTransaction(async (client): Promise<CuratorState> => {

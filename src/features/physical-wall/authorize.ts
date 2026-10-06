@@ -34,6 +34,29 @@ export interface Actor extends SessionUser {
   role: Role;
 }
 
+/**
+ * SEC-3.02: the 8 named admin roles from the Bible (migration 0049,
+ * `admin_roles`). This is a SECOND, additive authorization axis on top of the
+ * generic `Role` above — a user still needs the generic `admin` role to reach
+ * an admin surface at all (that gate is unchanged), and on top of that,
+ * specific admin actions can require one of these 8 specific roles via
+ * `requireAdminRole` below. Kept as a literal union (not read from the DB at
+ * type-check time) because `admin_roles` is a fixed, migration-seeded set,
+ * same as `Role` above being a literal union over a column with a fixed set
+ * of values.
+ */
+export const ADMIN_ROLES = [
+  "super_admin",
+  "curator_admin",
+  "venue_admin",
+  "finance_admin",
+  "support_admin",
+  "compliance_admin",
+  "content_admin",
+  "readonly_admin",
+] as const;
+export type AdminRoleName = (typeof ADMIN_ROLES)[number];
+
 export class NotAuthorisedError extends Error {
   readonly status = 403;
   constructor(required: Role) {
@@ -91,13 +114,6 @@ export async function getActor(): Promise<Actor | null> {
     `) as { role: string; emailVerified: boolean }[];
 
     const role = rows[0]?.role;
-    // KB-C01: an email match alone is not proof of ownership — anyone can put
-    // an admin's address in a sign-up form. Only a *verified* email (proven
-    // via the auth provider) may claim the allowlisted admin identity.
-    if (role !== "admin" && rows[0]?.emailVerified && isAllowlisted(user.email)) {
-      await promoteToAdmin(user.id);
-      return { ...user, role: "admin" };
-    }
     return { ...user, role: isRole(role) ? role : "artist" };
   } catch (error) {
     // An unreadable role must not be an *escalated* role. Falling back to the
@@ -180,48 +196,56 @@ export async function requireRole(required: Role): Promise<Actor> {
 }
 
 /**
- * Promote the founders named in ADMIN_EMAILS.
+ * SEC-3.02/SEC-3.03: does this actor currently hold the named admin role?
  *
- * Bootstrapping problem: the first admin cannot be promoted through an admin
- * screen. Rather than a seeded password or a magic user id, the allowlist is an
- * env var and promotion happens inside `getActor` - so it fires wherever the
- * actor is first resolved, including the header on the home page, rather than
- * only on an admin route the founder cannot discover until they are already an
- * admin. Demotion is not automatic - removing an email from the list does not
- * strip a role someone may have been legitimately granted since.
+ * Reads `admin_role_assignments` live (same "no caching, revocation takes
+ * effect immediately" reasoning as `getActor`'s role read above) for a row
+ * with this user, this role, not revoked. `admin_roles.name` is the human
+ * name (e.g. "compliance_admin"); `admin_role_assignments.role_id` stores the
+ * `admin_roles.id` foreign key, so the check joins through it.
  */
-function isAllowlisted(email: string): boolean {
-  return (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean)
-    .includes(email.toLowerCase());
-}
-
-async function promoteToAdmin(userId: string): Promise<void> {
+export async function hasAdminRole(
+  actor: Actor | null,
+  required: AdminRoleName
+): Promise<boolean> {
+  if (!actor) return false;
   try {
     const sql = getSql();
     const rows = (await sql`
-      update "user" set role = 'admin'
-      where id = ${userId} and role <> 'admin'
-      returning id
-    `) as { id: string }[];
-
-    if (rows.length > 0) {
-      // SEC-2.11: this IS a role grant — just allowlist-driven rather than
-      // admin-driven. Lazy import: audit.ts imports the Actor *type* from this
-      // module, so a static import here would be a real (if type-erased at
-      // runtime) cycle — avoided the same way requireOnboardedPage avoids one.
-      const { recordAudit } = await import("@/features/physical-wall/audit");
-      await recordAudit({
-        actor: null,
-        action: "user.role-granted",
-        subjectType: "user",
-        subjectId: userId,
-        after: { role: "admin", via: "ADMIN_EMAILS allowlist" },
-      });
-    }
+      select 1 from admin_role_assignments a
+      join admin_roles r on r.id = a.role_id
+      where a.user_id = ${actor.id} and r.name = ${required} and a.revoked_at is null
+      limit 1
+    `) as unknown[];
+    return rows.length > 0;
   } catch (error) {
-    console.error("[physical-wall] Could not sync admin allowlist", error);
+    console.error("[physical-wall] Could not read admin role assignment", error);
+    return false;
+  }
+}
+
+/**
+ * Require a *specific* named admin role (one of the 8 in `ADMIN_ROLES`) in a
+ * server action, throwing if the caller lacks it.
+ *
+ * This is additional to, not a replacement for, `requireRole("admin")`: it
+ * still requires the caller to be a generic `admin` first (the existing,
+ * proven gate every admin surface already relies on), and on top of that
+ * requires the specific granted role. New/stricter admin actions that map
+ * cleanly onto one of the 8 Bible roles should call this; the broad
+ * `requireRole("admin")` remains the catch-all for everything else — see
+ * docs/policy-engine.md's "Admin roles" section for the scope reasoning.
+ */
+export async function requireAdminRole(required: AdminRoleName): Promise<Actor> {
+  const actor = await requireRole("admin");
+  if (!(await hasAdminRole(actor, required))) throw new NotAuthorisedAdminRoleError(required);
+  return actor;
+}
+
+export class NotAuthorisedAdminRoleError extends Error {
+  readonly status = 403;
+  constructor(required: AdminRoleName) {
+    super(`This action needs the ${required} admin role.`);
+    this.name = "NotAuthorisedAdminRoleError";
   }
 }
