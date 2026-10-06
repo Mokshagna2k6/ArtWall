@@ -41,6 +41,11 @@ const STAND_INS = {
   // fine here: no real token verification depends on signature continuity
   // across test runs, same spirit as MINT_SIGNER_PRIVATE_KEY below.
   QR_SIGNING_ED25519_SEED: "11".repeat(32),
+  // BC-3.09/3.10: resolveTagScan's NFC path derives per-tag SDM keys from
+  // this KMS-held master key (kms.ts refuses to run with none set, same
+  // policy as the QR seed above). Fixed 16-byte hex stand-in — FE-3.20's
+  // scan-page test mints its own SUN messages against it within the run.
+  NTAG424_MASTER_KEY_KMS_REF: "22".repeat(16),
 };
 const fromProcess = Object.fromEntries(
   Object.keys(STAND_INS).flatMap((k) => (process.env[k] ? [[k, process.env[k]]] : []))
