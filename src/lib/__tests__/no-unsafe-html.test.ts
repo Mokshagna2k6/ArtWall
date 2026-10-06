@@ -39,7 +39,9 @@ test("dangerouslySetInnerHTML is only used at reviewed, non-DB-content sites", (
   const needle = ["dangerouslySet", "InnerHTML"].join("");
   const hits: string[] = [];
   for (const file of findFiles(root)) {
-    if (file.endsWith("no-unsafe-html.test.ts")) continue; // this file names the needle in prose
+    // Test files that name the needle in prose/string-search logic (this one,
+    // and SEC-2.06's xss-regression static guard) aren't actual call sites.
+    if (file.endsWith("no-unsafe-html.test.ts") || file.endsWith("xss-regression.test.ts")) continue;
     const content = readFileSync(file, "utf8");
     if (content.includes(needle)) {
       hits.push(file.slice(repoRoot.length + 1).replace(/\\/g, "/"));
