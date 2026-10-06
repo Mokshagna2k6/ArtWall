@@ -8,9 +8,13 @@ import {
   requireAdminRole,
   type AdminRoleName,
 } from "@/features/physical-wall/authorize";
+import type { ActionState } from "@/features/physical-wall/action-state";
 import {
   attempt,
+  fail,
+  formInput,
   newId,
+  ok,
   parseInput,
   PreconditionError,
   readSafely,
@@ -152,4 +156,58 @@ export async function listAdminRoleAssignments() {
       granted_at: string;
     }[];
   });
+}
+
+/**
+ * FE-3.17: the grant/revoke form on the admin-roles console works by email
+ * (what a super_admin actually has on hand), not raw user id — these two
+ * wrapper actions resolve the email to a user id and delegate to
+ * `grantAdminRole`/`revokeAdminRole` above, which keep every real guard
+ * (super_admin-only, no self-grant, idempotent, audited). `useActionState`
+ * form shape (ActionState in/out) to match this codebase's other admin forms
+ * (e.g. `reviewIdentity`) rather than the plain `Result` the two underlying
+ * actions return, since this one is called directly from a `<form action>`.
+ */
+const emailFormSchema = z.object({
+  email: z.string({ error: "Enter the user's email." }).trim().email("Not a valid email.").max(320),
+  role: roleNameSchema,
+});
+
+async function resolveUserIdByEmail(email: string): Promise<string> {
+  const sql = getSql();
+  const rows = (await sql`select id from "user" where email = ${email} limit 1`) as { id: string }[];
+  if (rows.length === 0) throw new PreconditionError(`No user with email "${email}".`);
+  return rows[0].id;
+}
+
+export async function grantAdminRoleByEmail(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    const { email, role } = formInput(emailFormSchema, formData);
+    const targetUserId = await resolveUserIdByEmail(email);
+    const result = await grantAdminRole(targetUserId, role);
+    if (!result.ok) return fail(result.error);
+    return ok(`Granted ${role} to ${email}.`);
+  } catch (error) {
+    return error instanceof PreconditionError ? fail(error.message) : fail("That didn't work. The error has been logged.");
+  }
+}
+
+export async function revokeAdminRoleByEmail(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    const { email, role } = formInput(emailFormSchema, formData);
+    const targetUserId = await resolveUserIdByEmail(email);
+    const result = await revokeAdminRole(targetUserId, role);
+    if (!result.ok) return fail(result.error);
+    return result.data.revoked
+      ? ok(`Revoked ${role} from ${email}.`)
+      : ok(`${email} did not hold ${role}.`);
+  } catch (error) {
+    return error instanceof PreconditionError ? fail(error.message) : fail("That didn't work. The error has been logged.");
+  }
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { requireRolePage } from "@/features/physical-wall/authorize";
+import { requireAnyAdminRolePage } from "@/features/physical-wall/authorize";
 import { WallosEditor } from "@/features/physical-wall/components/wallos-editor";
 import {
   listUnlinkedPwSlots,
@@ -29,7 +29,7 @@ export const dynamic = "force-dynamic";
 export default async function AdminWallosPage({
   searchParams,
 }: PageProps<"/physical-wall/admin/wallos">) {
-  await requireRolePage("admin", "/physical-wall/admin/wallos");
+  await requireAnyAdminRolePage(["venue_admin"], "/physical-wall/admin/wallos");
   const params = await searchParams;
   const str = (v: string | string[] | undefined) => (typeof v === "string" && v ? v : undefined);
 
