@@ -58,6 +58,15 @@ export default async function CollectionsPage() {
         description="Group artworks you want to organize, showcase as a series, or curate — without owning them."
         action={<CollectionCreateForm availableTypes={availableTypes} />}
       />
+      {!isCurator && (
+        <p className="text-studio-muted text-sm">
+          Want to build a curator collection?{" "}
+          <Link href="/curator/apply" className="text-studio-ink underline underline-offset-4">
+            Apply to become a curator
+          </Link>
+          .
+        </p>
+      )}
       {myCollections.length === 0 ? (
         <div className="studio-card">
           <StudioEmptyState

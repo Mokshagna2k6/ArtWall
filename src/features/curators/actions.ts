@@ -38,10 +38,32 @@ const applySchema = z.object({
   bio: z.string().trim().max(2000).optional(),
 });
 
+/**
+ * A user applies once. If they already have a curators row — pending,
+ * active, rejected, or suspended — this refuses rather than inserting a
+ * second one: `curators.user_id` is unique (0032), so a duplicate insert
+ * would fail at the DB anyway, but refusing here gives a message that
+ * tells them what to do next instead of a raw constraint error. The
+ * caller (the apply page) checks `getMyCuratorApplication` first and only
+ * renders this form when there is no existing row, so reaching this
+ * refusal means two tabs/requests raced — not the common path.
+ */
 export async function applyCurator(raw: z.input<typeof applySchema>): Promise<Result<string>> {
   return attempt("applyCurator", async () => {
     const input = parseInput(applySchema, raw);
     const userId = await getUserId();
+
+    const [existing] = await db.select({ status: curators.status }).from(curators).where(eq(curators.userId, userId));
+    if (existing) {
+      throw new PreconditionError(
+        existing.status === "active"
+          ? "You are already an approved curator."
+          : existing.status === "pending"
+            ? "Your curator application is already pending review."
+            : "You already have a curator application on file."
+      );
+    }
+
     const curatorId = newId("cur");
     await db.insert(curators).values({
       id: curatorId,
@@ -51,6 +73,25 @@ export async function applyCurator(raw: z.input<typeof applySchema>): Promise<Re
       status: "pending",
     });
     return curatorId;
+  });
+}
+
+/** The signed-in user's own curator application, or null if they never applied. */
+export async function getMyCuratorApplication() {
+  return readSafely("getMyCuratorApplication", null, async () => {
+    const userId = await getUserId();
+    const [row] = await db
+      .select({
+        id: curators.id,
+        displayName: curators.displayName,
+        bio: curators.bio,
+        status: curators.status,
+        commissionBps: curators.commissionBps,
+        createdAt: curators.createdAt,
+      })
+      .from(curators)
+      .where(eq(curators.userId, userId));
+    return row ?? null;
   });
 }
 
@@ -169,6 +210,20 @@ async function moveCurator(curatorId: string, from: string, to: string, action: 
 export async function approveCurator(curatorId: string): Promise<Result<CuratorState>> {
   return attempt("approveCurator", async () =>
     moveCurator(parseInput(id, curatorId), "pending", "active", "curator.approved", null)
+  );
+}
+
+/**
+ * Admin: pending → rejected. Distinct from suspendCurator (active →
+ * suspended): rejecting a never-approved application must not read as
+ * "this curator used to be active" (see migration 0059's header comment
+ * on why 'rejected' is a separate status rather than reusing 'suspended').
+ * Rejecting an already-rejected application is a no-op, same idempotency
+ * as approveCurator.
+ */
+export async function rejectCurator(curatorId: string): Promise<Result<CuratorState>> {
+  return attempt("rejectCurator", async () =>
+    moveCurator(parseInput(id, curatorId), "pending", "rejected", "curator.rejected", null)
   );
 }
 
