@@ -31,6 +31,11 @@ export const user = pgTable("user", {
   artistVerificationStatus: text("artist_verification_status").notNull().default("unverified"),
   /** Self-declared 18+. Null means not yet asked (DPDP §5.4). */
   ageDeclaredAdult: boolean("ageDeclaredAdult"),
+  /** artist | curator | buyer. Null means not yet asked ("What brings you to
+   *  ArtWall?", shown once after sign-up/first sign-in). Not user.role (an
+   *  unrelated internal access tier) and not inferred from artist_profiles /
+   *  curators row presence - those tables predate this question. */
+  onboardingPersona: text("onboarding_persona"),
   onboardedAt: timestamp("onboardedAt", { withTimezone: true }),
   nomineeName: text("nomineeName"),
   nomineeContact: text("nomineeContact"),
