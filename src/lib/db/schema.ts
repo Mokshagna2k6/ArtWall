@@ -129,13 +129,55 @@ export const contacts = pgTable("contacts", {
   kind: text("kind").notNull().default("collector"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
-export const collections = pgTable("collections", {
-  id: text("id").primaryKey(),
-  userId: text("userId").notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  createdAt: timestamp("createdAt").notNull().defaultNow(),
-});
+/**
+ * A reusable grouping of artwork references (DB-COLL.01, 0057).
+ *
+ * Not a wishlist and not ownership: membership lives entirely in
+ * `collectionArtworks`, a many-to-many join table, so one artwork can sit in
+ * any number of collections and a collection never "owns" what it lists.
+ *
+ * `type` fixes what a collection is for and drives authorization in
+ * src/features/collections/policy.ts — it is never client-trusted:
+ *   BUYER   — any signed-in user organizing artworks they like. Private by
+ *             default, not commission-enabled.
+ *   ARTIST  — an artist's own portfolio/series. Every member artwork must be
+ *             owned by the same `ownerId`. Appears on the artist's profile.
+ *   CURATOR — editorial, commerce-oriented. Can mix artworks from any artist.
+ *             Commission attribution hangs off this type only (see
+ *             referrerId on sales, once that flow exists) — never on BUYER
+ *             or ARTIST collections.
+ */
+export const collections = pgTable(
+  "collections",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    type: text("type").notNull().default("BUYER").$type<"BUYER" | "ARTIST" | "CURATOR">(),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** Curator's curation statement. Artists may use it as an optional series note. Buyers don't. */
+    thesis: text("thesis"),
+    coverArtworkId: text("cover_artwork_id"),
+    visibility: text("visibility").notNull().default("private").$type<"public" | "private">(),
+    slug: text("slug").notNull(),
+    isFeatured: boolean("is_featured").notNull().default(false),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  }
+);
+
+/** Collection <-> Artwork membership (N:N). `position` is the persisted display order. */
+export const collectionArtworks = pgTable(
+  "collection_artworks",
+  {
+    collectionId: text("collection_id").notNull(),
+    artworkId: text("artwork_id").notNull(),
+    position: integer("position").notNull().default(0),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.collectionId, table.artworkId] })]
+);
 export const tasks = pgTable("tasks", {
   id: text("id").primaryKey(),
   userId: text("userId").notNull(),

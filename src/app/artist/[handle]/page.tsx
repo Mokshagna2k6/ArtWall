@@ -30,7 +30,7 @@ export default async function ArtistProfilePage({
   const { handle } = await params;
   const artist = await loadArtist(handle.toLowerCase());
   if (!artist) notFound();
-  const { profile, artworks } = artist;
+  const { profile, artworks, collections } = artist;
   const websiteLabel = profile.website?.replace(/^https?:\/\/(www\.)?/, "");
 
   return (
@@ -99,6 +99,20 @@ export default async function ArtistProfilePage({
           </div>
         </div>
       </section>
+      {collections.length > 0 && (
+        <section className="max-w-page mx-auto px-5 pt-16 sm:px-8 lg:px-16">
+          <p className="text-signal text-eyebrow">Series & portfolios</p>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {collections.map((c) => (
+              <Link key={c.id} href={`/collections/${c.slug}`} className="border-border hover:bg-muted border p-5">
+                <p className="text-muted-foreground text-xs tracking-wider uppercase">{c.isFeatured ? "Featured" : "Series"}</p>
+                <h3 className="font-heading text-card mt-2">{c.title}</h3>
+                {c.description && <p className="text-muted-foreground mt-2 line-clamp-2 text-sm">{c.description}</p>}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
       <section className="max-w-page mx-auto px-5 py-20 sm:px-8 lg:px-16 lg:py-32">
         <div className="flex items-end justify-between gap-6">
           <div>
