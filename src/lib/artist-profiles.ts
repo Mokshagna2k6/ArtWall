@@ -3,7 +3,7 @@ import "server-only";
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
-import { artistProfiles, artworks } from "@/lib/db/schema";
+import { artistProfiles, artworks, collections } from "@/lib/db/schema";
 
 type AuthUser = { id: string; name: string; email: string };
 
@@ -72,7 +72,27 @@ export async function getPublicArtistProfile(handle: string) {
     )
     .orderBy(desc(artworks.createdAt));
 
-  return { profile, artworks: publicArtworks };
+  // Artist collections (series/portfolios) shown on the public profile — not
+  // buyer or curator collections, which have no place on an artist's own page.
+  const artistCollections = await db
+    .select({
+      id: collections.id,
+      slug: collections.slug,
+      title: collections.title,
+      description: collections.description,
+      isFeatured: collections.isFeatured,
+    })
+    .from(collections)
+    .where(
+      and(
+        eq(collections.ownerId, profile.userId),
+        eq(collections.type, "ARTIST"),
+        eq(collections.visibility, "public")
+      )
+    )
+    .orderBy(desc(collections.isFeatured), desc(collections.createdAt));
+
+  return { profile, artworks: publicArtworks, collections: artistCollections };
 }
 
 export async function getPublishedArtistProfiles() {

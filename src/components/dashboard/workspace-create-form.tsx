@@ -1,21 +1,19 @@
 "use client";
 import { useState, useTransition } from "react";
 import { createContact } from "@/app/actions/contacts";
-import { createCollection } from "@/app/actions/organization";
 import {
   createDocument,
   createRoom,
   createSale,
 } from "@/app/actions/workspaces";
 
-type Kind = "sale" | "document" | "room" | "contact" | "collection";
+type Kind = "sale" | "document" | "room" | "contact";
 
 const LABEL: Record<Kind, string> = {
   sale: "Opportunity",
   document: "Document",
   room: "Room",
   contact: "Contact",
-  collection: "Collection",
 };
 
 export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
@@ -44,9 +42,7 @@ export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
                     name: value,
                     slug: value.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
                   })
-                : kind === "contact"
-                  ? await createContact({ name: value, email: detail || undefined })
-                  : await createCollection({ name: value, description: detail || undefined });
+                : await createContact({ name: value, email: detail || undefined });
         if (!result.ok) {
           setError(result.message);
           return;
@@ -93,15 +89,6 @@ export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
           className="studio-input flex-1"
           placeholder="Email (optional)"
           aria-label="Email"
-        />
-      )}
-      {kind === "collection" && (
-        <input
-          value={detail}
-          onChange={(e) => setDetail(e.target.value)}
-          className="studio-input flex-1"
-          placeholder="Description (optional)"
-          aria-label="Description"
         />
       )}
       <button disabled={pending} className="studio-button">
