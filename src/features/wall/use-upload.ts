@@ -51,8 +51,16 @@ export function useUpload() {
       const signed = await requestUploadSignature();
       if (!signed.ok) throw new UploadError(signed.message);
 
-      const { signature, timestamp, apiKey, cloudName, folder, moderation } =
-        signed.signature;
+      const {
+        signature,
+        timestamp,
+        apiKey,
+        cloudName,
+        folder,
+        moderation,
+        allowedFormats,
+        type,
+      } = signed.signature;
 
       const body = new FormData();
       body.append("file", file);
@@ -63,6 +71,8 @@ export function useUpload() {
       // Every signed param must be sent, and only signed params may be sent -
       // Cloudinary rejects the upload if the two sets disagree.
       if (moderation) body.append("moderation", moderation);
+      if (allowedFormats) body.append("allowed_formats", allowedFormats);
+      if (type) body.append("type", type);
 
       const result = await new Promise<UploadedAsset>((resolve, reject) => {
         const request = new XMLHttpRequest();
