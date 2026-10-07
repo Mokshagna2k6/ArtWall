@@ -21,6 +21,7 @@ const LABEL: Record<Kind, string> = {
 export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
+  const [detail, setDetail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const label = LABEL[kind];
@@ -44,13 +45,14 @@ export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
                     slug: value.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
                   })
                 : kind === "contact"
-                  ? await createContact({ name: value })
-                  : await createCollection({ name: value });
+                  ? await createContact({ name: value, email: detail || undefined })
+                  : await createCollection({ name: value, description: detail || undefined });
         if (!result.ok) {
           setError(result.message);
           return;
         }
         setValue("");
+        setDetail("");
         setOpen(false);
       } catch {
         setError(`Could not save this ${label.toLowerCase()}. Try again.`);
@@ -81,6 +83,25 @@ export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
           className="studio-input flex-1"
           placeholder={`${label} name`}
           aria-label={`${label} name`}
+        />
+      )}
+      {kind === "contact" && (
+        <input
+          type="email"
+          value={detail}
+          onChange={(e) => setDetail(e.target.value)}
+          className="studio-input flex-1"
+          placeholder="Email (optional)"
+          aria-label="Email"
+        />
+      )}
+      {kind === "collection" && (
+        <input
+          value={detail}
+          onChange={(e) => setDetail(e.target.value)}
+          className="studio-input flex-1"
+          placeholder="Description (optional)"
+          aria-label="Description"
         />
       )}
       <button disabled={pending} className="studio-button">

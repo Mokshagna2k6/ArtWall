@@ -73,6 +73,15 @@ export function StudioShell({
             <X />
           </button>
         </div>
+        <div className="px-6 pb-3">
+          <Link
+            href="/"
+            className="text-studio-muted hover:text-studio-ink text-sm underline underline-offset-4"
+            onClick={() => setOpen(false)}
+          >
+            ← Back to ArtWall
+          </Link>
+        </div>
         <div className="px-4 py-3">
           <p className="studio-eyebrow px-3 pb-3">Workspace</p>
           <nav aria-label="Studio navigation" className="flex flex-col gap-1">
