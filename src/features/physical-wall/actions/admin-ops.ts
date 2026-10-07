@@ -130,7 +130,7 @@ export async function deliverNotificationsNow(): Promise<ActionState> {
       return {
         status: "error",
         message:
-          `${result.skipped} pending — SES is not configured, so nothing was sent.`,
+          `${result.skipped} pending — RESEND_API_KEY is not configured, so nothing was sent.`,
       };
     }
     return ok(
