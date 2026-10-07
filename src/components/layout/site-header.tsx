@@ -650,6 +650,7 @@ function SignOutButton({ className }: { className?: string }) {
     setPending(true);
     try {
       await authClient.signOut();
+      router.push("/");
       router.refresh();
     } finally {
       setPending(false);
