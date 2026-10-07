@@ -61,7 +61,14 @@ const artworkSchema = z.object({
   year: z.coerce.number().int().min(1000).max(3000).optional(),
   medium: optionalText(120),
   description: optionalText(1800),
-  dimensions: optionalText(100),
+  dimensions: z
+    .string()
+    .trim()
+    .max(100)
+    .regex(/\d/, "Include a number, e.g. 91 x 122 cm.")
+    .optional()
+    .or(z.literal(""))
+    .transform((value) => value || null),
   imageUrl: z
     .string()
     .trim()
