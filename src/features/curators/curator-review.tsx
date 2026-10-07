@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { approveCurator, suspendCurator } from "@/features/curators/actions";
+import { approveCurator, rejectCurator, suspendCurator } from "@/features/curators/actions";
 import type { Result } from "@/features/physical-wall/action-state";
 import { ConfirmStep } from "@/features/physical-wall/components/form-bits";
 
@@ -89,14 +89,24 @@ function CuratorRow({ item }: { item: Item }) {
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         {item.status === "pending" && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => run(() => approveCurator(item.id))}
-            className="bg-ember text-wall-paper text-small h-10 rounded-md px-4 font-medium disabled:opacity-60"
-          >
-            {pending ? "Working…" : "Approve"}
-          </button>
+          <>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => run(() => approveCurator(item.id))}
+              className="bg-ember text-wall-paper text-small h-10 rounded-md px-4 font-medium disabled:opacity-60"
+            >
+              {pending ? "Working…" : "Approve"}
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => run(() => rejectCurator(item.id))}
+              className="border-destructive/40 text-destructive text-small h-10 rounded-md border px-4 font-medium disabled:opacity-60"
+            >
+              {pending ? "Working…" : "Reject"}
+            </button>
+          </>
         )}
         {item.status === "active" && (
           <>
