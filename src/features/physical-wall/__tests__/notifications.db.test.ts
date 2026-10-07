@@ -1,3 +1,4 @@
+import { SESClient } from "@aws-sdk/client-ses";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 import { makeBooking, makeSlots, makeUser, purgeTestData, q, tid } from "@/test/fixtures";
@@ -15,19 +16,24 @@ import {
 
 afterAll(purgeTestData);
 
-// Stub only Resend; the Neon HTTP driver also uses fetch.
-const realFetch = globalThis.fetch;
-function stubResend(handler: (init: RequestInit) => Response) {
-  vi.stubGlobal("fetch", (url: string | URL, init?: RequestInit) =>
-    String(url).startsWith("https://api.resend.com") ? Promise.resolve(handler(init!)) : realFetch(url, init)
-  );
+const SES_ENV = { SES_REGION: "us-east-1", SES_ACCESS_KEY_ID: "test", SES_SECRET_ACCESS_KEY: "test" };
+
+// Stub the SES client's `.send`, since SES isn't a plain fetch call.
+function stubSes(handler: (input: { Destination: { ToAddresses: string[] }; Subject?: unknown }) => void | Error) {
+  vi.spyOn(SESClient.prototype, "send").mockImplementation(async (command: unknown) => {
+    const result = handler((command as { input: { Destination: { ToAddresses: string[] } } }).input as never);
+    if (result instanceof Error) throw result;
+    return {} as never;
+  });
 }
 afterEach(() => {
-  vi.unstubAllGlobals();
-  delete process.env.RESEND_API_KEY;
+  vi.restoreAllMocks();
+  delete process.env.SES_REGION;
+  delete process.env.SES_ACCESS_KEY_ID;
+  delete process.env.SES_SECRET_ACCESS_KEY;
 });
 
-// Sample data for every kind. A Record over NotificationKind, so a 14th kind
+// Sample data for every kind. A Record over NotificationKind, so a 15th kind
 // without a sample here fails to compile.
 const SAMPLES: { [K in NotificationKind]: Parameters<(typeof TEMPLATES)[K]>[0] } = {
   "waitlist.offer": { name: "Asha", slotLabel: "B3", expiresAt: "2031-01-01T10:00:00Z" },
@@ -43,12 +49,13 @@ const SAMPLES: { [K in NotificationKind]: Parameters<(typeof TEMPLATES)[K]>[0] }
   "ugc.approved": { caption: "Me at the wall" },
   "ugc.removed": { caption: "Me at the wall" },
   "system.notice": { subject: "Account erased", body: "Done." },
+  "auth.verify-email": { name: "Asha", url: "https://artwall.in/verify?token=x" },
 };
 
 describe("notification templates (BE-1.34)", () => {
-  it("there are exactly 13 kinds and each renders a non-empty subject and body", () => {
+  it("there are exactly 14 kinds and each renders a non-empty subject and body", () => {
     const kinds = Object.keys(TEMPLATES) as NotificationKind[];
-    expect(kinds).toHaveLength(13);
+    expect(kinds).toHaveLength(14);
     for (const kind of kinds) {
       const { subject, body } = (TEMPLATES[kind] as (d: unknown) => { subject: string; body: string })(SAMPLES[kind]);
       expect(subject.length, kind).toBeGreaterThan(3);
@@ -65,7 +72,7 @@ describe("notification templates (BE-1.34)", () => {
     expect(NOTIFICATION_SCHEMA_VERSION).toBe(1);
   });
 
-  it("every kind is queued and delivered through Resend", async () => {
+  it("every kind is queued and delivered through SES", async () => {
     const user = await makeUser();
     const ids: string[] = [];
     for (const kind of Object.keys(TEMPLATES) as NotificationKind[]) {
@@ -75,25 +82,24 @@ describe("notification templates (BE-1.34)", () => {
     }
     expect(await notify("ugc.approved", { email: "not-an-email" }, SAMPLES["ugc.approved"])).toBeNull();
 
-    process.env.RESEND_API_KEY = "re_test";
-    const sent: { to: string[]; subject: string }[] = [];
-    stubResend((init) => {
-      sent.push(JSON.parse(String(init.body)));
-      return new Response("{}", { status: 200 });
+    Object.assign(process.env, SES_ENV);
+    const sent: { to: string[] }[] = [];
+    stubSes((input) => {
+      sent.push({ to: input.Destination.ToAddresses });
     });
 
-    expect(await deliverPendingNotifications(50, ids)).toEqual({ sent: 13, failed: 0, dead: 0, skipped: 0 });
+    expect(await deliverPendingNotifications(50, ids)).toEqual({ sent: 14, failed: 0, dead: 0, skipped: 0 });
     expect(sent.every((m) => m.to[0] === user.email)).toBe(true);
     const rows = await q<{ status: string; kind: string }>(`select status, kind from pw_notifications where id = any($1)`, [ids]);
-    expect(new Set(rows.map((r) => r.kind)).size).toBe(13);
+    expect(new Set(rows.map((r) => r.kind)).size).toBe(14);
     expect(rows.every((r) => r.status === "sent")).toBe(true);
   });
 
-  it("a Resend failure goes to 'retrying' with backoff, then dead-letters after max attempts (BE-2.12)", async () => {
+  it("an SES failure goes to 'retrying' with backoff, then dead-letters after max attempts (BE-2.12)", async () => {
     const user = await makeUser();
     const id = (await notify("system.notice", { email: user.email }, SAMPLES["system.notice"]))!;
-    process.env.RESEND_API_KEY = "re_test";
-    stubResend(() => new Response("nope", { status: 500 }));
+    Object.assign(process.env, SES_ENV);
+    stubSes(() => new Error("500 nope"));
 
     expect(await deliverPendingNotifications(5, [id])).toMatchObject({ sent: 0, failed: 1, dead: 0 });
     let [row] = await q<{ status: string; attempts: number; last_error: string; wait: number }>(
@@ -127,37 +133,35 @@ describe("notification templates (BE-1.34)", () => {
     for (let i = 0; i < 6; i++) {
       ids.push((await notify("system.notice", { email: user.email }, { subject: `betest ${i}`, body: "x" }))!);
     }
-    process.env.RESEND_API_KEY = "re_test";
-    const keys: string[] = [];
-    stubResend((init) => {
-      keys.push(new Headers(init.headers).get("Idempotency-Key")!);
-      return new Response("{}", { status: 200 });
+    Object.assign(process.env, SES_ENV);
+    let calls = 0;
+    stubSes(() => {
+      calls++;
     });
 
     // Four runs at once (cron overlap + an admin click + a re-run).
     const runs = await Promise.all([1, 2, 3, 4].map(() => deliverPendingNotifications(50, ids)));
     expect(runs.reduce((n, r) => n + r.sent, 0)).toBe(6);
-    expect(keys.sort()).toEqual([...ids].sort()); // one provider call per message, keyed by row id
+    expect(calls).toBe(6); // one provider call per message: the `for update skip locked` claim, not a provider key, is what dedupes.
     const rows = await q<{ status: string }>(`select status from pw_notifications where id = any($1)`, [ids]);
     expect(rows.every((r) => r.status === "sent")).toBe(true);
 
     // A re-run afterwards finds nothing to do.
     expect((await deliverPendingNotifications(50, ids)).sent).toBe(0);
-    expect(keys).toHaveLength(6);
+    expect(calls).toBe(6);
   });
 
-  it("a stale claim (run died mid-send) is retried with the same idempotency key", async () => {
+  it("a stale claim (run died mid-send) is retried", async () => {
     const user = await makeUser();
     const id = (await notify("system.notice", { email: user.email }, SAMPLES["system.notice"]))!;
     await q(`update pw_notifications set status = 'sending', claimed_at = now() - interval '11 minutes' where id = $1`, [id]);
-    process.env.RESEND_API_KEY = "re_test";
-    const keys: string[] = [];
-    stubResend((init) => {
-      keys.push(new Headers(init.headers).get("Idempotency-Key")!);
-      return new Response("{}", { status: 200 });
+    Object.assign(process.env, SES_ENV);
+    let calls = 0;
+    stubSes(() => {
+      calls++;
     });
     expect((await deliverPendingNotifications(5, [id])).sent).toBe(1);
-    expect(keys).toEqual([id]);
+    expect(calls).toBe(1);
 
     // A fresh claim (another run is mid-send) is left alone.
     const other = (await notify("system.notice", { email: user.email }, SAMPLES["system.notice"]))!;
