@@ -24,7 +24,8 @@ export async function saveSurveyResponse(record: SurveyRecord): Promise<void> {
   await sql`
     insert into survey_responses (
       user_id, email, role, practice, city,
-      pain_points, biggest_problem, fair_commission, earns_from_art,
+      pain_points, other_pain_point_detail,
+      biggest_problem, fair_commission, earns_from_art,
       notes, user_agent
     )
     values (
@@ -34,6 +35,7 @@ export async function saveSurveyResponse(record: SurveyRecord): Promise<void> {
       ${record.practice || null},
       ${record.city || null},
       ${record.painPoints},
+      ${record.otherPainPointDetail || null},
       ${record.biggestProblem || null},
       ${record.fairCommission || null},
       ${record.earnsFromArt || null},
