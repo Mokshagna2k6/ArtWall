@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { destinationFor } from "@/app/welcome/page";
+import { destinationFor } from "@/features/onboarding/destination";
 import { setOnboardingPersona, type OnboardingPersona } from "@/features/onboarding/actions";
 
 const OPTIONS: { persona: OnboardingPersona; title: string; body: string }[] = [

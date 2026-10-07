@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { requireUser } from "@/lib/session";
 import { getOnboardingPersona } from "@/features/onboarding/actions";
+import { destinationFor } from "@/features/onboarding/destination";
 import { PersonaChoice } from "@/features/onboarding/persona-choice";
 
 export const metadata: Metadata = {
@@ -36,10 +37,4 @@ export default async function WelcomePage() {
       <PersonaChoice />
     </main>
   );
-}
-
-export function destinationFor(persona: string): string {
-  if (persona === "artist") return "/studio/onboarding";
-  if (persona === "curator") return "/curator/apply";
-  return "/discover";
 }
