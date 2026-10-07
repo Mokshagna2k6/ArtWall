@@ -1,5 +1,7 @@
 import "server-only";
 
+import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
+
 import { newId } from "@/features/physical-wall/actions/shared";
 import { getSql } from "@/lib/db";
 
@@ -11,9 +13,24 @@ import { getSql } from "@/lib/db";
  * transaction is never held open by an SMTP handshake, and a mail outage
  * degrades to "the message arrives late" rather than "the booking failed".
  *
- * Delivery: Resend when `RESEND_API_KEY` is set; otherwise rows stay `pending`
- * and the admin can see the backlog. Nothing pretends to have been sent.
+ * Delivery: AWS SES when `SES_REGION`/`SES_ACCESS_KEY_ID`/`SES_SECRET_ACCESS_KEY`
+ * are set (docs/WORK_PLAN.md decision #3); otherwise rows stay `pending` and
+ * the admin can see the backlog. Nothing pretends to have been sent.
  */
+
+let sesClient: SESClient | null = null;
+function getSesClient(): SESClient {
+  if (!sesClient) {
+    sesClient = new SESClient({
+      region: process.env.SES_REGION!,
+      credentials: {
+        accessKeyId: process.env.SES_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.SES_SECRET_ACCESS_KEY!,
+      },
+    });
+  }
+  return sesClient;
+}
 
 const SIGN_OFF = "\n\n— Artwall Labs";
 const inr = (paise: number) =>
@@ -78,6 +95,10 @@ export const TEMPLATES = {
   "system.notice": (d: { subject: string; body: string }) => ({
     subject: d.subject,
     body: `${d.body}${SIGN_OFF}`,
+  }),
+  "auth.verify-email": (d: { name: string; url: string }) => ({
+    subject: "Verify your email for ArtWall",
+    body: `Hi ${d.name},\n\nConfirm this is your email address:\n${d.url}\n\nIf you didn't request this, you can ignore it.${SIGN_OFF}`,
   }),
 };
 
@@ -202,8 +223,10 @@ export async function queueScheduledNotifications(): Promise<number> {
   return queued;
 }
 
-function isResendConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY);
+function isSesConfigured(): boolean {
+  return Boolean(
+    process.env.SES_REGION && process.env.SES_ACCESS_KEY_ID && process.env.SES_SECRET_ACCESS_KEY
+  );
 }
 
 /** After this many failed attempts a message is dead-lettered (BE-2.12). */
@@ -222,9 +245,11 @@ type Claimed = { id: string; recipient: string; subject: string; body: string; a
  *  - Rows are CLAIMED (status 'sending') by one UPDATE over a
  *    `for update skip locked` subquery. Overlapping runs get disjoint rows;
  *    a row is never handed to two runs at once.
- *  - Resend gets the row id as its Idempotency-Key. A run that died after
- *    Resend accepted a message but before marking it sent leaves a stale claim;
- *    the retry re-sends with the same key and Resend drops the duplicate.
+ *  - A run that died after SES accepted a message but before marking it sent
+ *    leaves a stale claim (status 'sending'); the next run reclaims it (see
+ *    the 10-minute `claimed_at` fallback below) and sends again — SES has no
+ *    idempotency key, so a crash in that exact window can double-send. Rare
+ *    enough (requires a crash in a few-hundred-ms window) not to block this.
  *  - Marking sent/retrying/dead is conditional on the row still being
  *    'sending', so a late writer cannot overwrite a newer outcome.
  *
@@ -245,7 +270,7 @@ export async function deliverPendingNotifications(
            or (status = 'sending' and claimed_at < now() - interval '10 minutes'))
       and ($1::text[] is null or id = any($1::text[]))`;
 
-  if (!isResendConfigured()) {
+  if (!isSesConfigured()) {
     // Nothing is claimed: the rows stay where they are and the admin sees the backlog.
     const [row] = (await sql.query(`select count(*)::int as n from pw_notifications where ${due}`, [ids])) as { n: number }[];
     return { sent: 0, failed: 0, dead: 0, skipped: Math.min(Number(row?.n ?? 0), limit) };
@@ -265,22 +290,17 @@ export async function deliverPendingNotifications(
   for (const row of claimed) {
     if (Date.now() > until) break; // left pending for the next run
     try {
-      const response = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          "Content-Type": "application/json",
-          "Idempotency-Key": row.id,
-        },
-        body: JSON.stringify({
-          from: process.env.NOTIFY_FROM_EMAIL ?? "Artwall <onboarding@resend.dev>",
-          to: [row.recipient],
-          subject: row.subject,
-          text: row.body,
+      await getSesClient().send(
+        new SendEmailCommand({
+          Source: process.env.NOTIFY_FROM_EMAIL ?? "Artwall <noreply@artwall.in>",
+          Destination: { ToAddresses: [row.recipient] },
+          Message: {
+            Subject: { Data: row.subject, Charset: "UTF-8" },
+            Body: { Text: { Data: row.body, Charset: "UTF-8" } },
+          },
         }),
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!response.ok) throw new Error(`Resend responded ${response.status}`);
+        { abortSignal: AbortSignal.timeout(10_000) }
+      );
 
       await sql`
         update pw_notifications
