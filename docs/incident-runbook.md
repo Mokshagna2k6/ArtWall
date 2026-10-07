@@ -15,7 +15,7 @@ service. See `docs/testing.md` for how to run any suite mentioned here.
   payment id (`src/app/api/physical-wall/razorpay/webhook/route.ts`).
 - **Refunds stuck past 3 attempts** (BE-2.11): `alertAdmins`, deduped per
   refund (`src/features/physical-wall/refunds.ts`).
-- **No SES env vars configured** (`SES_REGION`/`SES_ACCESS_KEY_ID`/`SES_SECRET_ACCESS_KEY`): alerts still land as `pending` rows in
+- **No `RESEND_API_KEY` configured**: alerts still land as `pending` rows in
   `pw_notifications` (visible on the admin panel) and as `console.error`
   (`{"level":"alert", ...}`) — an ops person watching platform logs is the
   fallback delivery path, not silence.
@@ -90,7 +90,7 @@ external monitor for catching an incident within minutes.
 
 1. This is the one class of incident where speed of containment beats speed
    of full diagnosis. Rotate `BETTER_AUTH_SECRET`, `ADMIN_PASSWORD`, and any
-   third-party API keys (`RAZORPAY_KEY_SECRET`, `SES_SECRET_ACCESS_KEY`,
+   third-party API keys (`RAZORPAY_KEY_SECRET`, `RESEND_API_KEY`,
    `CLOUDINARY_API_SECRET`) that may be exposed, immediately — this
    invalidates existing sessions and revokes leaked credentials without
    waiting for root cause. If `MINT_SIGNER_PRIVATE_KEY` is suspected exposed,
