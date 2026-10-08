@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { recordAudit } from "@/features/physical-wall/audit";
@@ -180,6 +181,21 @@ async function resolveUserIdByEmail(email: string): Promise<string> {
   return rows[0].id;
 }
 
+/**
+ * Problem #2/#3: the console already fetches `listAdminRoleAssignments()`
+ * fresh on every render of /physical-wall/admin/roles (it's a plain
+ * `await` in a Server Component page, no client cache in front of it) and
+ * already renders a "Current assignments" table from that data — so the
+ * list existed; it just never refreshed after a grant/revoke because
+ * `useActionState`'s re-render only updates the *form's* returned state,
+ * not the server-fetched props the page passed to it. `revalidatePath` on
+ * the gated route is this codebase's existing pattern for exactly this
+ * "show the new state immediately, no manual reload" need (see
+ * approveCurator/rejectCurator's `revalidatePath("/discover")` in
+ * src/features/curators/actions.ts).
+ */
+const ADMIN_ROLES_PATH = "/physical-wall/admin/roles";
+
 export async function grantAdminRoleByEmail(
   _previous: ActionState,
   formData: FormData
@@ -189,6 +205,7 @@ export async function grantAdminRoleByEmail(
     const targetUserId = await resolveUserIdByEmail(email);
     const result = await grantAdminRole(targetUserId, role);
     if (!result.ok) return fail(result.error);
+    revalidatePath(ADMIN_ROLES_PATH);
     return ok(`Granted ${role} to ${email}.`);
   } catch (error) {
     return error instanceof PreconditionError ? fail(error.message) : fail("That didn't work. The error has been logged.");
@@ -204,6 +221,7 @@ export async function revokeAdminRoleByEmail(
     const targetUserId = await resolveUserIdByEmail(email);
     const result = await revokeAdminRole(targetUserId, role);
     if (!result.ok) return fail(result.error);
+    if (result.data.revoked) revalidatePath(ADMIN_ROLES_PATH);
     return result.data.revoked
       ? ok(`Revoked ${role} from ${email}.`)
       : ok(`${email} did not hold ${role}.`);

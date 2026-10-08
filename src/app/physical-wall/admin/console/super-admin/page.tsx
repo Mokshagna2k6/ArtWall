@@ -4,6 +4,7 @@ import { ShieldCheck } from "lucide-react";
 
 import { BIBLE_ROLES, requireAnyAdminRolePage } from "@/features/physical-wall/authorize";
 import { roleConsolePath } from "@/features/physical-wall/admin-console";
+import { getSql } from "@/lib/db";
 
 export const metadata: Metadata = {
   title: "Super Admin",
@@ -12,16 +13,42 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+const RECENT_ACTIVITY_LIMIT = 15;
+
 /**
- * FE-3.18: Super Admin's own landing tile. There is nothing new to build
- * here — per the product owner, "for super admin everything would be the
- * same according to the Bible," i.e. this role's access doesn't change: it
- * already sees every other role's page unlocked (requireAnyAdminRolePage's
- * super_admin bypass) and already has its own grant/revoke console at
- * /physical-wall/admin/roles. This page is just the front door to both.
+ * Problem #9b: "who did what, when" on the super admin dashboard, reading
+ * the EXISTING pw_audit_log table — same columns, same `order by at desc`
+ * shape as src/app/physical-wall/admin/audit/page.tsx's full log viewer,
+ * just capped to the most recent rows instead of paginated. No new logging
+ * mechanism: every admin mutation already writes here via recordAudit.
+ *
+ * "Real-time" here means `dynamic = "force-dynamic"` (already set on this
+ * page) plus a normal page visit/navigation — the same near-real-time
+ * pattern the audit log page itself already relies on for "did my last
+ * action show up." A literal push/websocket feed would be new
+ * infrastructure for a dashboard a super_admin re-visits, not something
+ * left open in a background tab — out of scope per the task brief.
  */
+async function getRecentAuditActivity() {
+  const sql = getSql();
+  return (await sql`
+    select id, actor_label, action, subject_type, subject_id, at as created_at
+    from pw_audit_log
+    order by at desc
+    limit ${RECENT_ACTIVITY_LIMIT}
+  `) as {
+    id: string;
+    actor_label: string | null;
+    action: string;
+    subject_type: string;
+    subject_id: string | null;
+    created_at: Date;
+  }[];
+}
+
 export default async function SuperAdminConsolePage() {
   await requireAnyAdminRolePage(["super_admin"], "/physical-wall/admin/console/super-admin");
+  const recentActivity = await getRecentAuditActivity();
 
   return (
     <div className="flex flex-col gap-6">
@@ -64,6 +91,43 @@ export default async function SuperAdminConsolePage() {
             </li>
           ))}
         </ul>
+      </div>
+
+      <div>
+        <div className="flex items-baseline justify-between">
+          <p className="text-label text-ink-muted tracking-wider uppercase">
+            Recent activity
+          </p>
+          <Link
+            href="/physical-wall/admin/audit"
+            className="text-ink-muted hover:text-ink text-xs underline underline-offset-4"
+          >
+            Full audit log
+          </Link>
+        </div>
+        {recentActivity.length === 0 ? (
+          <p className="text-ink-muted border-hairline mt-3 rounded-md border border-dashed p-6 text-center text-sm">
+            No admin actions recorded yet.
+          </p>
+        ) : (
+          <ul className="border-hairline mt-3 flex flex-col overflow-hidden rounded-md border text-sm">
+            {recentActivity.map((entry, i) => (
+              <li
+                key={entry.id}
+                className={i > 0 ? "border-hairline border-t px-4 py-3" : "px-4 py-3"}
+              >
+                <span className="font-medium">{entry.action}</span>
+                <span className="text-ink-muted ml-2 text-xs">
+                  {entry.actor_label ?? "system"}
+                  {entry.subject_id ? ` · ${entry.subject_type} ${entry.subject_id}` : ""}
+                </span>
+                <time className="text-ink-muted float-right text-xs tabular-nums">
+                  {new Date(entry.created_at).toLocaleString("en-IN")}
+                </time>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import {
   BadgeCheck,
   CalendarDays,
   ClipboardCheck,
+  ExternalLink,
   FileText,
   IdCard,
   ImageIcon,
@@ -123,7 +124,28 @@ export default async function PhysicalWallAdminLayout({
   return (
     <div className="mx-auto max-w-7xl px-5 pt-24 pb-24 sm:px-8 sm:pt-28">
       <div className="grid gap-8 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-12">
-        <div className="lg:sticky lg:top-24 lg:self-start">
+        {/* Problem #10: wall-management links + (for a non-super-admin) the
+            8-role lock list + the "signed in as" box can together be taller
+            than a short viewport, with nothing below `lg:sticky` to let a
+            reader scroll down to the items that don't fit. max-h-screen +
+            overflow-y-auto lets the rail itself scroll independently of the
+            page, same idea as the audit log / moderation queue's own
+            overflow-y-auto list panels elsewhere in this feature. */}
+        <div className="lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:self-start lg:overflow-y-auto">
+          {/* Problem #4: an explicit, opt-in way back to the public site.
+              Not part of the always-present nav below it on purpose — this
+              is the one deliberate exit out of the admin-only shell
+              (src/app/layout.tsx hides SiteHeader/SiteFooter for every
+              /physical-wall/admin route), so it has to be its own link
+              rather than relying on a public nav that no longer renders here. */}
+          <Link
+            href="/"
+            className="border-hairline text-ink-muted hover:text-ink hover:border-hairline-strong mb-6 flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
+          >
+            <ExternalLink className="size-3.5 shrink-0" aria-hidden />
+            View site
+          </Link>
+
           <p className="text-label text-ink-muted tracking-wider uppercase">
             Wall management
           </p>
@@ -157,38 +179,46 @@ export default async function PhysicalWallAdminLayout({
             exact role (under admin/console, one folder per role), so
             pasting a locked tile's URL directly still redirects the admin
             away, same as today's curators/identity/wallos/roles pages.
+
+            Problem #9a: a super_admin is never locked out of anything (the
+            unlock check below is always true for them), so this list would
+            render as 8 identical unlocked links that duplicate the "every
+            role, at a glance" list already on their own Super Admin page —
+            not useful, just noise. Skipped entirely for super_admin.
           */}
-          <nav aria-label="Admin roles" className="mt-6">
-            <p className="text-label text-ink-muted tracking-wider uppercase">
-              Admin roles
-            </p>
-            <ul className="mt-3 flex flex-col gap-1">
-              {BIBLE_ROLES.map((r) => {
-                const unlocked = isSuperAdmin || heldRoles.includes(r.role);
-                return (
-                  <li key={r.role}>
-                    {unlocked ? (
-                      <Link
-                        href={roleConsolePath(r.role)}
-                        className="text-ink-muted hover:bg-band hover:text-ink flex items-center justify-between gap-2.5 rounded-md px-3 py-2 text-sm transition-colors"
-                      >
-                        {r.label}
-                      </Link>
-                    ) : (
-                      <span
-                        aria-disabled="true"
-                        title={`Locked — you don't hold ${r.label}. A super_admin can grant it from the Admin roles console.`}
-                        className="text-ink-muted/50 flex cursor-not-allowed items-center justify-between gap-2.5 rounded-md px-3 py-2 text-sm"
-                      >
-                        {r.label}
-                        <Lock className="size-3.5 shrink-0" aria-hidden />
-                      </span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+          {!isSuperAdmin && (
+            <nav aria-label="Admin roles" className="mt-6">
+              <p className="text-label text-ink-muted tracking-wider uppercase">
+                Admin roles
+              </p>
+              <ul className="mt-3 flex flex-col gap-1">
+                {BIBLE_ROLES.map((r) => {
+                  const unlocked = heldRoles.includes(r.role);
+                  return (
+                    <li key={r.role}>
+                      {unlocked ? (
+                        <Link
+                          href={roleConsolePath(r.role)}
+                          className="text-ink-muted hover:bg-band hover:text-ink flex items-center justify-between gap-2.5 rounded-md px-3 py-2 text-sm transition-colors"
+                        >
+                          {r.label}
+                        </Link>
+                      ) : (
+                        <span
+                          aria-disabled="true"
+                          title={`Locked — you don't hold ${r.label}. A super_admin can grant it from the Admin roles console.`}
+                          className="text-ink-muted/50 flex cursor-not-allowed items-center justify-between gap-2.5 rounded-md px-3 py-2 text-sm"
+                        >
+                          {r.label}
+                          <Lock className="size-3.5 shrink-0" aria-hidden />
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </nav>
+          )}
 
           {/* Who you are, stated plainly. Every force action on these screens is
               written to the audit log under this name, and it is fairer to say
