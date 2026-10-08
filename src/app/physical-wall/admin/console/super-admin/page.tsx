@@ -4,7 +4,7 @@ import { ShieldCheck } from "lucide-react";
 
 import { BIBLE_ROLES, requireAnyAdminRolePage } from "@/features/physical-wall/authorize";
 import { roleConsolePath } from "@/features/physical-wall/admin-console";
-import { getSql } from "@/lib/db";
+import { getRecentAuditActivity } from "@/features/physical-wall/audit";
 
 export const metadata: Metadata = {
   title: "Super Admin",
@@ -15,40 +15,15 @@ export const dynamic = "force-dynamic";
 
 const RECENT_ACTIVITY_LIMIT = 15;
 
-/**
- * Problem #9b: "who did what, when" on the super admin dashboard, reading
- * the EXISTING pw_audit_log table — same columns, same `order by at desc`
- * shape as src/app/physical-wall/admin/audit/page.tsx's full log viewer,
- * just capped to the most recent rows instead of paginated. No new logging
- * mechanism: every admin mutation already writes here via recordAudit.
- *
- * "Real-time" here means `dynamic = "force-dynamic"` (already set on this
- * page) plus a normal page visit/navigation — the same near-real-time
- * pattern the audit log page itself already relies on for "did my last
- * action show up." A literal push/websocket feed would be new
- * infrastructure for a dashboard a super_admin re-visits, not something
- * left open in a background tab — out of scope per the task brief.
- */
-async function getRecentAuditActivity() {
-  const sql = getSql();
-  return (await sql`
-    select id, actor_label, action, subject_type, subject_id, at as created_at
-    from pw_audit_log
-    order by at desc
-    limit ${RECENT_ACTIVITY_LIMIT}
-  `) as {
-    id: string;
-    actor_label: string | null;
-    action: string;
-    subject_type: string;
-    subject_id: string | null;
-    created_at: Date;
-  }[];
-}
-
 export default async function SuperAdminConsolePage() {
   await requireAnyAdminRolePage(["super_admin"], "/physical-wall/admin/console/super-admin");
-  const recentActivity = await getRecentAuditActivity();
+  // Problem #9b: "who did what, when," reading the EXISTING pw_audit_log
+  // table via the same helper the admin shell header's notification bell
+  // uses (src/features/physical-wall/audit.ts) — no second query, no new
+  // logging mechanism. "Real-time" here means `dynamic = "force-dynamic"`
+  // plus a normal page visit, same as the full audit log page's own
+  // near-real-time pattern; a push/websocket feed is out of scope.
+  const recentActivity = await getRecentAuditActivity(RECENT_ACTIVITY_LIMIT);
 
   return (
     <div className="flex flex-col gap-6">

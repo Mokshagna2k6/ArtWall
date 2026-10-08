@@ -59,8 +59,8 @@ export async function grantAdminRole(
     const sql = getSql();
 
     const target = (await sql`
-      select id from "user" where id = ${input.targetUserId} limit 1
-    `) as { id: string }[];
+      select id, role from "user" where id = ${input.targetUserId} limit 1
+    `) as { id: string; role: string }[];
     if (target.length === 0) throw new PreconditionError("User not found.");
 
     const roleRow = (await sql`
@@ -84,6 +84,14 @@ export async function grantAdminRole(
       insert into admin_role_assignments (id, user_id, role_id, granted_by)
       values (${assignmentId}, ${input.targetUserId}, ${roleRow[0].id}, ${actor.id})
     `;
+
+    // A team member needs the base "admin" Role to reach /physical-wall/admin
+    // at all (requireRolePage's pre-existing gate checks only this column, not
+    // admin_role_assignments) - granting a granular role is meaningless if the
+    // recipient can't get in the door to use it.
+    if (target[0].role !== "admin") {
+      await sql`update "user" set role = 'admin' where id = ${input.targetUserId}`;
+    }
 
     await recordAudit({
       actor,

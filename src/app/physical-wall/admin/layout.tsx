@@ -27,6 +27,10 @@ import {
   type AdminRoleName,
 } from "@/features/physical-wall/authorize";
 import { roleConsolePath } from "@/features/physical-wall/admin-console";
+import { countRecentAuditActivity, getRecentAuditActivity } from "@/features/physical-wall/audit";
+import { NotificationBell } from "./notification-bell";
+
+const BELL_RECENT_LIMIT = 10;
 
 /**
  * FE-3.17: which of the 8 named admin roles may see each section's nav link.
@@ -121,8 +125,25 @@ export default async function PhysicalWallAdminLayout({
       !item.roles || isSuperAdmin || item.roles.some((role) => heldRoles.includes(role))
   );
 
+  // FE-3.19: the bell is shell-wide (every admin page), not just the Super
+  // Admin console's own activity feed — both read the same
+  // getRecentAuditActivity/countRecentAuditActivity helpers in
+  // features/physical-wall/audit.ts, so there is exactly one query shape
+  // for "recent admin activity," reused by two UI surfaces.
+  const [unreadCount, recentActivity] = await Promise.all([
+    countRecentAuditActivity(),
+    getRecentAuditActivity(BELL_RECENT_LIMIT),
+  ]);
+
   return (
     <div className="mx-auto max-w-7xl px-5 pt-24 pb-24 sm:px-8 sm:pt-28">
+      {/* Problem #11: no top bar existed in this shell at all — the nav
+          rail was the only chrome. A minimal header row rather than a full
+          app-bar component, since the bell is the only thing that needs
+          one; the avatar/name box already lives in the rail below. */}
+      <div className="mb-6 flex items-center justify-end">
+        <NotificationBell count={unreadCount} recent={recentActivity} />
+      </div>
       <div className="grid gap-8 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-12">
         {/* Problem #10: wall-management links + (for a non-super-admin) the
             8-role lock list + the "signed in as" box can together be taller
@@ -139,7 +160,7 @@ export default async function PhysicalWallAdminLayout({
               /physical-wall/admin route), so it has to be its own link
               rather than relying on a public nav that no longer renders here. */}
           <Link
-            href="/"
+            href="/physical-wall/admin/view-site"
             className="border-hairline text-ink-muted hover:text-ink hover:border-hairline-strong mb-6 flex items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors"
           >
             <ExternalLink className="size-3.5 shrink-0" aria-hidden />

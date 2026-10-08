@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { Fraunces, Inter } from "next/font/google";
 
 import { MotionProvider } from "@/components/layout/motion-provider";
@@ -128,11 +129,50 @@ export const viewport = {
  * file). The pathname itself comes from proxy.ts, which already stamps a
  * per-request header (x-nonce) for the same reason: a Server Component
  * root layout has no usePathname().
+ *
+ * FE-3.19: the product owner's "session-wide takeover" — an admin/team-
+ * member account should land in the admin shell on EVERY page, not just
+ * ones already under /physical-wall/admin, until they explicitly click
+ * "View site." Role alone can't express "but I clicked View site, let me
+ * browse" — that needs a persisted opt-out signal that survives navigation
+ * and a hard refresh, hence the `pw_view_site` cookie (set/cleared by the
+ * two tiny route handlers at admin/view-site and admin/dashboard).
+ *
+ * Rather than duplicating the admin shell's chrome on every route (every
+ * public page would need its own "is this an admin shell render" branch),
+ * this redirects straight to the existing shell at /physical-wall/admin —
+ * the one place that chrome already lives. That's also exactly the
+ * product owner's literal ask ("I should get the admin panel directly").
  */
+function isAdminAccount(role: string | undefined): boolean {
+  return role === "admin";
+}
+
+/**
+ * Routes the takeover must never hijack even for an un-opted-out admin:
+ * the unrelated, password-gated virtual-wall-tiles tool at /admin (explicitly
+ * out of scope — see AGENTS.md task brief), and anything under /api, which
+ * route handlers hit directly and never renders this layout's children as a
+ * page the admin is "looking at" in the first place.
+ */
+function bypassesTakeover(pathname: string): boolean {
+  return pathname === "/admin" || pathname.startsWith("/admin/") || pathname.startsWith("/api/");
+}
+
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const user = await getActor();
   const pathname = (await headers()).get("x-pathname") ?? "";
   const isAdminShell = pathname.startsWith("/physical-wall/admin");
+  const viewingSite = (await cookies()).has("pw_view_site");
+
+  if (
+    isAdminAccount(user?.role) &&
+    !isAdminShell &&
+    !viewingSite &&
+    !bypassesTakeover(pathname)
+  ) {
+    redirect("/physical-wall/admin");
+  }
 
   return (
     <html

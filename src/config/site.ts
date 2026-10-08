@@ -82,5 +82,16 @@ export const features = {
   physicalWall: process.env.PHYSICAL_WALL_ENABLED === "true",
 } as const;
 
-/** Where a person lands after signing in when no callback was requested. */
+/**
+ * Where a person lands after signing in when no callback was requested.
+ *
+ * This is deliberately role-blind — an admin or team-member account signing
+ * in still gets sent here first, same as everyone else. src/app/layout.tsx's
+ * session-wide admin-shell takeover (FE-3.19) then redirects any such
+ * account straight to /physical-wall/admin on the very next render, before
+ * this destination's own page (e.g. studio/layout.tsx's onboarding check)
+ * does anything — so the "land directly in the admin shell" requirement is
+ * met without this constant, or auth-form.tsx, needing to know about roles
+ * at all.
+ */
 export const POST_AUTH_DESTINATION = features.studio ? "/studio" : "/join";
