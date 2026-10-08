@@ -24,13 +24,15 @@ import {
  */
 const ADMIN_ROLES = [
   "super_admin",
-  "curator_admin",
-  "venue_admin",
+  "operations_admin",
   "finance_admin",
-  "support_admin",
-  "compliance_admin",
   "content_admin",
-  "readonly_admin",
+  "support_admin",
+  "analytics_admin",
+  "venue_admin",
+  "blockchain_admin",
+  "curator_admin",
+  "compliance_admin",
 ] as const;
 
 interface Assignment {

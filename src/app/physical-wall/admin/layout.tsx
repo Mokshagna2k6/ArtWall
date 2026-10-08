@@ -8,6 +8,7 @@ import {
   ImageIcon,
   IndianRupee,
   LayoutGrid,
+  Lock,
   MessageSquareWarning,
   Network,
   ScrollText,
@@ -19,10 +20,12 @@ import {
 } from "lucide-react";
 
 import {
+  BIBLE_ROLES,
   listOwnAdminRoles,
   requireRolePage,
   type AdminRoleName,
 } from "@/features/physical-wall/authorize";
+import { roleConsolePath } from "@/features/physical-wall/admin-console";
 
 /**
  * FE-3.17: which of the 8 named admin roles may see each section's nav link.
@@ -138,6 +141,52 @@ export default async function PhysicalWallAdminLayout({
                   </Link>
                 </li>
               ))}
+            </ul>
+          </nav>
+
+          {/*
+            FE-3.18: the 8-role admin shell (product owner's decision — see
+            the task brief). ALWAYS renders all 8 Bible roles, in the Bible's
+            order, for every admin — the shell itself never changes; only
+            which tiles are unlocked changes per viewer, computed from
+            heldRoles/isSuperAdmin above (server-side, not client state).
+            An unlocked tile is a real Link; a locked one is plain text
+            with a lock icon — genuinely not clickable, not just styled to
+            look disabled. That's cosmetic either way: the real guard is
+            each role's own page calling requireAnyAdminRolePage with that
+            exact role (under admin/console, one folder per role), so
+            pasting a locked tile's URL directly still redirects the admin
+            away, same as today's curators/identity/wallos/roles pages.
+          */}
+          <nav aria-label="Admin roles" className="mt-6">
+            <p className="text-label text-ink-muted tracking-wider uppercase">
+              Admin roles
+            </p>
+            <ul className="mt-3 flex flex-col gap-1">
+              {BIBLE_ROLES.map((r) => {
+                const unlocked = isSuperAdmin || heldRoles.includes(r.role);
+                return (
+                  <li key={r.role}>
+                    {unlocked ? (
+                      <Link
+                        href={roleConsolePath(r.role)}
+                        className="text-ink-muted hover:bg-band hover:text-ink flex items-center justify-between gap-2.5 rounded-md px-3 py-2 text-sm transition-colors"
+                      >
+                        {r.label}
+                      </Link>
+                    ) : (
+                      <span
+                        aria-disabled="true"
+                        title={`Locked — you don't hold ${r.label}. A super_admin can grant it from the Admin roles console.`}
+                        className="text-ink-muted/50 flex cursor-not-allowed items-center justify-between gap-2.5 rounded-md px-3 py-2 text-sm"
+                      >
+                        {r.label}
+                        <Lock className="size-3.5 shrink-0" aria-hidden />
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           </nav>
 

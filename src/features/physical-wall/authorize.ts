@@ -35,27 +35,81 @@ export interface Actor extends SessionUser {
 }
 
 /**
- * SEC-3.02: the 8 named admin roles from the Bible (migration 0049,
- * `admin_roles`). This is a SECOND, additive authorization axis on top of the
- * generic `Role` above — a user still needs the generic `admin` role to reach
- * an admin surface at all (that gate is unchanged), and on top of that,
- * specific admin actions can require one of these 8 specific roles via
+ * SEC-3.02: the named admin roles (migration 0049 + 0059, `admin_roles`).
+ * This is a SECOND, additive authorization axis on top of the generic `Role`
+ * above — a user still needs the generic `admin` role to reach an admin
+ * surface at all (that gate is unchanged), and on top of that, specific
+ * admin actions can require one of these specific roles via
  * `requireAdminRole` below. Kept as a literal union (not read from the DB at
  * type-check time) because `admin_roles` is a fixed, migration-seeded set,
  * same as `Role` above being a literal union over a column with a fixed set
  * of values.
+ *
+ * FE-3.18: 9 identifiers, not 8 — the Bible (Section 24) names exactly 8
+ * admin roles (Super, Operations, Finance, Content, Support, Analytics, Wall
+ * Network, Blockchain), but `curator_admin` has no Bible equivalent (curator
+ * application review isn't one of the 8 domains) and is kept as a 9th,
+ * non-Bible role rather than folded into content_admin/operations_admin and
+ * silently changing what existing curator_admin grants can do. Same
+ * reasoning for `compliance_admin` (identity/KYC review). See migration
+ * 0059's header for the full per-role rename/mapping decision, and
+ * `BIBLE_ROLES`/`ROLE_DISPLAY_NAMES` below for how the two non-Bible roles
+ * surface in the admin nav shell (as links inside a Bible role's landing
+ * page, not as their own top-level tile). `readonly_admin` was renamed to
+ * `analytics_admin` by 0059 (a real data migration on the existing row, not
+ * just a label swap) to match the Bible's "Analytics Admin"; `venue_admin`
+ * keeps its identifier (only its UI label becomes "Wall Network Admin" —
+ * renaming the identifier itself would touch every wallos/actions.ts call
+ * site and *.db.test.ts fixture that already writes `venue_admin`, for a
+ * change that is cosmetic everywhere else); `operations_admin` and
+ * `blockchain_admin` are brand new in 0059, with no prior equivalent.
  */
 export const ADMIN_ROLES = [
   "super_admin",
-  "curator_admin",
-  "venue_admin",
+  "operations_admin",
   "finance_admin",
-  "support_admin",
-  "compliance_admin",
   "content_admin",
-  "readonly_admin",
+  "support_admin",
+  "analytics_admin",
+  "venue_admin",
+  "blockchain_admin",
+  "curator_admin",
+  "compliance_admin",
 ] as const;
 export type AdminRoleName = (typeof ADMIN_ROLES)[number];
+
+/**
+ * FE-3.18: the Bible's exact 8 roles, in the Bible's own order, each paired
+ * with the display label the admin nav shell renders. This is what the nav
+ * shell iterates to always show all 8 tiles regardless of what the viewer
+ * holds — `curator_admin` and `compliance_admin` are deliberately absent
+ * (not Bible roles; see `ADMIN_ROLES`'s comment above) and surface instead
+ * as a link inside the Content Admin / Operations Admin landing page.
+ */
+export const BIBLE_ROLES: readonly { role: AdminRoleName; label: string }[] = [
+  { role: "super_admin", label: "Super Admin" },
+  { role: "operations_admin", label: "Operations Admin" },
+  { role: "finance_admin", label: "Finance Admin" },
+  { role: "content_admin", label: "Content Admin" },
+  { role: "support_admin", label: "Support Admin" },
+  { role: "analytics_admin", label: "Analytics Admin" },
+  { role: "venue_admin", label: "Wall Network Admin" },
+  { role: "blockchain_admin", label: "Blockchain Admin" },
+];
+
+/** Display label for any of the 10 stored role identifiers, Bible or not. */
+export const ROLE_DISPLAY_NAMES: Record<AdminRoleName, string> = {
+  super_admin: "Super Admin",
+  operations_admin: "Operations Admin",
+  finance_admin: "Finance Admin",
+  content_admin: "Content Admin",
+  support_admin: "Support Admin",
+  analytics_admin: "Analytics Admin",
+  venue_admin: "Wall Network Admin",
+  blockchain_admin: "Blockchain Admin",
+  curator_admin: "Curator Admin (non-Bible)",
+  compliance_admin: "Compliance Admin (non-Bible)",
+};
 
 export class NotAuthorisedError extends Error {
   readonly status = 403;
@@ -198,6 +252,14 @@ export async function requireRole(required: Role): Promise<Actor> {
 /**
  * SEC-3.02/SEC-3.03: does this actor currently hold the named admin role?
  *
+ * `super_admin` always passes, regardless of `required` — FE-3.17/FE-3.18:
+ * "for super admin everything would be the same as the Bible," i.e. the top
+ * role's experience never narrows just because a newer, more specific role
+ * check gets added somewhere. `requireAnyAdminRolePage` already had this
+ * bypass; it belongs here too so the same guarantee holds for every server
+ * action gated by `requireAdminRole` (below), not just pages. Checked before
+ * the query below runs the actual lookup, not after, as a true short-circuit.
+ *
  * Reads `admin_role_assignments` live (same "no caching, revocation takes
  * effect immediately" reasoning as `getActor`'s role read above) for a row
  * with this user, this role, not revoked. `admin_roles.name` is the human
@@ -214,7 +276,9 @@ export async function hasAdminRole(
     const rows = (await sql`
       select 1 from admin_role_assignments a
       join admin_roles r on r.id = a.role_id
-      where a.user_id = ${actor.id} and r.name = ${required} and a.revoked_at is null
+      where a.user_id = ${actor.id}
+        and (r.name = ${required} or r.name = 'super_admin')
+        and a.revoked_at is null
       limit 1
     `) as unknown[];
     return rows.length > 0;

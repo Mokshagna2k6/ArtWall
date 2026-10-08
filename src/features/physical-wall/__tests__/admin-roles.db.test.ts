@@ -136,7 +136,7 @@ describe("grantAdminRole / revokeAdminRole (SEC-3.03)", () => {
     const target = await makeUser("admin");
     actAs(superAdmin);
 
-    const result = await revokeAdminRole(target.id, "readonly_admin");
+    const result = await revokeAdminRole(target.id, "analytics_admin");
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.data.revoked).toBe(false);
   });
