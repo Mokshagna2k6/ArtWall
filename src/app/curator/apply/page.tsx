@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 
 import { requireUser } from "@/lib/session";
 import { getMyCuratorApplication } from "@/features/curators/actions";
@@ -58,6 +59,13 @@ export default async function CuratorApplyPage() {
         )}
       </div>
       <p className="text-ink-muted mt-6 text-xs">Signed in as {user.email}.</p>
+      <p className="text-ink-muted mt-2 text-xs">
+        Want to close your account instead?{" "}
+        <Link href="/studio/settings" className="underline underline-offset-4">
+          Go to account settings
+        </Link>
+        .
+      </p>
     </main>
   );
 }
