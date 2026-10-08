@@ -494,6 +494,14 @@ export function SiteHeader({
                 >
                   Go to studio
                 </Link>
+                {user.role !== "admin" && user.role !== "staff" && (
+                  <Link
+                    href="/studio/settings"
+                    className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors"
+                  >
+                    Account settings
+                  </Link>
+                )}
                 <SignOutButton className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors" />
               </>
             ) : (
@@ -634,6 +642,15 @@ function UserMenu({ user }: { user: UserProp }) {
           >
             Studio
           </Link>
+          {user.role !== "admin" && user.role !== "staff" && (
+            <Link
+              href="/studio/settings"
+              onClick={() => setOpen(false)}
+              className="hover:bg-secondary block px-3 py-2 text-sm transition-colors"
+            >
+              Account settings
+            </Link>
+          )}
           <div className="border-border my-1 border-t" />
           <SignOutButton className="hover:bg-secondary w-full px-3 py-2 text-left text-sm transition-colors" />
         </motion.div>
