@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
@@ -238,6 +238,24 @@ export async function suspendCurator(curatorId: string, reason: string): Promise
       { curatorId, reason }
     );
     return moveCurator(input.curatorId, "active", "suspended", "curator.suspended", input.reason);
+  });
+}
+
+/**
+ * Problem #6: a cheap count for the Content Admin landing page's "N pending
+ * curator applications" callout — content_admin doesn't hold curator_admin
+ * by default, so it links to the review page rather than fetching the rows
+ * themselves (requireRole("admin") here is the same broad gate
+ * getCuratorsForReview uses; this is a count, not the queue itself).
+ */
+export async function getPendingCuratorCount(): Promise<number> {
+  return readSafely("getPendingCuratorCount", 0, async () => {
+    await requireRole("admin");
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(curators)
+      .where(eq(curators.status, "pending"));
+    return row?.count ?? 0;
   });
 }
 

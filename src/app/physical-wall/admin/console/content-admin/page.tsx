@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BadgeCheck, ImageIcon } from "lucide-react";
 
 import { requireAnyAdminRolePage } from "@/features/physical-wall/authorize";
+import { getPendingCuratorCount } from "@/features/curators/actions";
 
 export const metadata: Metadata = {
   title: "Content Admin",
@@ -24,6 +25,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function ContentAdminConsolePage() {
   await requireAnyAdminRolePage(["content_admin"], "/physical-wall/admin/console/content-admin");
+  const pendingCurators = await getPendingCuratorCount();
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,10 +48,15 @@ export default async function ContentAdminConsolePage() {
         <p className="text-label text-ink-muted tracking-wider uppercase">Not content_admin-specific, but related</p>
         <Link href="/physical-wall/admin/curators" className="border-hairline hover:bg-band mt-3 flex items-center gap-3 rounded-md border p-5 transition-colors">
           <BadgeCheck className="size-5 shrink-0" aria-hidden />
-          <div>
+          <div className="flex-1">
             <p className="text-sm font-medium">Curator review</p>
             <p className="text-ink-muted mt-1 text-xs">curator_admin — a separate, non-Bible role</p>
           </div>
+          {pendingCurators > 0 && (
+            <span className="bg-ink text-paper shrink-0 rounded-full px-2.5 py-1 text-xs font-medium tabular-nums">
+              {pendingCurators} pending
+            </span>
+          )}
         </Link>
       </div>
     </div>
