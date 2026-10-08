@@ -539,9 +539,19 @@ type UserProp = {
  *
  * Artists and visitors never see it: the console redirects them away anyway,
  * so offering the link would only be a dead end that confirms the route exists.
+ *
+ * FE-3.19: this doubles as the "View site" escape hatch's way back. An
+ * admin/team-member account (role === "admin", granular admin_roles grants
+ * included — every one of them already has the base `admin` role per
+ * authorize.ts) gets redirected into the admin shell on every page by
+ * default; "View site" sets a cookie opting out for the rest of that
+ * browsing session. Routing this link through the dashboard route (rather
+ * than straight to /physical-wall/admin) clears that cookie first, so
+ * clicking "Dashboard" actually cancels "View site" instead of bouncing
+ * right back out on the next navigation.
  */
 function dashboardHref(role?: string): string | null {
-  return role === "admin" || role === "staff" ? "/physical-wall/admin" : null;
+  return role === "admin" || role === "staff" ? "/physical-wall/admin/dashboard" : null;
 }
 
 function UserAvatar({ user, size = 32 }: { user: UserProp; size?: number }) {
