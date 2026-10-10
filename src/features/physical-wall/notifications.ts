@@ -75,6 +75,39 @@ export const TEMPLATES = {
     subject: "Your photo was not published",
     body: `Your photo "${d.caption}" was reviewed and not published to the community gallery, and has been deleted.${SIGN_OFF}`,
   }),
+  "order.confirmed": (d: { name: string; orderNumber: string; totalPaise: number }) => ({
+    subject: `Order ${d.orderNumber} confirmed`,
+    body: `Hi ${d.name},
+
+Payment of ${inr(d.totalPaise)} received for order ${d.orderNumber}. Each artist now has a chance to accept and ship their work; your payment is held in escrow until you receive it.${SIGN_OFF}`,
+  }),
+  "order.new_for_seller": (d: { name: string; orderNumber: string; totalPaise: number; acceptBy: string }) => ({
+    subject: `New order ${d.orderNumber}: accept it by ${when(d.acceptBy)}`,
+    body: `Hi ${d.name},
+
+You have a paid order ${d.orderNumber} worth ${inr(d.totalPaise)}. Accept it from Studio > Orders by ${when(d.acceptBy)}, or the buyer is refunded automatically and the work goes back on sale.${SIGN_OFF}`,
+  }),
+  "order.accepted": (d: { name: string; orderNumber: string }) => ({
+    subject: `Your order ${d.orderNumber} was accepted`,
+    body: `Hi ${d.name},
+
+The artist accepted order ${d.orderNumber} and is preparing it for dispatch.${SIGN_OFF}`,
+  }),
+  "order.shipped": (d: { name: string; orderNumber: string; courier: string; awb: string; trackingUrl: string | null }) => ({
+    subject: `Your order ${d.orderNumber} has shipped`,
+    body: `Hi ${d.name},
+
+Order ${d.orderNumber} is on its way via ${d.courier} (tracking ${d.awb}).${d.trackingUrl ? `
+Track it: ${d.trackingUrl}` : ""}
+
+When it arrives, confirm receipt from your orders page to release payment to the artist.${SIGN_OFF}`,
+  }),
+  "order.refunded": (d: { name: string; orderNumber: string; amountPaise: number }) => ({
+    subject: `Refund of ${inr(d.amountPaise)} for order ${d.orderNumber}`,
+    body: `Hi ${d.name},
+
+A refund of ${inr(d.amountPaise)} for order ${d.orderNumber} has been issued to your original payment method. Banks usually take 5-7 working days to show it.${SIGN_OFF}`,
+  }),
   "system.notice": (d: { subject: string; body: string }) => ({
     subject: d.subject,
     body: `${d.body}${SIGN_OFF}`,
