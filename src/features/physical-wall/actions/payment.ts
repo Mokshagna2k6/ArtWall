@@ -56,6 +56,12 @@ export async function startPayment(
 
     const booking = rows[0];
     if (!booking) return fail("We couldn't find that booking.");
+    if (booking.status === "paid" || booking.status === "completed") {
+      // FE-2.03: a retried/double click can land after the webhook already
+      // settled this booking from an earlier attempt. Tell the truth instead
+      // of "not waiting for payment", which would read as a dead end.
+      return ok("This booking is already paid.", { status: "paid", bookingId });
+    }
     if (booking.status !== "held") {
       return fail("That booking is not waiting for payment.");
     }
@@ -220,5 +226,32 @@ export async function verifyPayment(input: {
     return ok("Payment confirmed. Your booking is paid.", { bookingId, status: "paid" });
   } catch (error) {
     return toActionError("verifyPayment", error);
+  }
+}
+
+/**
+ * Just the booking's current status, for the pay button's poll (FE-2.03).
+ *
+ * The webhook can settle a booking to "paid" concurrently with, or instead
+ * of, the client's own verifyPayment call — Razorpay's webhook delivery has
+ * no ordering guarantee relative to the browser's redirect back from
+ * Checkout. Rather than trusting verifyPayment's single response, the button
+ * polls this until the booking itself reads paid (or something else final),
+ * so a booking the webhook already paid is never shown stuck as unpaid.
+ */
+export async function getBookingPaymentStatus(
+  bookingId: string
+): Promise<{ status: string } | null> {
+  try {
+    const actor = await requireRole("artist");
+    const id = parseInput(z.string().min(1).max(64), bookingId);
+    const sql = getSql();
+    const rows = (await sql`
+      select status from pw_bookings where id = ${id} and artist_id = ${actor.id} limit 1
+    `) as { status: string }[];
+    return rows[0] ? { status: rows[0].status } : null;
+  } catch (error) {
+    console.error("[physical-wall] getBookingPaymentStatus", error);
+    return null;
   }
 }

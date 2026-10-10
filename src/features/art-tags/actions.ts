@@ -8,6 +8,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/index";
 import { artTags, artTagScans, artworks, artistProfiles, provenanceEvents } from "@/lib/db/schema";
+import { clientIp, limitRequest } from "@/lib/rate-limit";
 import {
   attempt,
   parseInput,
@@ -40,9 +41,12 @@ const createTagSchema = z
     { error: "An NFC tag's UID must be hex (e.g. its 7-byte chip UID)." },
   );
 const scanSchema = z.object({
-  tagUid: z.string().trim().min(1).max(128),
-  ip: z.string().max(64).optional(),
-  ua: z.string().max(512).optional(),
+  // FE-3.20: a 'qr' tag's tagUid IS its signed Ed25519 token (qr-signing.ts:
+  // base64url(JSON [version, tagId, artworkId, issuedAt]) + "." +
+  // base64url(64-byte signature)) — comfortably over the 128 chars a bare
+  // user-chosen UID needs, so this cap is sized for the real token format,
+  // not the plain-UID input createTag's own schema validates at write time.
+  tagUid: z.string().trim().min(1).max(512),
   // BC-3.09: present only for an 'nfc' tag's SUN message — the NTAG424's
   // SDM-appended picc_data/cmac query params, hex-encoded.
   piccData: z.string().trim().regex(/^[0-9a-fA-F]*$/).optional(),
@@ -206,19 +210,47 @@ export async function unbindTag(tagId: string): Promise<Result> {
  *   - 'qr' tags: `tagUid` (really a signed Ed25519 token minted by
  *     createTag, see qr-signing.ts) must verify; a plain unsigned string no
  *     longer resolves to anything (BC-3.11).
+ *
+ * Takes no caller-supplied ip/ua (those were spoofable client input on a
+ * public action) and reads the request itself. A scan counts at most once per
+ * IP per tag per 10 minutes, so a reload or a scripted loop cannot inflate
+ * scan_count (FE-2.11 cleanup, same commit as the privacy fix below).
+ *
+ * FE-3.20: the return is a discriminated `status` rather than a bare
+ * null/object, so the scan page can tell apart three security-distinct
+ * outcomes that must never be conflated: an unregistered uid ("not_found",
+ * a real 404), a registered tag whose signature/CMAC failed to verify —
+ * bad signature, replay, or a malformed scan — ("unverified", never treated
+ * as a successful scan), and a cryptographically verified scan ("verified",
+ * which may still carry no public artwork — that unbound/private distinction
+ * stays collapsed per FE-2.11, a privacy decision on an orthogonal axis from
+ * verification status).
  */
+export type TagScanResult =
+  | { status: "not_found" }
+  | { status: "unverified"; reason: "bad_signature" | "replay" | "malformed" }
+  | { status: "verified"; tagId: string; artwork: ResolvedTagArtwork | null };
+
+interface ResolvedTagArtwork {
+  id: string;
+  title: string;
+  imageUrl: string | null;
+  medium: string | null;
+  year: number | null;
+  artistName: string;
+  artistHandle: string;
+}
+
 export async function resolveTagScan(
   tagUid: string,
-  ip?: string,
-  ua?: string,
   sun?: { piccData?: string; cmac?: string },
-) {
-  return readSafely("resolveTagScan", null, () =>
-    recordScan(parseInput(scanSchema, { tagUid, ip, ua, piccData: sun?.piccData, cmac: sun?.cmac })),
+): Promise<TagScanResult> {
+  return readSafely("resolveTagScan", { status: "not_found" }, () =>
+    recordScan(parseInput(scanSchema, { tagUid, piccData: sun?.piccData, cmac: sun?.cmac })),
   );
 }
 
-async function recordScan({ tagUid, ip, ua, piccData, cmac }: z.infer<typeof scanSchema>) {
+async function recordScan({ tagUid, piccData, cmac }: z.infer<typeof scanSchema>): Promise<TagScanResult> {
   const [tag] = await db
     .select({
       id: artTags.id,
@@ -230,8 +262,8 @@ async function recordScan({ tagUid, ip, ua, piccData, cmac }: z.infer<typeof sca
     })
     .from(artTags)
     .where(eq(artTags.tagUid, tagUid));
-  if (!tag) return null;
-  if (tag.bindingStatus === "revoked") return null;
+  if (!tag) return { status: "not_found" };
+  if (tag.bindingStatus === "revoked") return { status: "not_found" };
 
   let verifiedCounter: number | null = null;
 
@@ -239,7 +271,9 @@ async function recordScan({ tagUid, ip, ua, piccData, cmac }: z.infer<typeof sca
     // BC-3.09: an NFC tag requires a real SUN message — no picc_data/cmac
     // means this is not a genuine scan of the chip (e.g. someone copied the
     // bare URL), so it must not resolve.
-    if (!piccData || !cmac || !tag.keyReference) return null;
+    if (!piccData || !cmac || !tag.keyReference) {
+      return { status: "unverified", reason: "malformed" };
+    }
     const metaReadKey = await getKmsClient().deriveTagKey(tag.keyReference, Buffer.from(tagUid, "hex"), "meta");
     const macReadKey = await getKmsClient().deriveTagKey(tag.keyReference, Buffer.from(tagUid, "hex"), "mac");
     const verdict = verifySunMessage({
@@ -249,30 +283,51 @@ async function recordScan({ tagUid, ip, ua, piccData, cmac }: z.infer<typeof sca
       cmacHex: cmac,
       lastSeenCounter: tag.sunCounterLastSeen,
     });
-    if (!verdict.ok) return null; // bad CMAC, replay, or malformed — never resolve
+    if (!verdict.ok) {
+      // bad CMAC, replay, or malformed — never treated as a successful scan
+      return { status: "unverified", reason: verdict.reason === "bad_cmac" ? "bad_signature" : verdict.reason };
+    }
     verifiedCounter = verdict.readCounter;
   } else {
     // BC-3.11: tagUid for a 'qr' tag is the server-signed token itself.
     const verdict = verifyQrToken(tagUid);
-    if (!verdict.ok) return null;
+    if (!verdict.ok) {
+      return { status: "unverified", reason: verdict.reason === "bad_signature" ? "bad_signature" : "malformed" };
+    }
   }
 
-  await db.insert(artTagScans).values({
-    id: newId("tscan"),
-    tagId: tag.id,
-    ipAddress: ip ?? null,
-    userAgent: ua ?? null,
-  });
+  const h = await headers();
+  const fresh = await limitRequest(
+    `tag-scan:${tag.id}`,
+    { limit: 1, windowMs: 10 * 60 * 1000 },
+    null,
+    h
+  );
+  if (fresh.ok) {
+    await db.insert(artTagScans).values({
+      id: newId("tscan"),
+      tagId: tag.id,
+      ipAddress: clientIp(h),
+      userAgent: h.get("user-agent")?.slice(0, 512) ?? null,
+    });
+    await db
+      .update(artTags)
+      .set({ scanCount: sql`scan_count + 1` })
+      .where(eq(artTags.id, tag.id));
+  }
 
-  await db
-    .update(artTags)
-    .set({
-      scanCount: sql`scan_count + 1`,
-      ...(verifiedCounter !== null ? { sunCounterLastSeen: verifiedCounter } : {}),
-    })
-    .where(eq(artTags.id, tag.id));
+  // BC-3.09: persist the verified SUN counter on every successful
+  // verification (not just the rate-limited/"counted" scans above) — the
+  // anti-replay guarantee depends on this always advancing, independent of
+  // whether this particular scan bumped the user-facing scan_count.
+  if (verifiedCounter !== null) {
+    await db
+      .update(artTags)
+      .set({ sunCounterLastSeen: verifiedCounter })
+      .where(eq(artTags.id, tag.id));
+  }
 
-  if (!tag.artworkId) return { tagId: tag.id, artworkId: null };
+  if (!tag.artworkId) return { status: "verified", tagId: tag.id, artwork: null };
 
   const [artwork] = await db
     .select({
@@ -295,5 +350,9 @@ async function recordScan({ tagUid, ip, ua, piccData, cmac }: z.infer<typeof sca
       )
     );
 
-  return { tagId: tag.id, artwork: artwork ?? null, private: !artwork };
+  // FE-2.11: a bound-but-private work and an unbound tag must look identical
+  // to the caller — neither "artwork" nor "owner" is revealed either way, so
+  // the `private` flag that used to distinguish them is gone. The page shows
+  // one generic message for both (both are "verified" with artwork: null).
+  return { status: "verified", tagId: tag.id, artwork: artwork ?? null };
 }

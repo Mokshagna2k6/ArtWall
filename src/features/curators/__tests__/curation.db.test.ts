@@ -1,8 +1,8 @@
 import { afterAll, describe, expect, it } from "vitest";
 
 import { actAs } from "@/test/db-setup";
-import { makeArtwork, makeProfile, makeUser, purgeTestData, q, tid } from "@/test/fixtures";
-import { applyCurator, approveCurator, suspendCurator } from "@/features/curators/actions";
+import { grantTestAdminRole, makeArtwork, makeProfile, makeUser, purgeTestData, q, tid } from "@/test/fixtures";
+import { applyCurator, approveCurator, getMyCuratorApplication, rejectCurator, suspendCurator } from "@/features/curators/actions";
 import {
   addArtworkToExhibition,
   createExhibition,
@@ -117,6 +117,7 @@ describe("curators (BE-1.24 – 1.26, BE-2.19)", () => {
     expect(errorOf(await approveCurator(id))).toMatch(/admin access/);
 
     const admin = await makeUser("admin");
+    await grantTestAdminRole(admin.id, "curator_admin");
     actAs(admin);
     // BE-3.09/3.10: the rate comes from the active commission_policies row,
     // not an env var. Swap "active" to a fresh betest rate for this run, and
@@ -153,7 +154,9 @@ describe("curators (BE-1.24 – 1.26, BE-2.19)", () => {
   it("approving an already-active curator is a no-op: same state, no second audit row, even concurrently", async () => {
     actAs(await makeUser());
     const id = data(await applyCurator({ displayName: "betest curator 2" }));
-    actAs(await makeUser("admin"));
+    const approver = await makeUser("admin");
+    await grantTestAdminRole(approver.id, "curator_admin");
+    actAs(approver);
 
     // Five approvals at once (double clicks, two admins): one transition.
     const results = (await Promise.all([1, 2, 3, 4, 5].map(() => approveCurator(id)))).map(data);
@@ -163,5 +166,50 @@ describe("curators (BE-1.24 – 1.26, BE-2.19)", () => {
     const again = data(await approveCurator(id));
     expect(again).toMatchObject({ id, status: "active", unchanged: true });
     expect(await q(`select 1 from pw_audit_log where subject_id = $1 and action = 'curator.approved'`, [id])).toHaveLength(1);
+  });
+
+  it("a user cannot apply twice, and cannot approve their own application", async () => {
+    const applicant = await makeUser();
+    actAs(applicant);
+    const id = data(await applyCurator({ displayName: "betest curator 3" }));
+
+    // Duplicate application refused — one row per user, whatever its status.
+    expect(errorOf(await applyCurator({ displayName: "betest curator 3 again" }))).toMatch(/already/i);
+
+    // Self-approval: the applicant has no admin role at all, so this fails
+    // the same way the existing "non-admins refused" case does. The only
+    // path to 'active' is moveCurator, which is reachable solely through
+    // approveCurator/rejectCurator — both gated by requireAdminRole
+    // ("curator_admin") before any row is touched, so a plain user has no
+    // route to flip their own status regardless of which action they call.
+    expect(errorOf(await approveCurator(id))).toMatch(/admin access/);
+    expect(errorOf(await rejectCurator(id))).toMatch(/admin access/);
+
+    const mine = await getMyCuratorApplication();
+    expect(mine).toMatchObject({ id, status: "pending" });
+  });
+
+  it("admin rejects a pending application; rejecting is a no-op the second time; approving a rejected application fails", async () => {
+    const applicant = await makeUser();
+    actAs(applicant);
+    const id = data(await applyCurator({ displayName: "betest curator 4" }));
+
+    const admin = await makeUser("admin");
+    await grantTestAdminRole(admin.id, "curator_admin");
+    actAs(admin);
+
+    expect(data(await rejectCurator(id))).toMatchObject({ id, status: "rejected", unchanged: false });
+    expect(data(await rejectCurator(id))).toMatchObject({ id, status: "rejected", unchanged: true });
+    expect(errorOf(await approveCurator(id))).toMatch(/rejected, not pending/);
+
+    const audit = await q<{ action: string; actor_id: string }>(
+      `select action, actor_id from pw_audit_log where subject_id = $1 and action = 'curator.rejected'`,
+      [id]
+    );
+    expect(audit).toEqual([{ action: "curator.rejected", actor_id: admin.id }]);
+
+    actAs(applicant);
+    const mine = await getMyCuratorApplication();
+    expect(mine).toMatchObject({ id, status: "rejected" });
   });
 });
