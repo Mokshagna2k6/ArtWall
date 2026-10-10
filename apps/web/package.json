@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@artwall/db": "workspace:*",
+    "@artwall/security": "workspace:*",
     "@base-ui/react": "^1.7.0",
     "@neondatabase/serverless": "^1.1.0",
     "@artwall/ratelimit": "workspace:*",

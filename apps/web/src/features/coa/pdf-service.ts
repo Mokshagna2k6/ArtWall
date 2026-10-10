@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isCloudinaryUrl } from "@artwall/security";
 import { eq } from "drizzle-orm";
 
 import { siteConfig } from "@/config/site";
@@ -13,8 +14,7 @@ import { artistProfiles, artworks, coaCertificates } from "@/lib/db/schema";
 /** Only our own Cloudinary host is fetched (no SSRF via a stored image URL); asked for a JPEG so any source format embeds. */
 async function fetchArtworkImage(url: string | null) {
   try {
-    const u = url ? new URL(url) : null;
-    if (!u || u.protocol !== "https:" || u.hostname !== "res.cloudinary.com") return null;
+    if (!isCloudinaryUrl(url)) return null;
     const jpg = url!.replace("/image/upload/", "/image/upload/f_jpg,w_900/");
     const res = await fetch(jpg, { signal: AbortSignal.timeout(8_000) });
     if (!res.ok) return null;
