@@ -36,12 +36,18 @@ Accounts: deploys run under the stackfox Gmail's Vercel; PRs/pushes go to `Moksh
 - **Migrations:** `scripts/migrate.mjs` ledger is keyed by filename; port the ledger table when moving to Supabase and verify on a disposable DB first (per CLAUDE.md).
 - **Env drift risk:** keep one documented source of truth for which DB each environment uses.
 
+## 2b. Decisions made (2026-10-10)
+
+- **Auth: Supabase Auth only** (not Clerk/Auth.js). Needs a better-auth → Supabase Auth user migration plan (see §3).
+- **RLS: defence-in-depth** (user deferred to Claude's judgment: "whichever is feasible"). App-level checks in `authorize.ts` stay primary; RLS added as a backstop on user-owned/sensitive tables.
+- **Backend:** finish the deferred backend of everything built so far (see §4) and clean up the architecture, before/while moving to the new stack. Exact scope to be confirmed.
+- **Repo: same repo, new Vercel project**, provided the existing Vercel project is not affected. Isolation rule: the existing project keeps deploying its current production branch only; the new project deploys a dedicated long-lived branch (proposed `production-v2`). Never merge `production-v2` into the branch the old project deploys. Old project must not auto-build `production-v2` (disable previews for it / ignored-build-step). The two projects must use different databases and env vars. A second repo only if this isolation proves unworkable.
+
 ## 3. Open decisions (needed before the final plan)
 
-- Which auth provider, and migrate-vs-reset for existing users?
-- RLS: primary or defence-in-depth?
+- Existing-user migration: Supabase Auth import of better-auth users (password hashes compatibility? else force reset) — cutover plan?
 - What specifically runs on Railway?
-- New GitHub repo needed, or same repo + new Vercel project?
+- Which branch does the existing Vercel project deploy (and from which repo: myfork or im-alok74)? Needed to pick the isolation branch safely.
 - Backup retention (days) and restore-test cadence?
 - Data migration plan Neon → Supabase (downtime window, cutover steps)?
 - Storage buckets: which uses (certificate PDFs, uploads, exports)?
