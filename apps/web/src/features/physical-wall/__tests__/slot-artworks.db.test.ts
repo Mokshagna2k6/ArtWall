@@ -114,7 +114,7 @@ describe("0064 backfill", () => {
     await q(`update pw_bookings set artwork_id = $2 where id = $1`, [bk, art]);
 
     const { readFileSync } = await import("node:fs");
-    const sql = readFileSync("../../db/migrations/0064_pw_booking_slot_artwork.sql", "utf8");
+    const sql = readFileSync("../../packages/db/migrations/0064_pw_booking_slot_artwork.sql", "utf8");
     await q(sql);
     await q(sql);
 

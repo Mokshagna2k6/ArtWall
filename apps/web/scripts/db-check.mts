@@ -1,7 +1,7 @@
 /**
  * Schema drift check against the live database.
  *
- *   1. Drizzle (src/lib/db/schema.ts) vs information_schema: every table and
+ *   1. Drizzle (packages/db/src/schema.ts) vs information_schema: every table and
  *      column Drizzle declares must exist with the same type, nullability and
  *      default-presence.
  *   2. Raw SQL in src/ and scripts/: every sql`...` / .query(`...`) statement is PREPAREd
@@ -17,7 +17,7 @@ import { is } from "drizzle-orm";
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core";
 import pg from "pg";
 
-import * as schema from "../src/lib/db/schema.ts";
+import * as schema from "@artwall/db/schema";
 
 process.removeAllListeners("warning");
 const ROOT = join(import.meta.dirname, "..");
