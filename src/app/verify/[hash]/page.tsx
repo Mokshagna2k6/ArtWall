@@ -120,6 +120,13 @@ export default async function VerifyPage({
 
       <h1 className="text-display font-heading mt-4">{cert.artworkTitle}</h1>
 
+      <a
+        href={`/verify/${hash}/pdf`}
+        className="text-ink-muted mt-2 inline-block text-sm underline"
+      >
+        Download certificate PDF
+      </a>
+
       <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
         <div>
           <dt className="text-ink-muted">Artist</dt>

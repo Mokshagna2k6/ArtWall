@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -17,6 +18,7 @@ import {
   artistProfiles,
 } from "@/lib/db/schema";
 import { computeMetadataHash, computeLeafHash } from "@/features/coa/hash";
+import { archiveCertificatePdf } from "@/features/coa/pdf-service";
 import { getActiveCommissionPolicy } from "@/features/policy/commission";
 import {
   attempt,
@@ -211,6 +213,12 @@ export async function issueCertificate(
       metadata: { certificateId: certId, metadataHash: hash },
     });
 
+    // Archive the PDF after the response; it never throws, so issuance cannot fail on it.
+    try {
+      after(() => archiveCertificatePdf(certId));
+    } catch {
+      // Outside a request scope (tests/scripts): skip; the PDF route archives on demand.
+    }
     expireCatalog();
     revalidatePath("/studio/certificates");
     return { id: certId, hash };
@@ -236,6 +244,12 @@ export async function revokeCertificate(certId: string, reason: string): Promise
       .set({ status: "revoked", revokedAt: new Date(), revokeReason: input.reason })
       .where(eq(coaCertificates.id, input.certId));
 
+    // Re-archive so the stored copy and pdf_url show REVOKED; never throws, so revocation cannot fail on it.
+    try {
+      after(() => archiveCertificatePdf(input.certId));
+    } catch {
+      // Outside a request scope (tests/scripts): the on-demand route is always fresh anyway.
+    }
     // A revoked certificate must stop verifying as issued immediately (PERF-2.07).
     expireCatalog();
     revalidatePath("/studio/certificates");
