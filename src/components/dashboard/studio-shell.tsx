@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   BadgeCheck,
   CalendarDays,
@@ -12,14 +12,16 @@ import {
   GalleryHorizontal,
   Grid2X2,
   LayoutDashboard,
+  LogOut,
   Menu,
   Settings2,
   Tag,
   Users,
   X,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
+import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -72,6 +74,15 @@ export function StudioShell({
           >
             <X />
           </button>
+        </div>
+        <div className="px-6 pb-3">
+          <Link
+            href="/"
+            className="text-studio-muted hover:text-studio-ink text-sm underline underline-offset-4"
+            onClick={() => setOpen(false)}
+          >
+            ← Back to ArtWall
+          </Link>
         </div>
         <div className="px-4 py-3">
           <p className="studio-eyebrow px-3 pb-3">Workspace</p>
@@ -148,17 +159,81 @@ export function StudioShell({
                   .toUpperCase()}
               </div>
             )}
-            <Link
-              href="/studio/settings"
-              className="text-studio-ink hidden items-center gap-1 text-sm font-medium md:flex"
-            >
-              {artistName}
-              <ChevronDown />
-            </Link>
+            <StudioAccountMenu artistName={artistName} />
           </div>
         </header>
         <main className="studio-content">{children}</main>
       </div>
+    </div>
+  );
+}
+
+function StudioAccountMenu({ artistName }: { artistName: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function dismiss(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", dismiss);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", dismiss);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const handleSignOut = useCallback(async () => {
+    setPending(true);
+    try {
+      await authClient.signOut();
+      router.push("/");
+      router.refresh();
+    } finally {
+      setPending(false);
+    }
+  }, [router]);
+
+  return (
+    <div ref={ref} className="relative hidden md:block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="text-studio-ink flex items-center gap-1 text-sm font-medium"
+      >
+        {artistName}
+        <ChevronDown />
+      </button>
+      {open && (
+        <div className="border-studio-border shadow-medium absolute right-0 top-[calc(100%+0.75rem)] w-48 border bg-white p-2">
+          <Link
+            href="/studio/settings"
+            onClick={() => setOpen(false)}
+            className="hover:bg-secondary flex items-center gap-2 px-3 py-2 text-sm transition-colors"
+          >
+            <Settings2 aria-hidden className="size-4" />
+            Settings
+          </Link>
+          <div className="border-studio-border my-1 border-t" />
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={pending}
+            className="hover:bg-secondary flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors"
+          >
+            <LogOut aria-hidden className="size-4" />
+            {pending ? "Signing out…" : "Sign out"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

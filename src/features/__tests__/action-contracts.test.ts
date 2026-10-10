@@ -93,11 +93,19 @@ vi.mock("@/features/physical-wall/authorize", () => {
   const actor = { id: "u1", name: "Asha", email: "a@example.test", role: "admin" };
   return {
     NotAuthorisedError: class extends Error {},
+    NotAuthorisedAdminRoleError: class extends Error {},
     PhysicalWallDisabledError: class extends Error {},
     requirePhysicalWallEnabled: vi.fn(),
     getActor: vi.fn(async () => actor),
     requireRole: vi.fn(async () => actor),
     hasRole: () => true,
+    // SEC-3.02: approveCurator/reviewIdentity now call requireAdminRole
+    // (additional to requireRole("admin") above) for curator_admin /
+    // compliance_admin — this contract suite only cares that the generic
+    // "DB is down" / "bad input" behaviour still holds, not the specific
+    // admin-role check, so it mocks this as always-granted too.
+    requireAdminRole: vi.fn(async () => actor),
+    hasAdminRole: vi.fn(async () => true),
   };
 });
 vi.mock("@/lib/auth", () => ({ auth: { api: { getSession: async () => ({ user: { id: "u1" } }) } } }));

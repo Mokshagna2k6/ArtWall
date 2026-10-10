@@ -3,8 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { approveCurator, suspendCurator } from "@/features/curators/actions";
+import { approveCurator, rejectCurator, suspendCurator } from "@/features/curators/actions";
 import type { Result } from "@/features/physical-wall/action-state";
+import { ConfirmStep } from "@/features/physical-wall/components/form-bits";
 
 type Item = {
   id: string;
@@ -88,14 +89,24 @@ function CuratorRow({ item }: { item: Item }) {
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         {item.status === "pending" && (
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => run(() => approveCurator(item.id))}
-            className="bg-ember text-wall-paper text-small h-10 rounded-md px-4 font-medium disabled:opacity-60"
-          >
-            {pending ? "Working…" : "Approve"}
-          </button>
+          <>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => run(() => approveCurator(item.id))}
+              className="bg-ember text-wall-paper text-small h-10 rounded-md px-4 font-medium disabled:opacity-60"
+            >
+              {pending ? "Working…" : "Approve"}
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => run(() => rejectCurator(item.id))}
+              className="border-destructive/40 text-destructive text-small h-10 rounded-md border px-4 font-medium disabled:opacity-60"
+            >
+              {pending ? "Working…" : "Reject"}
+            </button>
+          </>
         )}
         {item.status === "active" && (
           <>
@@ -106,14 +117,20 @@ function CuratorRow({ item }: { item: Item }) {
               aria-label={`Reason for suspending ${item.displayName}`}
               className="border-hairline focus:border-ink h-10 flex-1 rounded-md border bg-transparent px-3 text-sm outline-none"
             />
-            <button
-              type="button"
+            <ConfirmStep
+              label="Suspend"
               disabled={pending || !reason.trim()}
-              onClick={() => run(() => suspendCurator(item.id, reason))}
-              className="border-destructive/40 text-destructive text-small h-10 rounded-md border px-4 font-medium disabled:opacity-60"
+              warning={`Suspend ${item.displayName}? They lose curator access until reinstated.`}
             >
-              {pending ? "Working…" : "Suspend"}
-            </button>
+              <button
+                type="button"
+                disabled={pending || !reason.trim()}
+                onClick={() => run(() => suspendCurator(item.id, reason))}
+                className="border-destructive/40 text-destructive text-small h-10 rounded-md border px-4 font-medium disabled:opacity-60"
+              >
+                {pending ? "Working…" : "Confirm suspend"}
+              </button>
+            </ConfirmStep>
           </>
         )}
       </div>

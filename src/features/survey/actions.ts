@@ -46,6 +46,7 @@ export async function submitSurvey(
     // One entry per ticked checkbox, so this is read as a list rather than a
     // single value.
     painPoints: formData.getAll("painPoints"),
+    otherPainPointDetail: formData.get("otherPainPointDetail") ?? "",
     biggestProblem: formData.get("biggestProblem") ?? "",
     fairCommission: formData.get("fairCommission") ?? "",
     earnsFromArt: formData.get("earnsFromArt") ?? "",

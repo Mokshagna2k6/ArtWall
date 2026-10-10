@@ -2,14 +2,14 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { eq, and, desc, inArray } from "drizzle-orm";
+import { eq, and, desc, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db/index";
 import { curators, curatorPicks, artworks, artistProfiles, user } from "@/lib/db/schema";
 import { recordAuditIn } from "@/features/physical-wall/audit";
-import { requireRole } from "@/features/physical-wall/authorize";
+import { requireAdminRole, requireRole } from "@/features/physical-wall/authorize";
 import { getActiveCommissionPolicy } from "@/features/policy/commission";
 import {
   attempt,
@@ -38,10 +38,32 @@ const applySchema = z.object({
   bio: z.string().trim().max(2000).optional(),
 });
 
+/**
+ * A user applies once. If they already have a curators row — pending,
+ * active, rejected, or suspended — this refuses rather than inserting a
+ * second one: `curators.user_id` is unique (0032), so a duplicate insert
+ * would fail at the DB anyway, but refusing here gives a message that
+ * tells them what to do next instead of a raw constraint error. The
+ * caller (the apply page) checks `getMyCuratorApplication` first and only
+ * renders this form when there is no existing row, so reaching this
+ * refusal means two tabs/requests raced — not the common path.
+ */
 export async function applyCurator(raw: z.input<typeof applySchema>): Promise<Result<string>> {
   return attempt("applyCurator", async () => {
     const input = parseInput(applySchema, raw);
     const userId = await getUserId();
+
+    const [existing] = await db.select({ status: curators.status }).from(curators).where(eq(curators.userId, userId));
+    if (existing) {
+      throw new PreconditionError(
+        existing.status === "active"
+          ? "You are already an approved curator."
+          : existing.status === "pending"
+            ? "Your curator application is already pending review."
+            : "You already have a curator application on file."
+      );
+    }
+
     const curatorId = newId("cur");
     await db.insert(curators).values({
       id: curatorId,
@@ -51,6 +73,25 @@ export async function applyCurator(raw: z.input<typeof applySchema>): Promise<Re
       status: "pending",
     });
     return curatorId;
+  });
+}
+
+/** The signed-in user's own curator application, or null if they never applied. */
+export async function getMyCuratorApplication() {
+  return readSafely("getMyCuratorApplication", null, async () => {
+    const userId = await getUserId();
+    const [row] = await db
+      .select({
+        id: curators.id,
+        displayName: curators.displayName,
+        bio: curators.bio,
+        status: curators.status,
+        commissionBps: curators.commissionBps,
+        createdAt: curators.createdAt,
+      })
+      .from(curators)
+      .where(eq(curators.userId, userId));
+    return row ?? null;
   });
 }
 
@@ -125,7 +166,11 @@ type CuratorState = { id: string; status: string; commissionBps: number; unchang
  * no 'pending' row and reads the committed 'active' one.
  */
 async function moveCurator(curatorId: string, from: string, to: string, action: string, reason: string | null) {
-  const actor = await requireRole("admin");
+  // SEC-3.02: curator approve/suspend maps directly onto the Bible's
+  // curator_admin role ("Curation and exhibition approvals" per
+  // admin_roles.description) — the other proof point for the new
+  // granular-role system, alongside identity review's compliance_admin.
+  const actor = await requireAdminRole("curator_admin");
   const commissionBps =
     to === "active" ? (await getActiveCommissionPolicy("curator_commission")).rateBps : null;
   const row = await inTransaction(async (client): Promise<CuratorState> => {
@@ -168,6 +213,20 @@ export async function approveCurator(curatorId: string): Promise<Result<CuratorS
   );
 }
 
+/**
+ * Admin: pending → rejected. Distinct from suspendCurator (active →
+ * suspended): rejecting a never-approved application must not read as
+ * "this curator used to be active" (see migration 0059's header comment
+ * on why 'rejected' is a separate status rather than reusing 'suspended').
+ * Rejecting an already-rejected application is a no-op, same idempotency
+ * as approveCurator.
+ */
+export async function rejectCurator(curatorId: string): Promise<Result<CuratorState>> {
+  return attempt("rejectCurator", async () =>
+    moveCurator(parseInput(id, curatorId), "pending", "rejected", "curator.rejected", null)
+  );
+}
+
 /** Admin: active → suspended, with a reason (BE-1.25). */
 export async function suspendCurator(curatorId: string, reason: string): Promise<Result<CuratorState>> {
   return attempt("suspendCurator", async () => {
@@ -179,6 +238,24 @@ export async function suspendCurator(curatorId: string, reason: string): Promise
       { curatorId, reason }
     );
     return moveCurator(input.curatorId, "active", "suspended", "curator.suspended", input.reason);
+  });
+}
+
+/**
+ * Problem #6: a cheap count for the Content Admin landing page's "N pending
+ * curator applications" callout — content_admin doesn't hold curator_admin
+ * by default, so it links to the review page rather than fetching the rows
+ * themselves (requireRole("admin") here is the same broad gate
+ * getCuratorsForReview uses; this is a count, not the queue itself).
+ */
+export async function getPendingCuratorCount(): Promise<number> {
+  return readSafely("getPendingCuratorCount", 0, async () => {
+    await requireRole("admin");
+    const [row] = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(curators)
+      .where(eq(curators.status, "pending"));
+    return row?.count ?? 0;
   });
 }
 

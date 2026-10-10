@@ -34,6 +34,15 @@
   --color-terracotta: #94a3b8;
   --color-ink: #0c0f1d;
   --color-ink-muted: #64748b;
+  /* `text-paper`/`bg-paper` is the short form of `wall-paper` that the
+     `bg-ink text-paper` "inverted pill" pattern already uses in three
+     places (revenue/audit filters, discover's CTA) — without this token
+     `text-paper` resolved to no Tailwind utility at all, so the label
+     fell back to inherited near-black ink text on the near-black `bg-ink`
+     pill: invisible text on a solid-looking black box. Alias rather than a
+     rename at each call site, since `wall-paper` already means this exact
+     colour. */
+  --color-paper: var(--color-wall-paper);
   /* Hairlines and quiet bands. Named so components stop inventing greys. */
   --color-hairline: #e2e8f0;
   --color-hairline-strong: #cbd5e1;

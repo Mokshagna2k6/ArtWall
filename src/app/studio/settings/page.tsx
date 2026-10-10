@@ -1,12 +1,21 @@
+import Link from "next/link";
+
 import { getStudioArtistProfile } from "@/app/actions/artist-profile";
 import { ArtistProfileForm } from "@/components/dashboard/artist-profile-form";
 import { StudioPageHeader } from "@/components/dashboard/studio-shell";
 import { WalletProviders } from "@/components/blockchain/wallet-providers";
 import { WalletLinkPanel } from "@/components/blockchain/wallet-link-panel";
+import { getActor } from "@/features/physical-wall/authorize";
 
 export default async function SettingsPage() {
-  const profile = await getStudioArtistProfile();
+  const [profile, actor] = await Promise.all([
+    getStudioArtistProfile(),
+    getActor(),
+  ]);
   const wallet = (profile as { walletAddress?: string | null }).walletAddress;
+  // Admins and staff manage account closure through the admin console, not
+  // this self-serve link — the erasure flow is for the account's own holder.
+  const canDeleteOwnAccount = actor?.role !== "admin" && actor?.role !== "staff";
   return (
     <div className="flex flex-col gap-8">
       <StudioPageHeader
@@ -38,6 +47,25 @@ export default async function SettingsPage() {
           </WalletProviders>
         </div>
       </section>
+
+      {canDeleteOwnAccount && (
+        <section className="rounded-xl border border-red-200 bg-white p-6 dark:border-red-900/50 dark:bg-zinc-900">
+          <h2 className="text-lg font-semibold text-red-600 dark:text-red-400">
+            Delete my account
+          </h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Permanently erase your name, email, profile and artworks. What tax
+            and contract law require us to keep is kept, anonymised. This
+            cannot be undone.
+          </p>
+          <Link
+            href="/physical-wall/account"
+            className="mt-4 inline-flex h-10 items-center rounded-md border border-red-300 px-4 text-sm text-red-600 transition-colors hover:bg-red-50 dark:border-red-900/50 dark:text-red-400 dark:hover:bg-red-950/30"
+          >
+            Review and delete my account
+          </Link>
+        </section>
+      )}
     </div>
   );
 }

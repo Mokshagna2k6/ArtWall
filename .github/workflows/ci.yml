@@ -207,3 +207,57 @@ jobs:
           name: coverage
           path: coverage/
           if-no-files-found: ignore
+
+  # FE-2.04: the booking journey end to end (sign up -> slot -> agree -> hold
+  # -> pay in Razorpay TEST mode -> paid). Separate from `check`/`test` because
+  # it needs a real, seeded database (the wall's grid, catalogs and refund
+  # policy) and pays through real Razorpay Checkout, so it runs against a
+  # disposable Neon branch, never production. Opt-in: set the repository
+  # variable E2E_ENABLED=true and the E2E_* secrets below.
+  e2e:
+    needs: check
+    if: ${{ vars.E2E_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
+      BETTER_AUTH_SECRET: ${{ secrets.E2E_BETTER_AUTH_SECRET }}
+      BETTER_AUTH_URL: http://localhost:3217
+      PHYSICAL_WALL_ENABLED: "true"
+      RAZORPAY_KEY_ID: ${{ secrets.E2E_RAZORPAY_KEY_ID }}
+      RAZORPAY_KEY_SECRET: ${{ secrets.E2E_RAZORPAY_KEY_SECRET }}
+      RAZORPAY_WEBHOOK_SECRET: ${{ secrets.E2E_RAZORPAY_WEBHOOK_SECRET }}
+      NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID: ${{ secrets.E2E_WALLETCONNECT_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Migrate the e2e database
+        run: node scripts/migrate.mjs
+
+      - name: Seed catalogs
+        run: node scripts/seed-physical-wall.mjs
+
+      - name: Build
+        run: pnpm build
+
+      - name: E2E
+        run: pnpm test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: test-results/
+          retention-days: 7

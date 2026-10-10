@@ -1,26 +1,25 @@
 "use client";
 import { useState, useTransition } from "react";
 import { createContact } from "@/app/actions/contacts";
-import { createCollection } from "@/app/actions/organization";
 import {
   createDocument,
   createRoom,
   createSale,
 } from "@/app/actions/workspaces";
 
-type Kind = "sale" | "document" | "room" | "contact" | "collection";
+type Kind = "sale" | "document" | "room" | "contact";
 
 const LABEL: Record<Kind, string> = {
   sale: "Opportunity",
   document: "Document",
   room: "Room",
   contact: "Contact",
-  collection: "Collection",
 };
 
 export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
+  const [detail, setDetail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const label = LABEL[kind];
@@ -30,21 +29,26 @@ export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
     setError(null);
     start(async () => {
       try {
-        if (kind === "sale")
-          await createSale({
-            status: "lead",
-            amount: value ? Math.round(Number(value)) : undefined,
-          });
-        if (kind === "document")
-          await createDocument({ title: value, kind: "archive" });
-        if (kind === "room")
-          await createRoom({
-            name: value,
-            slug: value.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
-          });
-        if (kind === "contact") await createContact({ name: value });
-        if (kind === "collection") await createCollection({ name: value });
+        const result =
+          kind === "sale"
+            ? await createSale({
+                status: "lead",
+                amount: value ? Math.round(Number(value)) : undefined,
+              })
+            : kind === "document"
+              ? await createDocument({ title: value, kind: "archive" })
+              : kind === "room"
+                ? await createRoom({
+                    name: value,
+                    slug: value.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+                  })
+                : await createContact({ name: value, email: detail || undefined });
+        if (!result.ok) {
+          setError(result.message);
+          return;
+        }
         setValue("");
+        setDetail("");
         setOpen(false);
       } catch {
         setError(`Could not save this ${label.toLowerCase()}. Try again.`);
@@ -75,6 +79,16 @@ export function WorkspaceCreateForm({ kind }: { kind: Kind }) {
           className="studio-input flex-1"
           placeholder={`${label} name`}
           aria-label={`${label} name`}
+        />
+      )}
+      {kind === "contact" && (
+        <input
+          type="email"
+          value={detail}
+          onChange={(e) => setDetail(e.target.value)}
+          className="studio-input flex-1"
+          placeholder="Email (optional)"
+          aria-label="Email"
         />
       )}
       <button disabled={pending} className="studio-button">

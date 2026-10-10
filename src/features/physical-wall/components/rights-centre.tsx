@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Download, ShieldCheck } from "lucide-react";
 
+import { siteConfig } from "@/config/site";
 import { IDLE } from "@/features/physical-wall/action-state";
 import {
   eraseMyData,
@@ -290,6 +291,13 @@ function GrievanceSection({ email }: { email: string }) {
         person, and we reply within {GRIEVANCE_RESPONSE_DAYS} days. You can also
         complain to the Data Protection Board of India directly — using this
         first does not give up that right.
+      </p>
+      <p className="text-ink-muted mt-3 max-w-2xl text-sm leading-6">
+        You can also reach {siteConfig.grievanceOfficer.name} directly at{" "}
+        <a href={`mailto:${siteConfig.grievanceOfficer.email}`} className="underline underline-offset-4 hover:text-ink">
+          {siteConfig.grievanceOfficer.email}
+        </a>{" "}
+        or {siteConfig.grievanceOfficer.phone}.
       </p>
 
       <form action={action} className="mt-5 flex max-w-xl flex-col gap-4">
