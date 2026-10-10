@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { desc } from "drizzle-orm";
 
 import { requireAnyAdminRolePage } from "@/features/physical-wall/authorize";
-import { AdminNotAvailable } from "@/features/physical-wall/components/admin-not-available";
 import { db } from "@/lib/db/index";
 import { merkleRoots } from "@/lib/db/schema";
 
@@ -12,6 +12,14 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+
+const BASE = "/physical-wall/admin/console/blockchain-admin";
+const LINKS = [
+  { href: `${BASE}/ipfs`, label: "IPFS pins & mint state", note: "Recorded CIDs and mint health per certificate." },
+  { href: `${BASE}/nfc`, label: "NFC & QR tags", note: "Binding lifecycle and scan counters." },
+  { href: `${BASE}/escrow`, label: "Escrow", note: "Wall-booking holds only; no artwork-sale escrow exists yet." },
+  { href: `${BASE}/fraud`, label: "Fraud signals", note: "Leads from payments, refunds, tag scans and wallet links." },
+] as const;
 
 /**
  * FE-3.18: `blockchain_admin` is brand new (migration 0059), no existing
@@ -82,11 +90,15 @@ export default async function BlockchainAdminConsolePage() {
       </div>
 
       <div>
-        <p className="text-label text-ink-muted tracking-wider uppercase">Bible-described, not built</p>
-        <div className="mt-3 flex flex-col gap-3">
-          <AdminNotAvailable what="NFC/IPFS pin status" />
-          <AdminNotAvailable what="Escrow-in-flight tracking" />
-        </div>
+        <p className="text-label text-ink-muted tracking-wider uppercase">Read-only views</p>
+        <ul className="mt-3 grid gap-3 sm:grid-cols-2">
+          {LINKS.map((l) => (
+            <li key={l.href} className="border-hairline rounded-md border p-4">
+              <Link href={l.href} className="font-heading text-card underline">{l.label}</Link>
+              <p className="text-ink-muted mt-1 text-sm leading-6">{l.note}</p>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );
