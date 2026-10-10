@@ -65,6 +65,13 @@ export default async function CertificatesPage() {
                   >
                     Verify page →
                   </a>
+                  <a
+                    href={`/api/coa/${item.id}/pdf`}
+                    download={`COA-${item.id}.pdf`}
+                    className="text-studio-accent text-xs hover:underline"
+                  >
+                    Download certificate PDF
+                  </a>
                   {item.status !== "revoked" && (
                     <RevokeCertificateButton certId={item.id} />
                   )}
