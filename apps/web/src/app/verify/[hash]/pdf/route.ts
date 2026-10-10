@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { renderPublicCertificatePdf } from "@/features/coa/pdf-service";
+import { limitPolicy, tooManyRequests } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +11,12 @@ export const dynamic = "force-dynamic";
  * CDN caching absorbs repeated hits; a revocation shows within a minute here
  * (the owner route /api/coa/:id/pdf stays no-store).
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ hash: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ hash: string }> }) {
   const { hash } = await params;
   if (!/^[\w-]{1,128}$/.test(hash)) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Public read: fails open if the limiter store is down. After the cheap 404 so junk paths cost nothing.
+  const limit = await limitPolicy("public-pdf", null, request.headers);
+  if (!limit.ok) return tooManyRequests(limit, { error: "Too many requests. Slow down." });
   try {
     const bytes = await renderPublicCertificatePdf(hash);
     if (!bytes) return NextResponse.json({ error: "Not found" }, { status: 404 });

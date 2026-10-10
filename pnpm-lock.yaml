@@ -34,6 +34,9 @@ importers:
       '@artwall/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@artwall/ratelimit':
+        specifier: workspace:*
+        version: link:../../packages/ratelimit
       '@base-ui/react':
         specifier: ^1.7.0
         version: 1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -203,7 +206,7 @@ importers:
     dependencies:
       drizzle-orm:
         specifier: ^0.45.2
-        version: 0.45.2(@neondatabase/serverless@1.1.0)(@types/pg@8.21.0)(kysely@0.29.5)(pg@8.23.0)
+        version: 0.45.2(@neondatabase/serverless@1.1.0)(@types/pg@8.21.0)(@upstash/redis@1.39.0)(kysely@0.29.5)(pg@8.23.0)
       pg:
         specifier: ^8.23.0
         version: 8.23.0
@@ -212,7 +215,24 @@ importers:
         specifier: ^8.21.0
         version: 8.21.0
 
-  packages/ratelimit: {}
+  packages/ratelimit:
+    dependencies:
+      '@upstash/ratelimit':
+        specifier: ^2.0.5
+        version: 2.2.0(@upstash/redis@1.39.0)
+      '@upstash/redis':
+        specifier: ^1.34.3
+        version: 1.39.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@20.19.43)(@vitest/coverage-v8@4.1.11)(vite@8.2.2(@types/node@20.19.43)(jiti@2.7.0))
 
   packages/security: {}
 
@@ -2024,6 +2044,15 @@ packages:
     resolution: {integrity: sha512-nAB74NfSNKknqQ1RrYj6uz8FcXEomu/MATJZxh/x+BArzN2U3JbOYC0APYzUIGhVY3m5hRxA8VPNdPBoG8txlA==}
     cpu: [x64]
     os: [win32]
+
+  '@upstash/core-analytics@0.0.10':
+    resolution: {integrity: sha512-7qJHGxpQgQr9/vmeS1PktEwvNAF7TI4iJDi8Pu2CFZ9YUGHZH4fOP5TfYlZ4aVxfopnELiE4BS4FBjyK7V1/xQ==}
+    engines: {node: '>=16.0.0'}
+
+  '@upstash/ratelimit@2.2.0':
+    resolution: {integrity: sha512-gSydXspG6TJKTh71/gGGv4IGDjD9rXglQfm2jAue2kh4bcfWtEAsG1NW4OqzZd/hubJPojsbOU6AMdS6Xqh0tQ==}
+    peerDependencies:
+      '@upstash/redis': ^1.38.2
 
   '@upstash/redis@1.39.0':
     resolution: {integrity: sha512-VwkpYTdxSfjSulQS5h16NHtg/1UEheBfvez2AeGKinAujOoGXhXCcohQRzsQ/d2g/XzbjzTVGhG8Ds8uOI0Mxg==}
@@ -8162,6 +8191,15 @@ snapshots:
 
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
+
+  '@upstash/core-analytics@0.0.10':
+    dependencies:
+      '@upstash/redis': 1.39.0
+
+  '@upstash/ratelimit@2.2.0(@upstash/redis@1.39.0)':
+    dependencies:
+      '@upstash/core-analytics': 0.0.10
+      '@upstash/redis': 1.39.0
 
   '@upstash/redis@1.39.0':
     dependencies:

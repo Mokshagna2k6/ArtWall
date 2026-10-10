@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { requireBuyer } from "@/features/orders/authorize";
 import { addArtworksToCart, resolveCollectionForCart, type AddResult } from "@/features/orders/cart";
+import { enforcePolicy } from "@/features/orders/rate-limit";
 import { attempt, parseInput, PreconditionError, type Result } from "@/features/physical-wall/actions/shared";
 import { pool } from "@/lib/db/index";
 
@@ -21,6 +22,7 @@ export async function addToCart(raw: unknown): Promise<Result<AddResult>> {
   return attempt("addToCart", async () => {
     const { artworkId } = parseInput(artworkInput, raw);
     const buyer = await requireBuyer();
+    await enforcePolicy("cart", buyer.id);
     const result = await addArtworksToCart(buyer.id, [artworkId]);
     const skipped = result.skipped[0];
     if (skipped) throw new PreconditionError(`${skipped.title}: ${skipped.reason}`);
@@ -33,6 +35,7 @@ export async function addCollectionToCart(raw: unknown): Promise<Result<AddResul
   return attempt("addCollectionToCart", async () => {
     const { collectionId } = parseInput(collectionInput, raw);
     const buyer = await requireBuyer();
+    await enforcePolicy("cart", buyer.id);
     const resolved = await resolveCollectionForCart(collectionId, buyer.id);
     if (!resolved) throw new PreconditionError("We couldn't find that collection.");
     const result = await addArtworksToCart(buyer.id, resolved.artworkIds, resolved.attribution);
