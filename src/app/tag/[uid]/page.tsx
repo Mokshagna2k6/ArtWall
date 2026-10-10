@@ -1,13 +1,18 @@
 import type { Metadata } from "next";
 import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 
 import { resolveTagScan } from "@/features/art-tags/actions";
 
+// Scan landing pages: not for search indexes, and never prerendered (every
+// render may count a scan).
 export const metadata: Metadata = {
   title: "ArtTag",
   description: "Scan an ArtWall tag to discover the artwork",
+  robots: { index: false, follow: true },
 };
+export const dynamic = "force-dynamic";
 
 export default async function TagPage({
   params,
@@ -20,27 +25,49 @@ export default async function TagPage({
   // BC-3.09: an NTAG424 DNA tag's NDEF URL appends ?picc_data=&cmac= (SDM) —
   // present only for a genuine chip scan, verified in resolveTagScan.
   const { picc_data, cmac } = await searchParams;
-  const result = await resolveTagScan(uid, undefined, undefined, { piccData: picc_data, cmac });
+  const result = await resolveTagScan(uid, { piccData: picc_data, cmac });
 
-  if (!result) {
+  // An unknown/revoked uid is a real 404 (status code too, see not-found.tsx).
+  if (result.status === "not_found") notFound();
+
+  // FE-3.20: a registered tag whose signature/CMAC failed to verify is a
+  // materially different, more alarming state than "unknown tag" — it means
+  // someone scanned a real tag's URL/QR but the crypto proof didn't check
+  // out (tampered payload, replayed SUN counter, or a copied/stale link).
+  // This must never be silently treated as a successful scan or folded into
+  // the generic "no public artwork" message below.
+  if (result.status === "unverified") {
+    const copy = {
+      bad_signature: {
+        heading: "Signature could not be verified",
+        body: "This tag's cryptographic signature did not check out. It may be damaged, copied, or counterfeit.",
+      },
+      replay: {
+        heading: "This scan was rejected",
+        body: "This tag's scan counter has already been used. If you scanned the physical tag directly, try again — this usually means a stale or reused link.",
+      },
+      malformed: {
+        heading: "Scan could not be verified",
+        body: "This link is missing the data needed to verify the tag. Scan the physical NFC tag or QR code directly rather than reusing a saved link.",
+      },
+    }[result.reason];
     return (
       <main className="mx-auto max-w-lg px-6 py-24 text-center">
-        <h1 className="text-display font-heading">Tag not found</h1>
-        <p className="text-ink-muted mt-4">
-          This ArtTag is not registered on ArtWall.
-        </p>
+        <h1 className="text-display font-heading">{copy.heading}</h1>
+        <p className="text-ink-muted mt-4">{copy.body}</p>
       </main>
     );
   }
 
   if (!result.artwork) {
+    // FE-2.11: one generic message whether the tag is unbound or bound to a
+    // private/unpublished work — the response must not let a scanner tell
+    // the two apart, since that would reveal that a private artwork exists.
     return (
       <main className="mx-auto max-w-lg px-6 py-24 text-center">
         <h1 className="text-display font-heading">Tag scanned</h1>
         <p className="text-ink-muted mt-4">
-          {"private" in result && result.private
-            ? "The artwork on this ArtTag is not public right now."
-            : "This ArtTag has not been bound to an artwork yet."}
+          No public artwork is linked to this ArtTag right now.
         </p>
       </main>
     );

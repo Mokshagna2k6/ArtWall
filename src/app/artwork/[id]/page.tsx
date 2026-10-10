@@ -12,6 +12,9 @@ import { loadTrustDimensionLevels } from "@/features/policy/trust";
 import { TrustPanel } from "@/features/policy/trust-panel";
 import { loadDemandSignal } from "@/features/demand/aggregate";
 import { DemandMeter } from "@/features/demand/demand-meter";
+import { loadEscrowSplitPreview } from "@/features/escrow/preview";
+import { EscrowSplitBreakdown } from "@/features/escrow/split-breakdown";
+import { AddToCollectionButton } from "@/features/collections/add-to-collection-button";
 
 // Same for every visitor: served from the catalogue cache (PERF-2.06).
 const loadArtwork = cachedCatalog(getArtworkDetail, "artwork-detail", 3600);
@@ -52,6 +55,11 @@ export default async function ArtworkDetailPage({
   const timeline = await loadTimeline(id);
   const trustLevels = await loadTrustLevels(id);
   const demand = await loadDemand(id);
+  // FE-3.14: not run through cachedCatalog — commission_policy_versions is
+  // not in the catalogue cache's invalidation set (expireCatalog only covers
+  // artworks/artist_profiles/exhibitions/coa_certificates), and a payment
+  // split must reflect the currently active policy, not a stale one.
+  const escrowSplit = await loadEscrowSplitPreview(id, artwork.pricePaise);
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-12">
@@ -93,6 +101,11 @@ export default async function ArtworkDetailPage({
           )}
 
           <DemandMeter signal={demand} />
+
+          {escrowSplit && <EscrowSplitBreakdown split={escrowSplit} />}
+          <div className="mt-4">
+            <AddToCollectionButton artworkId={artwork.id} />
+          </div>
 
           <dl className="mt-6 grid grid-cols-2 gap-4 text-sm">
             {artwork.medium && (

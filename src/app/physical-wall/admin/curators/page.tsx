@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { requireRolePage } from "@/features/physical-wall/authorize";
+import { requireAnyAdminRolePage } from "@/features/physical-wall/authorize";
 import { getCuratorsForReview } from "@/features/curators/actions";
 import { CuratorReviewList } from "@/features/curators/curator-review";
 
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function CuratorReviewPage() {
-  await requireRolePage("admin", "/physical-wall/admin/curators");
+  await requireAnyAdminRolePage(["curator_admin"], "/physical-wall/admin/curators");
   const items = await getCuratorsForReview();
 
   return (

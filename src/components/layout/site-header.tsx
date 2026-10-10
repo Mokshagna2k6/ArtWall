@@ -494,6 +494,14 @@ export function SiteHeader({
                 >
                   Go to studio
                 </Link>
+                {user.role !== "admin" && user.role !== "staff" && (
+                  <Link
+                    href="/studio/settings"
+                    className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors"
+                  >
+                    Account settings
+                  </Link>
+                )}
                 <SignOutButton className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors" />
               </>
             ) : (
@@ -531,9 +539,19 @@ type UserProp = {
  *
  * Artists and visitors never see it: the console redirects them away anyway,
  * so offering the link would only be a dead end that confirms the route exists.
+ *
+ * FE-3.19: this doubles as the "View site" escape hatch's way back. An
+ * admin/team-member account (role === "admin", granular admin_roles grants
+ * included — every one of them already has the base `admin` role per
+ * authorize.ts) gets redirected into the admin shell on every page by
+ * default; "View site" sets a cookie opting out for the rest of that
+ * browsing session. Routing this link through the dashboard route (rather
+ * than straight to /physical-wall/admin) clears that cookie first, so
+ * clicking "Dashboard" actually cancels "View site" instead of bouncing
+ * right back out on the next navigation.
  */
 function dashboardHref(role?: string): string | null {
-  return role === "admin" || role === "staff" ? "/physical-wall/admin" : null;
+  return role === "admin" || role === "staff" ? "/physical-wall/admin/dashboard" : null;
 }
 
 function UserAvatar({ user, size = 32 }: { user: UserProp; size?: number }) {
@@ -634,6 +652,15 @@ function UserMenu({ user }: { user: UserProp }) {
           >
             Studio
           </Link>
+          {user.role !== "admin" && user.role !== "staff" && (
+            <Link
+              href="/studio/settings"
+              onClick={() => setOpen(false)}
+              className="hover:bg-secondary block px-3 py-2 text-sm transition-colors"
+            >
+              Account settings
+            </Link>
+          )}
           <div className="border-border my-1 border-t" />
           <SignOutButton className="hover:bg-secondary w-full px-3 py-2 text-left text-sm transition-colors" />
         </motion.div>
@@ -650,6 +677,7 @@ function SignOutButton({ className }: { className?: string }) {
     setPending(true);
     try {
       await authClient.signOut();
+      router.push("/");
       router.refresh();
     } finally {
       setPending(false);

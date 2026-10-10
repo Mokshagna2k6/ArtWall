@@ -32,6 +32,14 @@ export function proxy(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
   requestHeaders.set("Content-Security-Policy", cspHeader);
+  // FE-3.19: the root layout needs to know which tree it's rendering for —
+  // the admin shell replaces the public SiteHeader/SiteFooter outright (see
+  // src/app/layout.tsx) — and a Server Component root layout has no
+  // `usePathname()`. Same "stamp it on the request here, read it via
+  // headers() there" pattern as x-nonce above, rather than a second proxy
+  // or a route-group restructure (see layout.tsx's comment for why that
+  // was ruled out).
+  requestHeaders.set("x-pathname", request.nextUrl.pathname);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", cspHeader);

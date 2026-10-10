@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 
 import type { ActionState } from "@/features/physical-wall/action-state";
@@ -96,3 +96,64 @@ export function Field({
 
 export const inputClass =
   "border-hairline-strong bg-wall-paper text-body h-10 w-full rounded-md border px-3 focus:border-ink focus:outline-none";
+
+/**
+ * Two-step destructive action (FE-2.12): the first click only arms it and
+ * shows what will happen; `children` (the real submit/button) plus "Keep it"
+ * appear in its place. Focus lands on "Keep it" (the safe choice) and returns
+ * to the trigger if the admin backs out.
+ */
+export function ConfirmStep({
+  label,
+  warning,
+  children,
+  disabled,
+}: {
+  label: string;
+  warning: string;
+  children: ReactNode;
+  disabled?: boolean;
+}) {
+  const [armed, setArmed] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const keep = useRef<HTMLButtonElement>(null);
+  const touched = useRef(false);
+  useEffect(() => {
+    if (!touched.current) return;
+    (armed ? keep : trigger).current?.focus();
+  }, [armed]);
+  const toggle = (next: boolean) => {
+    touched.current = true;
+    setArmed(next);
+  };
+
+  if (!armed) {
+    return (
+      <button
+        ref={trigger}
+        type="button"
+        disabled={disabled}
+        onClick={() => toggle(true)}
+        className="border-destructive/40 text-destructive hover:bg-destructive/5 text-small inline-flex h-10 items-center rounded-md border px-4 font-medium disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {label}
+      </button>
+    );
+  }
+  return (
+    <div role="group" aria-label={`Confirm ${label.toLowerCase()}`} className="flex flex-col gap-2">
+      <p className="text-destructive max-w-sm text-xs leading-5">{warning}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {children}
+        <button
+          ref={keep}
+          type="button"
+          onClick={() => toggle(false)}
+          className="text-ink-muted hover:text-ink text-small underline underline-offset-4"
+        >
+          Keep it
+        </button>
+      </div>
+    </div>
+  );
+}
