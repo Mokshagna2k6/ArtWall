@@ -14,7 +14,7 @@
     "test:e2e": "pnpm --filter @artwall/web test:e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:migrate": "pnpm --filter @artwall/web db:migrate",
+    "db:migrate": "pnpm --filter @artwall/db db:migrate",
     "db:check": "pnpm --filter @artwall/web db:check",
     "db:seed-accounts": "pnpm --filter @artwall/web db:seed-accounts"
   },

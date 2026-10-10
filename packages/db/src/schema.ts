@@ -1,0 +1,1372 @@
+import {
+  bigint,
+  boolean,
+  date,
+  integer,
+  jsonb,
+  pgTable,
+  primaryKey,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
+
+export const user = pgTable("user", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("emailVerified").notNull().default(false),
+  image: text("image"),
+  /** visitor | artist | staff | admin. See db/migrations/0006_physical_wall.sql. */
+  role: text("role").notNull().default("artist"),
+  /** Claimed at onboarding, never assumed (F31). */
+  foundingMember: boolean("foundingMember").notNull().default(false),
+  /** Identity verification. Required before a first payout, not before exhibiting. */
+  verifiedAt: timestamp("verifiedAt", { withTimezone: true }),
+  verificationMethod: text("verificationMethod"),
+  /** Set when a pw_identity_verifications review is approved (0009). Payout gate. */
+  identityVerified: boolean("identity_verified").notNull().default(false),
+  /** unverified | pending | approved | rejected (DB-3.01, 0052). Same write
+   *  path as identityVerified (reviewIdentity); this is the graded status,
+   *  identityVerified stays the simple payout-gate boolean. */
+  artistVerificationStatus: text("artist_verification_status").notNull().default("unverified"),
+  /** Self-declared 18+. Null means not yet asked (DPDP §5.4). */
+  ageDeclaredAdult: boolean("ageDeclaredAdult"),
+  /** artist | curator | buyer. Null means not yet asked ("What brings you to
+   *  ArtWall?", shown once after sign-up/first sign-in). Not user.role (an
+   *  unrelated internal access tier) and not inferred from artist_profiles /
+   *  curators row presence - those tables predate this question. */
+  onboardingPersona: text("onboarding_persona"),
+  onboardedAt: timestamp("onboardedAt", { withTimezone: true }),
+  nomineeName: text("nomineeName"),
+  nomineeContact: text("nomineeContact"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+export const session = pgTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+  ipAddress: text("ipAddress"),
+  userAgent: text("userAgent"),
+  userId: text("userId").notNull(),
+});
+export const account = pgTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("accountId").notNull(),
+  providerId: text("providerId").notNull(),
+  userId: text("userId").notNull(),
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  idToken: text("idToken"),
+  accessTokenExpiresAt: timestamp("accessTokenExpiresAt"),
+  refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt"),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+export const verification = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow(),
+  updatedAt: timestamp("updatedAt").defaultNow(),
+});
+
+export const artistProfiles = pgTable("artist_profiles", {
+  userId: text("userId").primaryKey(),
+  handle: text("handle").notNull().unique(),
+  displayName: text("displayName").notNull(),
+  discipline: text("discipline"),
+  location: text("location"),
+  bio: text("bio"),
+  website: text("website"),
+  instagram: text("instagram"),
+  avatarUrl: text("avatarUrl"),
+  published: boolean("published").notNull().default(false),
+  publishedAt: timestamp("publishedAt"),
+  onboardingCompleted: boolean("onboardingCompleted").notNull().default(false),
+  walletAddress: text("wallet_address"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+
+export const artworks = pgTable("artworks", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  title: text("title").notNull(),
+  year: integer("year"),
+  medium: text("medium"),
+  description: text("description"),
+  dimensions: text("dimensions"),
+  status: text("status").notNull().default("available"),
+  /** Orthogonal status domains (DB-3.03, 0047). status above is untouched. */
+  lifecycleStatus: text("lifecycle_status").notNull().default("draft"),
+  commerceStatus: text("commerce_status").notNull().default("unlisted"),
+  exhibitionStatus: text("exhibition_status").notNull().default("not_exhibited"),
+  custodyStatus: text("custody_status").notNull().default("with_artist"),
+  imageUrl: text("imageUrl"),
+  imagePublicId: text("imagePublicId"),
+  isPublic: boolean("isPublic").notNull().default(true),
+  /**
+   * Where this work is in the *physical* wall lifecycle, if it is on it at all.
+   * Null for the vast majority of works, which only ever live in the artist's
+   * own catalogue.
+   */
+  physicalStatus: text("physicalStatus"),
+  qrToken: text("qrToken"),
+  category: text("category"),
+  pricePaise: integer("price_paise"),
+  tags: text("tags").array(),
+  // search_tsv: generated tsvector owned by Postgres (0018), deliberately not
+  // modelled so select() on artworks doesn't ship it. Query it in raw SQL.
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
+export const contacts = pgTable("contacts", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  name: text("name").notNull(),
+  email: text("email"),
+  kind: text("kind").notNull().default("collector"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+/**
+ * A reusable grouping of artwork references (DB-COLL.01, 0057).
+ *
+ * Not a wishlist and not ownership: membership lives entirely in
+ * `collectionArtworks`, a many-to-many join table, so one artwork can sit in
+ * any number of collections and a collection never "owns" what it lists.
+ *
+ * `type` fixes what a collection is for and drives authorization in
+ * src/features/collections/policy.ts — it is never client-trusted:
+ *   BUYER   — any signed-in user organizing artworks they like. Private by
+ *             default, not commission-enabled.
+ *   ARTIST  — an artist's own portfolio/series. Every member artwork must be
+ *             owned by the same `ownerId`. Appears on the artist's profile.
+ *   CURATOR — editorial, commerce-oriented. Can mix artworks from any artist.
+ *             Commission attribution hangs off this type only (see
+ *             referrerId on sales, once that flow exists) — never on BUYER
+ *             or ARTIST collections.
+ */
+export const collections = pgTable(
+  "collections",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    type: text("type").notNull().default("BUYER").$type<"BUYER" | "ARTIST" | "CURATOR">(),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** Curator's curation statement. Artists may use it as an optional series note. Buyers don't. */
+    thesis: text("thesis"),
+    coverArtworkId: text("cover_artwork_id"),
+    visibility: text("visibility").notNull().default("private").$type<"public" | "private">(),
+    slug: text("slug").notNull(),
+    isFeatured: boolean("is_featured").notNull().default(false),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  }
+);
+
+/** Collection <-> Artwork membership (N:N). `position` is the persisted display order. */
+export const collectionArtworks = pgTable(
+  "collection_artworks",
+  {
+    collectionId: text("collection_id").notNull(),
+    artworkId: text("artwork_id").notNull(),
+    position: integer("position").notNull().default(0),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.collectionId, table.artworkId] })]
+);
+export const tasks = pgTable("tasks", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("open"),
+  dueAt: timestamp("dueAt"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+export const sales = pgTable("sales", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  contactId: text("contactId"),
+  artworkId: text("artworkId"),
+  status: text("status").notNull().default("lead"),
+  /** Deal value in paise (was whole rupees in "amount" until 0033). */
+  amountPaise: integer("amountPaise"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+export const documents = pgTable("documents", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  title: text("title").notNull(),
+  kind: text("kind").notNull().default("certificate"),
+  url: text("url"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+export const rooms = pgTable("rooms", {
+  id: text("id").primaryKey(),
+  userId: text("userId").notNull(),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+});
+
+/* ── Physical wall (WMS) ─────────────────────────────────────────────────────
+ *
+ * The wall inside the Ric Platter venue. Everything is prefixed `pw_` in the
+ * database so it is never confused with the *digital* wall (`waitlist_entries`,
+ * /wall), which is a different product.
+ *
+ * Money is stored in paise as integers throughout, and every such column says
+ * so in its name. See db/migrations/0006_physical_wall.sql for the reasoning
+ * behind each table's shape.
+ */
+
+export const pwGridConfig = pgTable("pw_grid_config", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  rowCount: integer("row_count").notNull(),
+  colCount: integer("col_count").notNull(),
+  isTemplate: boolean("is_template").notNull().default(false),
+  active: boolean("active").notNull().default(false),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwSizeCatalog = pgTable("pw_size_catalog", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  wCm: integer("w_cm").notNull(),
+  hCm: integer("h_cm").notNull(),
+  weightKg: integer("weight_kg").notNull().default(5),
+  basePricePaise: integer("base_price_paise").notNull(),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwSlotTypes = pgTable("pw_slot_types", {
+  id: text("id").primaryKey(),
+  label: text("label").notNull(),
+  /** Basis points: 10000 = 1.0x. Integer so pricing never touches a float. */
+  multiplierBp: integer("multiplier_bp").notNull(),
+  requiresGrant: boolean("requires_grant").notNull().default(false),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwSlots = pgTable("pw_slots", {
+  id: text("id").primaryKey(),
+  gridId: text("grid_id").notNull(),
+  rowIndex: integer("row_index").notNull(),
+  colIndex: integer("col_index").notNull(),
+  label: text("label").notNull(),
+  sizeId: text("size_id").notNull(),
+  typeId: text("type_id").notNull(),
+  state: text("state").notNull().default("available"),
+  /** Optimistic lock. Two admins can edit the grid at the same time. */
+  version: integer("version").notNull().default(1),
+  /** BE-3.13 bridge (0050): nullable FK into the `slots` hierarchy leaf. Null
+   *  for rows never linked (should not happen post-migration, but the column
+   *  itself must stay nullable per the migration's own definition). */
+  wallosSlotId: text("wallos_slot_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwAddonCatalog = pgTable("pw_addon_catalog", {
+  id: text("id").primaryKey(),
+  label: text("label").notNull(),
+  pricePaise: integer("price_paise").notNull(),
+  appliesTo: text("applies_to").notNull().default("artist"),
+  category: text("category").notNull().default("general"),
+  active: boolean("active").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/** Append-only. A booking snapshots the version in force when it was made. */
+export const pwRefundPolicy = pgTable("pw_refund_policy", {
+  version: integer("version").primaryKey().generatedAlwaysAsIdentity(),
+  percentage: integer("percentage").notNull(),
+  note: text("note"),
+  updatedBy: text("updated_by"),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/** Single row, id pinned to 1. Every tunable the founder owns. */
+export const pwSettings = pgTable("pw_settings", {
+  id: integer("id").primaryKey().default(1),
+  holdMinutes: integer("hold_minutes").notNull().default(30),
+  bufferDays: integer("buffer_days").notNull().default(0),
+  gstRateBp: integer("gst_rate_bp").notNull().default(1800),
+  surgeEnabled: boolean("surge_enabled").notNull().default(false),
+  surgeThresholdPct: integer("surge_threshold_pct").notNull().default(80),
+  surgeMultiplierBp: integer("surge_multiplier_bp").notNull().default(11500),
+  perkDiscountBp: integer("perk_discount_bp").notNull().default(1000),
+  perkCostBearer: text("perk_cost_bearer").notNull().default("artwall"),
+  groupDiscountTiers: jsonb("group_discount_tiers").notNull().default([]),
+  venueOpenHour: integer("venue_open_hour").notNull().default(11),
+  venueCloseHour: integer("venue_close_hour").notNull().default(22),
+  /** Concurrent install windows the venue team can run (BE-1.15). */
+  installCapacity: integer("install_capacity").notNull().default(2),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwBookings = pgTable("pw_bookings", {
+  id: text("id").primaryKey(),
+  artistId: text("artist_id").notNull(),
+  artworkId: text("artwork_id"),
+  status: text("status").notNull().default("held"),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date").notNull(),
+  durationDays: integer("duration_days").notNull(),
+  baseAmountPaise: integer("base_amount_paise").notNull().default(0),
+  addonAmountPaise: integer("addon_amount_paise").notNull().default(0),
+  discountAmountPaise: integer("discount_amount_paise").notNull().default(0),
+  gstAmountPaise: integer("gst_amount_paise").notNull().default(0),
+  totalAmountPaise: integer("total_amount_paise").notNull().default(0),
+  surgeApplied: boolean("surge_applied").notNull().default(false),
+  /** Snapshot, not a join: the policy in force at booking time governs. */
+  refundPolicyVersion: integer("refund_policy_version"),
+  holdExpiresAt: timestamp("hold_expires_at", { withTimezone: true }),
+  cancelledReason: text("cancelled_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwBookingSlots = pgTable(
+  "pw_booking_slots",
+  {
+    bookingId: text("booking_id").notNull(),
+    slotId: text("slot_id").notNull(),
+    /** The work hung in this slot (0064). pw_bookings.artwork_id mirrors the first one. */
+    artworkId: text("artwork_id"),
+    /** A copy, not a join: editing the catalog must not re-price a booking. */
+    quotedPricePaise: integer("quoted_price_paise").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.bookingId, table.slotId] }),
+  ]
+);
+
+export const pwBookingAddons = pgTable("pw_booking_addons", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  addonId: text("addon_id").notNull(),
+  label: text("label").notNull(),
+  pricePaise: integer("price_paise").notNull(),
+  fulfilled: boolean("fulfilled").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwPayments = pgTable("pw_payments", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  provider: text("provider").notNull().default("razorpay"),
+  orderId: text("order_id"),
+  paymentId: text("payment_id"),
+  /** Unique. This column is the entire webhook-idempotency story. */
+  eventId: text("event_id").unique(),
+  amountPaise: integer("amount_paise").notNull(),
+  status: text("status").notNull().default("created"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/** Refunds owed/sent. Written before Razorpay is called — see 0022_be_refunds.sql. */
+export const pwRefunds = pgTable("pw_refunds", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  paymentId: text("payment_id"),
+  amountPaise: integer("amount_paise").notNull(),
+  status: text("status").notNull().default("pending"),
+  providerRefundId: text("provider_refund_id").unique(),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  reason: text("reason"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * The founder's ledger. Full notes: docs/db/ledger.md.
+ *
+ * `type` — CHECK pw_ledger_type_check allows exactly two values:
+ *   'revenue' | 'expense'
+ * There is no 'payment', 'settlement' or 'refund' *type*: a captured payment is
+ * type 'revenue' / category 'booking'; a refund is type 'expense' / category
+ * 'refund'. Categories are validated in app code (CATEGORIES in
+ * src/features/physical-wall/actions/ledger.ts), not by the DB.
+ *
+ * `amountPaise` is never negative (CHECK, 0017); direction comes from `type`.
+ */
+export const pwLedger = pgTable("pw_ledger", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull().$type<"revenue" | "expense">(),
+  category: text("category").notNull(),
+  amountPaise: integer("amount_paise").notNull(),
+  note: text("note"),
+  entryDate: date("entry_date").notNull().defaultNow(),
+  /** 'booking:<id>' | 'refund:<id>' | 'perk:<redemption id>'; unique; null for manual rows. */
+  sourceRef: text("source_ref"),
+  createdBy: text("created_by"),
+  /**
+   * FK -> pw_bookings.id (0017), indexed. The booking this entry concerns; set
+   * on booking revenue, booking refunds and artist perks. Null for manual rows.
+   * Join on this for revenue-per-booking, never on parsed source_ref.
+   */
+  bookingId: text("booking_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwInstallWindows = pgTable("pw_install_windows", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  status: text("status").notNull().default("offered"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwCheckins = pgTable("pw_checkins", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  slotId: text("slot_id").notNull(),
+  /** Derived per booking from size, type and add-ons — no fixed columns to model. */
+  checklist: jsonb("checklist").notNull().default([]),
+  conditionPhotoUrl: text("condition_photo_url"),
+  conditionNotes: text("condition_notes"),
+  verifiedBy: text("verified_by"),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/** Artwork labels, artist coupons and visitor coupons: one resolver, one table. */
+export const pwQrTokens = pgTable("pw_qr_tokens", {
+  token: text("token").primaryKey(),
+  subjectType: text("subject_type").notNull(),
+  subjectId: text("subject_id").notNull(),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
+export const pwVisitors = pgTable("pw_visitors", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  contact: text("contact").notNull(),
+  contactKind: text("contact_kind").notNull().default("phone"),
+  /** Required to store the row at all. Marketing consent is separate. */
+  consentPurpose: boolean("consent_purpose").notNull().default(false),
+  consentMarketing: boolean("consent_marketing").notNull().default(false),
+  consentedAt: timestamp("consented_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwVisits = pgTable("pw_visits", {
+  id: text("id").primaryKey(),
+  visitorId: text("visitor_id").notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  endedAt: timestamp("ended_at", { withTimezone: true }),
+});
+
+/** No IP, no user agent. Data minimisation is the design, not an oversight. */
+export const pwScans = pgTable("pw_scans", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  artworkId: text("artwork_id").notNull(),
+  visitId: text("visit_id"),
+  source: text("source").notNull().default("qr"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwPerkRedemptions = pgTable("pw_perk_redemptions", {
+  id: text("id").primaryKey(),
+  principalType: text("principal_type").notNull(),
+  principalId: text("principal_id").notNull(),
+  /** The field that makes this a sale tracker rather than a coupon log. */
+  billAmountPaise: integer("bill_amount_paise"),
+  discountAmountPaise: integer("discount_amount_paise").notNull().default(0),
+  artworkRef: text("artwork_ref"),
+  visitRef: text("visit_ref"),
+  bookingRef: text("booking_ref"),
+  flagged: boolean("flagged").notNull().default(false),
+  redeemedBy: text("redeemed_by"),
+  redeemedAt: timestamp("redeemed_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/** Aggregate counts only. There is no "who reacted" to leak (F24). */
+export const pwReactions = pgTable(
+  "pw_reactions",
+  {
+    artworkId: text("artwork_id").notNull(),
+    kind: text("kind").notNull(),
+    count: integer("count").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.artworkId, table.kind] })]
+);
+
+/** One voluntary response per completed booking (F32). */
+export const pwFeedback = pgTable("pw_feedback", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  artistId: text("artist_id"),
+  rating: integer("rating").notNull(),
+  nps: integer("nps"),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * The Consent Manager record (DPDP §5.2).
+ *
+ * One row per person per purpose, so withdrawing marketing cannot touch the
+ * account consent. Withdrawal sets `withdrawnAt` — rows are never deleted,
+ * because the record that consent was held, and when it ended, is the evidence.
+ */
+export const pwConsents = pgTable("pw_consents", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"),
+  visitorId: text("visitor_id"),
+  purpose: text("purpose").notNull(),
+  granted: boolean("granted").notNull().default(true),
+  noticeVersion: text("notice_version").notNull().default("v1"),
+  grantedAt: timestamp("granted_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+});
+
+/** Hash-sealed at signature, so the version signed can be proven (F20). */
+export const pwAgreements = pgTable("pw_agreements", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  artistId: text("artist_id").notNull(),
+  termsVersion: text("terms_version").notNull(),
+  termsHash: text("terms_hash").notNull(),
+  body: text("body").notNull(),
+  refundPolicyVersion: integer("refund_policy_version"),
+  totalAmountPaise: integer("total_amount_paise").notNull(),
+  signedName: text("signed_name").notNull(),
+  signedAt: timestamp("signed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwWaitlist = pgTable("pw_waitlist", {
+  id: text("id").primaryKey(),
+  artistId: text("artist_id"),
+  name: text("name").notNull(),
+  contact: text("contact").notNull(),
+  city: text("city"),
+  medium: text("medium"),
+  sizePref: text("size_pref"),
+  note: text("note"),
+  tier: text("tier").notNull().default("new"),
+  /** A manual rank sits above the automatic tier ordering (C04). */
+  priorityRank: integer("priority_rank"),
+  status: text("status").notNull().default("queued"),
+  matchedSlotId: text("matched_slot_id"),
+  offerExpiresAt: timestamp("offer_expires_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const pwQueueOverrides = pgTable("pw_queue_overrides", {
+  id: text("id").primaryKey(),
+  waitlistId: text("waitlist_id").notNull(),
+  action: text("action").notNull(),
+  actorId: text("actor_id"),
+  note: text("note"),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwGrievances = pgTable("pw_grievances", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"),
+  contact: text("contact").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  status: text("status").notNull().default("open"),
+  /** The Act wants a time-bound response, so the clock is a column. */
+  dueAt: timestamp("due_at", { withTimezone: true }).notNull(),
+  response: text("response"),
+  respondedBy: text("responded_by"),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/** Append-only. "This admin did this", not "an admin did this". */
+export const pwAuditLog = pgTable("pw_audit_log", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  actorId: text("actor_id"),
+  actorLabel: text("actor_label"),
+  action: text("action").notNull(),
+  subjectType: text("subject_type").notNull(),
+  subjectId: text("subject_id"),
+  before: jsonb("before"),
+  after: jsonb("after"),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+  /** SEC-2.11 (0044): the caller's IP, when written from a request context. */
+  actorIp: text("actor_ip"),
+});
+
+/* ── Production readiness (migration 0009) ──────────────────────────────────── */
+
+export const pwNotifications = pgTable("pw_notifications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id"),
+  channel: text("channel").notNull().default("email"),
+  recipient: text("recipient").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  kind: text("kind").notNull(),
+  status: text("status").notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+  /** Scheduled sends go out once per key (0026). */
+  dedupeKey: text("dedupe_key"),
+  /** Outbox retry state (0052). */
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwGrievanceResponses = pgTable("pw_grievance_responses", {
+  id: text("id").primaryKey(),
+  grievanceId: text("grievance_id").notNull(),
+  authorId: text("author_id"),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwConditionPhotos = pgTable("pw_condition_photos", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  slotId: text("slot_id"),
+  itemKey: text("item_key").notNull(),
+  cloudinaryId: text("cloudinary_id").notNull(),
+  url: text("url").notNull(),
+  /** 'install' | 'deinstall' (0025). */
+  stage: text("stage").notNull().default("install"),
+  uploadedBy: text("uploaded_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwDamageRecords = pgTable("pw_damage_records", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  slotId: text("slot_id"),
+  itemKey: text("item_key").notNull(),
+  description: text("description").notNull(),
+  severity: text("severity").notNull().default("minor"),
+  photoId: text("photo_id"),
+  artworkId: text("artwork_id"),
+  recordedBy: text("recorded_by"),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwInvoices = pgTable("pw_invoices", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  number: text("number").notNull(),
+  issueDate: date("issue_date").notNull(),
+  placeOfSupply: text("place_of_supply").notNull(),
+  hsnSac: text("hsn_sac").notNull(),
+  gstinSupplier: text("gstin_supplier").notNull(),
+  gstinCustomer: text("gstin_customer"),
+  netPaise: integer("net_paise").notNull(),
+  cgstPaise: integer("cgst_paise").notNull(),
+  sgstPaise: integer("sgst_paise").notNull(),
+  /** Inter-state tax (0016). CHECK: igst > 0 only when cgst = sgst = 0. */
+  igstPaise: integer("igst_paise").notNull().default(0),
+  /** CHECK: total = net + cgst + sgst + igst. */
+  totalPaise: integer("total_paise").notNull(),
+  lineItems: jsonb("line_items").notNull(),
+  status: text("status").notNull().default("issued"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwLedgerLocks = pgTable("pw_ledger_locks", {
+  month: text("month").primaryKey(),
+  lockedBy: text("locked_by"),
+  lockedAt: timestamp("locked_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwUgcSubmissions = pgTable("pw_ugc_submissions", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id"),
+  userId: text("user_id"),
+  visitorId: text("visitor_id"),
+  kind: text("kind").notNull().default("selfie"),
+  cloudinaryId: text("cloudinary_id").notNull(),
+  url: text("url").notNull(),
+  caption: text("caption"),
+  consentId: text("consent_id").notNull(),
+  status: text("status").notNull().default("pending"),
+  moderatorId: text("moderator_id"),
+  moderationNote: text("moderation_note"),
+  reportedCount: integer("reported_count").notNull().default(0),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwCommunityGallery = pgTable("pw_community_gallery", {
+  id: text("id").primaryKey(),
+  submissionId: text("submission_id").notNull(),
+  imageUrl: text("image_url").notNull(),
+  caption: text("caption"),
+  byline: text("byline"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwSearchLog = pgTable("pw_search_log", {
+  id: text("id").primaryKey(),
+  query: text("query").notNull(),
+  results: integer("results").notNull().default(0),
+  filters: jsonb("filters"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// SEC-2.08: docCloudinaryId must be uploaded with Cloudinary's
+// `type: "authenticated"` (a private asset type, not the default public
+// `type: "upload"` every other image path here uses) - requestIdentityUploadSignature
+// in src/features/physical-wall/actions/identity.ts already signs for this,
+// ready for whoever wires up the submission action that writes this table
+// (none exists yet, only admin review). Viewing an existing row's document
+// goes through getIdentityDocumentUrl in the same file: owner-or-admin gated,
+// mints a short-lived Cloudinary-signed URL, and calls recordAudit for the
+// view. See src/features/physical-wall/components/identity-review.tsx.
+export const pwIdentityVerifications = pgTable("pw_identity_verifications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  docCloudinaryId: text("doc_cloudinary_id").notNull(),
+  docKind: text("doc_kind").notNull().default("government_id"),
+  status: text("status").notNull().default("pending"),
+  reviewerId: text("reviewer_id"),
+  reviewNote: text("review_note"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const pwRetentionRuns = pgTable("pw_retention_runs", {
+  id: text("id").primaryKey(),
+  target: text("target").notNull(),
+  deleted: integer("deleted").notNull().default(0),
+  details: jsonb("details"),
+  ranAt: timestamp("ran_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── Phase 2: COA / Provenance / Blockchain ────────────────────────────────── */
+
+export const editions = pgTable("editions", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull(),
+  userId: text("user_id").notNull(),
+  editionType: text("edition_type").notNull().default("unique"),
+  editionNumber: integer("edition_number"),
+  totalEditions: integer("total_editions"),
+  isAp: boolean("is_ap").notNull().default(false),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const coaCertificates = pgTable("coa_certificates", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull(),
+  editionId: text("edition_id"),
+  userId: text("user_id").notNull(),
+  metadataHash: text("metadata_hash").notNull(),
+  version: integer("version").notNull().default(1),
+  pdfUrl: text("pdf_url"),
+  /**
+   * CHECK (0015): draft | issued | revoked            (off-chain COA)
+   *               metadata_pinned | minting | minted | failed  (NFT mint flow)
+   */
+  status: text("status").notNull().default("draft"),
+  /** 0-3, DB-3.02. Real stored state, backfilled from status (0046). */
+  coaLevel: integer("coa_level").notNull().default(0),
+  issuedAt: timestamp("issued_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokeReason: text("revoke_reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // NFT/mint fields (migration 0014). camelCase columns, unlike the rest of this table.
+  imageCid: text("imageCid"),
+  metadataCid: text("metadataCid"),
+  metadataUri: text("metadataUri"),
+  metadataSha256: text("metadataSha256"),
+  mintNonce: text("mintNonce"),
+  txHash: text("txHash"),
+  chainId: integer("chainId"),
+  contractAddr: text("contractAddr"),
+  tokenId: text("tokenId"),
+  mintedAt: timestamp("mintedAt", { withTimezone: true }),
+  mintRequestedAt: timestamp("mintRequestedAt", { withTimezone: true }),
+  mintError: text("mintError"),
+  creatorName: text("creatorName"),
+  objectType: text("objectType"),
+  privacy: text("privacy").default("public"),
+});
+
+export const provenanceEvents = pgTable("provenance_events", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull(),
+  eventType: text("event_type").notNull(),
+  actorId: text("actor_id"),
+  label: text("label"),
+  metadata: jsonb("metadata"),
+  txHash: text("tx_hash"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const merkleRoots = pgTable("merkle_roots", {
+  id: text("id").primaryKey(),
+  rootHash: text("root_hash").notNull(),
+  txHash: text("tx_hash"),
+  chainId: integer("chain_id"),
+  blockNumber: bigint("block_number", { mode: "number" }),
+  leafCount: integer("leaf_count").notNull().default(0),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const mintCommitments = pgTable("mint_commitments", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull(),
+  editionId: text("edition_id"),
+  userId: text("user_id").notNull(),
+  leafHash: text("leaf_hash").notNull(),
+  walletAddress: text("wallet_address"),
+  erc2981RoyaltyBps: integer("erc2981_royalty_bps").notNull().default(400),
+  status: text("status").notNull().default("pending"),
+  merkleRootId: text("merkle_root_id"),
+  tokenId: text("token_id"),
+  mintTxHash: text("mint_tx_hash"),
+  /** Sibling path to merkle_roots.root_hash (0x bytes32[]), written by the merkle-root cron. */
+  merkleProof: jsonb("merkle_proof").$type<string[]>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── Exhibitions & Curators ────────────────────────────────────────────────── */
+
+export const exhibitions = pgTable("exhibitions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  venue: text("venue"),
+  startDate: date("start_date"),
+  endDate: date("end_date"),
+  status: text("status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const exhibitionArtworks = pgTable("exhibition_artworks", {
+  exhibitionId: text("exhibition_id").notNull(),
+  artworkId: text("artwork_id").notNull(),
+  displayOrder: integer("display_order").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.exhibitionId, t.artworkId] })]);
+
+/** Append-only audit trail of every exhibition lifecycle move (BE-3.08, 0051). */
+export const exhibitionTransitions = pgTable("exhibition_transitions", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  exhibitionId: text("exhibition_id").notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  actorId: text("actor_id"),
+  note: text("note"),
+  transitionedAt: timestamp("transitioned_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const curators = pgTable("curators", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  displayName: text("display_name").notNull(),
+  bio: text("bio"),
+  commissionBps: integer("commission_bps").notNull().default(1000),
+  status: text("status").notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const curatorPicks = pgTable("curator_picks", {
+  id: text("id").primaryKey(),
+  curatorId: text("curator_id").notNull(),
+  artworkId: text("artwork_id").notNull(),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── ArtQR / NFC Tags ─────────────────────────────────────────────────────── */
+
+export const artTags = pgTable("art_tags", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id"),
+  tagType: text("tag_type").notNull().default("qr"),
+  tagUid: text("tag_uid").notNull(),
+  boundBy: text("bound_by"),
+  boundAt: timestamp("bound_at", { withTimezone: true }),
+  scanCount: integer("scan_count").notNull().default(0),
+  /** Opaque KMS key reference for this tag's diversified AES-128 keys
+   *  (BC-3.10, DB-3.11). Null for 'qr' tags (they use the Ed25519 signing
+   *  key instead). Never raw key material — see src/lib/blockchain/kms.ts. */
+  keyReference: text("key_reference"),
+  /** Replay-rejection high-water mark: the highest NTAG424 SDM read counter
+   *  this server has accepted for this tag (BC-3.09). */
+  sunCounterLastSeen: integer("sun_counter_last_seen"),
+  /** Provisioning/binding lifecycle: unprovisioned | provisioned | bound |
+   *  revoked (DB-3.11 originally shipped unbound|bound|revoked; BC-3.13
+   *  needed to distinguish "row exists, no KMS key yet" from "KMS key
+   *  issued, not yet bound" — widened in 0055, see that migration's header
+   *  for the reconciliation). */
+  bindingStatus: text("binding_status").notNull().default("unprovisioned"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  /** 0-3, generated from binding_status/key_reference/sun_counter_last_seen
+   *  on this same row (DB-3.01, 0052). Read-only — Postgres computes it, this
+   *  is a plain column decl for typed reads only, never written from here. */
+  bindingLevel: integer("binding_level"),
+});
+
+/* ── PolicyEngine (Phase 3) ───────────────────────────────────────────────── */
+
+/** Append-only audit trail of PolicyEngine gate calls (BE-3.06). */
+export const policyDecisions = pgTable("policy_decisions", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  gate: text("gate").notNull(),
+  subjectType: text("subject_type").notNull(),
+  subjectId: text("subject_id"),
+  actorId: text("actor_id"),
+  allowed: boolean("allowed").notNull(),
+  reasons: jsonb("reasons").notNull().default([]),
+  inputs: jsonb("inputs").notNull().default({}),
+  decidedAt: timestamp("decided_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Versioned commission/royalty rates (BE-3.09, BE-3.10). Only one row per
+ * `kind` may be `active` (partial unique index in the migration). A
+ * transaction reads the active row's id at the moment it runs and stores that
+ * id on the ledger entry it produces, so a later rate change never re-prices
+ * a past transaction.
+ */
+export const commissionPolicies = pgTable("commission_policies", {
+  id: text("id").primaryKey(),
+  kind: text("kind").notNull(),
+  rateBps: integer("rate_bps").notNull(),
+  active: boolean("active").notNull().default(false),
+  note: text("note"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const artTagScans = pgTable("art_tag_scans", {
+  id: text("id").primaryKey(),
+  tagId: text("tag_id").notNull(),
+  scannedAt: timestamp("scanned_at", { withTimezone: true }).notNull().defaultNow(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  location: jsonb("location"),
+});
+
+/* ── Database Phase 3 additions (0044-0049) ─────────────────────────────── */
+
+/** Versioned whole-transaction commission split (DB-3.04, 0044). Immutable once effective. */
+export const commissionPolicyVersions = pgTable("commission_policy_versions", {
+  id: text("id").primaryKey(),
+  version: integer("version").notNull(),
+  effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull().defaultNow(),
+  effectiveTo: timestamp("effective_to", { withTimezone: true }),
+  platformBps: integer("platform_bps").notNull(),
+  artistBps: integer("artist_bps").notNull(),
+  curatorBps: integer("curator_bps").notNull(),
+  venueBps: integer("venue_bps").notNull(),
+  royaltyBps: integer("royalty_bps").notNull(),
+  note: text("note"),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Demand Engine (DB-3.14, 0045). Append-only event log. */
+export const demandSignals = pgTable("demand_signals", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  artworkId: text("artwork_id").notNull(),
+  signalType: text("signal_type").notNull(),
+  weight: integer("weight").notNull(),
+  value: integer("value").notNull().default(1),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Demand Engine aggregate (DB-3.14, 0045), upserted by the aggregation job. */
+export const demandAggregates = pgTable("demand_aggregates", {
+  artworkId: text("artwork_id").primaryKey(),
+  score: integer("score").notNull().default(0),
+  thresholdCrossedAt: timestamp("threshold_crossed_at", { withTimezone: true }),
+  computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * Escrow (DB-3.09, 0049; release state added BE-3.11, 0057). Linked to
+ * pw_bookings (this codebase's "order").
+ */
+export const escrowHolds = pgTable("escrow_holds", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id").notNull(),
+  amountPaise: integer("amount_paise").notNull(),
+  reason: text("reason"),
+  status: text("status").notNull().default("held"),
+  disputeWindowDays: integer("dispute_window_days").notNull().default(3),
+  releaseEligibleAt: timestamp("release_eligible_at", { withTimezone: true }),
+  commissionPolicyVersionId: text("commission_policy_version_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const escrowReleases = pgTable("escrow_releases", {
+  id: text("id").primaryKey(),
+  escrowHoldId: text("escrow_hold_id").notNull(),
+  ledgerId: text("ledger_id"),
+  amountPaise: integer("amount_paise").notNull(),
+  releasedTo: text("released_to"),
+  releasedAt: timestamp("released_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Admin roles (DB-3.10, 0049): the 8 Bible roles + user assignment + audit trail. */
+export const adminRoles = pgTable("admin_roles", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+});
+
+export const adminRoleAssignments = pgTable("admin_role_assignments", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  roleId: text("role_id").notNull(),
+  grantedBy: text("granted_by"),
+  grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedBy: text("revoked_by"),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
+/** Shipments (DB-3.15, 0049), for Shiprocket. */
+export const shipments = pgTable("shipments", {
+  id: text("id").primaryKey(),
+  bookingId: text("booking_id"),
+  provider: text("provider").notNull().default("shiprocket"),
+  providerShipmentId: text("provider_shipment_id"),
+  status: text("status").notNull().default("created"),
+  trackingUrl: text("tracking_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const shipmentEvents = pgTable("shipment_events", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  shipmentId: text("shipment_id").notNull(),
+  eventType: text("event_type").notNull(),
+  payload: jsonb("payload").notNull().default({}),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── WallOS hierarchy (BE-3.13/BE-3.14, 0050) ───────────────────────────────
+ * organizations -> venues -> buildings -> floors -> rooms_zones -> walls -> slots.
+ * A parallel structure to pw_slots, not a replacement — see the migration's
+ * own header. pw_slots.wallosSlotId (above) is the one bridge column. */
+
+export const organizations = pgTable("organizations", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const venues = pgTable("venues", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const buildings = pgTable("buildings", {
+  id: text("id").primaryKey(),
+  venueId: text("venue_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const floors = pgTable("floors", {
+  id: text("id").primaryKey(),
+  buildingId: text("building_id").notNull(),
+  name: text("name").notNull(),
+  level: integer("level").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const roomsZones = pgTable("rooms_zones", {
+  id: text("id").primaryKey(),
+  floorId: text("floor_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const walls = pgTable("walls", {
+  id: text("id").primaryKey(),
+  roomZoneId: text("room_zone_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** The hierarchy's leaf. `onChainSlotId` (BE-3.14) is nullable and unused for
+ *  MVP — on-chain WallOS slot registration is Growth-phase (docs/policy-engine.md). */
+export const wallosSlots = pgTable("slots", {
+  id: text("id").primaryKey(),
+  wallId: text("wall_id").notNull(),
+  label: text("label").notNull(),
+  onChainSlotId: text("on_chain_slot_id"),
+  pwSlotId: text("pw_slot_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── Marketplace checkout (0066, 0067) ───────────────────────────────────────
+ * Appended as one block, kept apart from the rest of this file. The checkout
+ * code uses raw SQL on the pg pool (it needs transactions and row locks), so
+ * these definitions are for typing and tooling; the SQL migrations are the
+ * source of truth. Money is integer paise. */
+
+export const marketplaceSettings = pgTable("marketplace_settings", {
+  id: integer("id").primaryKey(),
+  checkoutHoldMinutes: integer("checkout_hold_minutes").notNull().default(30),
+  sellerAcceptHours: integer("seller_accept_hours").notNull().default(48),
+  disputeWindowDays: integer("dispute_window_days").notNull().default(3),
+  flatShippingPaise: integer("flat_shipping_paise").notNull().default(25000),
+  maxOrderPaise: integer("max_order_paise").notNull().default(200000000),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const cartItems = pgTable(
+  "cart_items",
+  {
+    userId: text("user_id").notNull(),
+    artworkId: text("artwork_id").notNull(),
+    curatorUserId: text("curator_user_id"),
+    sourceCollectionId: text("source_collection_id"),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.artworkId] })]
+);
+
+/** One checkout, one Razorpay payment. Status: pending_payment | paid | expired | cancelled. */
+export const orders = pgTable("orders", {
+  id: text("id").primaryKey(),
+  orderNumber: text("order_number").notNull().unique(),
+  buyerId: text("buyer_id").notNull(),
+  buyerEmail: text("buyer_email").notNull(),
+  buyerPhone: text("buyer_phone").notNull(),
+  status: text("status").notNull().default("pending_payment"),
+  subtotalPaise: integer("subtotal_paise").notNull(),
+  shippingPaise: integer("shipping_paise").notNull(),
+  gstPaise: integer("gst_paise").notNull().default(0),
+  totalPaise: integer("total_paise").notNull(),
+  currency: text("currency").notNull().default("INR"),
+  shippingAddress: jsonb("shipping_address").notNull(),
+  idempotencyKey: text("idempotency_key"),
+  providerOrderId: text("provider_order_id"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** One per seller in a checkout; carries the lifecycle (see src/features/orders/state-machine.ts). */
+export const sellerOrders = pgTable("seller_orders", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  sellerId: text("seller_id").notNull(),
+  status: text("status").notNull().default("pending_payment"),
+  subtotalPaise: integer("subtotal_paise").notNull(),
+  shippingPaise: integer("shipping_paise").notNull(),
+  totalPaise: integer("total_paise").notNull(),
+  platformFeePaise: integer("platform_fee_paise").notNull(),
+  curatorFeePaise: integer("curator_fee_paise").notNull().default(0),
+  sellerNetPaise: integer("seller_net_paise").notNull(),
+  commissionPolicyVersionId: text("commission_policy_version_id").notNull(),
+  refundedPaise: integer("refunded_paise").notNull().default(0),
+  acceptBy: timestamp("accept_by", { withTimezone: true }),
+  releaseEligibleAt: timestamp("release_eligible_at", { withTimezone: true }),
+  courier: text("courier"),
+  awb: text("awb"),
+  trackingUrl: text("tracking_url"),
+  cancelReason: text("cancel_reason"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  shippedAt: timestamp("shipped_at", { withTimezone: true }),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  buyerConfirmedAt: timestamp("buyer_confirmed_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const orderItems = pgTable("order_items", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  sellerOrderId: text("seller_order_id").notNull(),
+  artworkId: text("artwork_id"),
+  sellerId: text("seller_id").notNull(),
+  titleSnapshot: text("title_snapshot").notNull(),
+  imageSnapshot: text("image_snapshot"),
+  unitPricePaise: integer("unit_price_paise").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  platformFeePaise: integer("platform_fee_paise").notNull(),
+  curatorUserId: text("curator_user_id"),
+  curatorFeePaise: integer("curator_fee_paise").notNull().default(0),
+  sellerNetPaise: integer("seller_net_paise").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const orderEvents = pgTable("order_events", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  orderId: text("order_id").notNull(),
+  sellerOrderId: text("seller_order_id"),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  actorId: text("actor_id"),
+  note: text("note"),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const orderPayments = pgTable("order_payments", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  provider: text("provider").notNull().default("razorpay"),
+  providerOrderId: text("provider_order_id"),
+  providerPaymentId: text("provider_payment_id"),
+  eventId: text("event_id"),
+  amountPaise: integer("amount_paise").notNull(),
+  status: text("status").notNull().default("created"),
+  failureCode: text("failure_code"),
+  capturedAt: timestamp("captured_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const orderRefunds = pgTable("order_refunds", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  sellerOrderId: text("seller_order_id"),
+  paymentId: text("payment_id"),
+  amountPaise: integer("amount_paise").notNull(),
+  status: text("status").notNull().default("pending"),
+  providerRefundId: text("provider_refund_id"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  reason: text("reason").notNull(),
+  kind: text("kind").notNull(),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const payouts = pgTable("payouts", {
+  id: text("id").primaryKey(),
+  sellerOrderId: text("seller_order_id").notNull(),
+  payeeUserId: text("payee_user_id").notNull(),
+  payeeKind: text("payee_kind").notNull(),
+  amountPaise: integer("amount_paise").notNull(),
+  status: text("status").notNull().default("owed"),
+  utr: text("utr"),
+  approvedBy: text("approved_by"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
