@@ -14,12 +14,14 @@ import {
   Network,
   ScrollText,
   ShieldCheck,
+  ShoppingBag,
   SquareX,
   TrendingUp,
   Users,
   Wallet,
 } from "lucide-react";
 
+import { features } from "@/config/site";
 import {
   BIBLE_ROLES,
   listOwnAdminRoles,
@@ -120,9 +122,15 @@ export default async function PhysicalWallAdminLayout({
   const actor = await requireRolePage("admin", "/physical-wall/admin");
   const heldRoles = await listOwnAdminRoles(actor);
   const isSuperAdmin = heldRoles.includes("super_admin");
-  const visibleItems = ITEMS.filter(
+  const visibleItems = [
+    ...ITEMS,
+    // Marketplace checkout (flagged off by default): Finance's view of seller orders, escrow and payouts.
+    ...(features.marketplaceCheckout
+      ? [{ href: "/physical-wall/admin/orders", label: "Marketplace orders", icon: ShoppingBag, roles: ["finance_admin", "operations_admin"] as const }]
+      : []),
+  ].filter(
     (item) =>
-      !item.roles || isSuperAdmin || item.roles.some((role) => heldRoles.includes(role))
+      !("roles" in item && item.roles) || isSuperAdmin || item.roles.some((role) => heldRoles.includes(role))
   );
 
   // FE-3.19: the bell is shell-wide (every admin page), not just the Super

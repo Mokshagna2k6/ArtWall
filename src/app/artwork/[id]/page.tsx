@@ -15,6 +15,8 @@ import { DemandMeter } from "@/features/demand/demand-meter";
 import { loadEscrowSplitPreview } from "@/features/escrow/preview";
 import { EscrowSplitBreakdown } from "@/features/escrow/split-breakdown";
 import { AddToCollectionButton } from "@/features/collections/add-to-collection-button";
+import { features } from "@/config/site";
+import { AddToCartButtons } from "@/features/orders/components/cart-buttons";
 
 // Same for every visitor: served from the catalogue cache (PERF-2.06).
 const loadArtwork = cachedCatalog(getArtworkDetail, "artwork-detail", 3600);
@@ -103,6 +105,9 @@ export default async function ArtworkDetailPage({
           <DemandMeter signal={demand} />
 
           {escrowSplit && <EscrowSplitBreakdown split={escrowSplit} />}
+          {features.marketplaceCheckout && artwork.pricePaise != null && artwork.status === "available" && (
+            <AddToCartButtons artworkId={artwork.id} />
+          )}
           <div className="mt-4">
             <AddToCollectionButton artworkId={artwork.id} />
           </div>

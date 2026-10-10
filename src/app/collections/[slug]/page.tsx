@@ -6,6 +6,8 @@ import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 import { formatINR } from "@/features/physical-wall/money";
 import { getPublicCollection } from "@/features/collections/actions";
 import { JsonLd } from "@/components/seo/json-ld";
+import { features } from "@/config/site";
+import { AddCollectionToCartButton } from "@/features/orders/components/cart-buttons";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -42,6 +44,9 @@ export default async function PublicCollectionPage({ params }: { params: Promise
       <p className="text-ink-muted mt-6 text-sm">
         {collection.artworks.length} {collection.artworks.length === 1 ? "artwork" : "artworks"}
       </p>
+      {features.marketplaceCheckout && collection.artworks.some((a) => a.pricePaise != null) && (
+        <AddCollectionToCartButton collectionId={collection.id} />
+      )}
 
       <div className={isCurator ? "mt-10 flex flex-col gap-4" : "mt-10 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-3"}>
         {collection.artworks.map((artwork) =>

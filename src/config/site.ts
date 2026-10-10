@@ -80,6 +80,16 @@ export const features = {
    * than resolving to a half-built page.
    */
   physicalWall: process.env.PHYSICAL_WALL_ENABLED === "true",
+
+  /**
+   * `marketplaceCheckout`: buyers can put artworks in a cart and pay for them
+   * (cart, checkout, orders, seller fulfilment, escrow, payouts). Off by
+   * default: it moves real money, and needs Razorpay live keys, a commission
+   * policy and legal/finance sign-off first (docs/plans/BUYER_CHECKOUT_PLAN.md).
+   * Switched on with MARKETPLACE_CHECKOUT_ENABLED=true. While off, every page
+   * is a not-found and every action/webhook branch refuses.
+   */
+  marketplaceCheckout: process.env.MARKETPLACE_CHECKOUT_ENABLED === "true",
 } as const;
 
 /**

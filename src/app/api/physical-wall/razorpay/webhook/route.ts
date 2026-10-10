@@ -67,7 +67,9 @@ export async function GET() {
 const WEBHOOK_REPLAY_WINDOW_SECONDS = 5 * 60;
 
 export async function POST(request: Request) {
-  if (!features.physicalWall) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  // Two products share this URL (Razorpay allows one per secret): wall
+  // bookings and marketplace orders. Each branch below is gated by its own flag.
+  if (!features.physicalWall && !features.marketplaceCheckout) return NextResponse.json({ error: "Not found" }, { status: 404 });
   const rawBody = await request.text();
   const signature = request.headers.get("x-razorpay-signature");
 
@@ -88,9 +90,10 @@ export async function POST(request: Request) {
           order_id?: string;
           amount?: number;
           currency?: string;
-          notes?: { bookingId?: string };
+          notes?: { bookingId?: string; orderId?: string };
         };
       };
+      refund?: { entity?: { id?: string; payment_id?: string; notes?: { orderId?: string; refundId?: string } } };
     };
   };
 
@@ -114,6 +117,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "stale event" }, { status: 401 });
     }
   }
+
+  // Marketplace orders (notes.orderId, on the payment or the refund) are handled
+  // by their own module; wall bookings (notes.bookingId) fall through,
+  // unchanged, to the code below. Imported lazily: a booking event never loads
+  // the orders code.
+  if (event.payload?.payment?.entity?.notes?.orderId || event.payload?.refund?.entity?.notes?.orderId) {
+    if (!features.marketplaceCheckout) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const { handleMarketplaceEvent } = await import("@/features/orders/webhook");
+    const outcome = await handleMarketplaceEvent(event, request.headers.get("x-razorpay-event-id"));
+    return NextResponse.json(outcome.body, { status: outcome.http });
+  }
+  if (!features.physicalWall) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   // Only captures move money. `payment.authorized` means funds are held, not
   // taken, and confirming a booking on it would hand out a slot for a payment

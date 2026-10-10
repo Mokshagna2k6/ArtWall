@@ -2,7 +2,7 @@ import "server-only";
 
 import type { PoolClient } from "pg";
 
-import { newId } from "@/features/physical-wall/actions/shared";
+import { newId, PreconditionError } from "@/features/physical-wall/actions/shared";
 import { destroyAsset } from "@/lib/cloudinary";
 import { pool } from "@/lib/db/index";
 
@@ -64,6 +64,14 @@ export const RETAINED_USER_REFERENCES = {
   "pw_audit_log.actor_id": "security/accountability; actor_label pseudonymised",
   "pw_audit_log.subject_id": "the account.erased entry itself",
   "pw_data_rights_requests.user_id": "the DPDP request log (BE-2.22)",
+  "orders.buyer_id": "marketplace order (tax / dispute record); email, phone and address redacted",
+  "seller_orders.seller_id": "marketplace order (tax / dispute record)",
+  "order_items.seller_id": "marketplace order line",
+  "order_items.curator_user_id": "marketplace order line (curator commission record)",
+  "order_events.actor_id": "append-only order transition log",
+  "order_refunds.created_by": "refund audit trail",
+  "payouts.payee_user_id": "payout record (Finance reconciliation)",
+  "payouts.approved_by": "payout approval trail",
 } as const;
 
 export type DataRightsKind = "export" | "erasure";
@@ -176,6 +184,17 @@ export async function eraseUserIn(client: PoolClient, userId: string): Promise<{
     );
   }
 
+  // 1b. Marketplace orders in flight hold other people's money and works:
+  //     finish or cancel them first. Settled and refunded orders do not block.
+  const open = await run(
+    `select 1 from seller_orders so join orders o on o.id = so.order_id
+     where (so.seller_id = $1 or o.buyer_id = $1)
+       and so.status in ('pending_payment', 'paid', 'processing', 'shipped', 'delivered', 'refund_pending') limit 1`
+  );
+  if (open.rowCount) {
+    throw new PreconditionError("You have marketplace orders in progress. Finish or cancel them before deleting your account.");
+  }
+
   // 2. Queue every Cloudinary asset BEFORE its row goes.
   const queued = await run(
     `insert into pw_asset_deletions (id, public_id, reason)
@@ -231,9 +250,16 @@ export async function eraseUserIn(client: PoolClient, userId: string): Promise<{
   await run(`delete from survey_responses where user_id = $1 or lower(email) = lower($2)`, [userId, email]);
   await run(`delete from pw_waitlist where artist_id = $1`);
   await run(`delete from pw_notifications where user_id = $1 or lower(recipient) = lower($2)`, [userId, email]);
-  for (const table of ["sales", "contacts", "documents", "collections", "rooms", "tasks"]) {
+  for (const table of ["sales", "contacts", "documents", "rooms", "tasks"]) {
     await run(`delete from ${table} where "userId" = $1`);
   }
+  // Collections were rebuilt as owner_id + a join table (0057): the old
+  // `collections."userId"` delete made every erasure fail.
+  await run(`delete from collection_artworks where collection_id in (select id from collections where owner_id = $1)`);
+  await run(`delete from collections where owner_id = $1`);
+  // Marketplace (0066): the cart is personal and goes; orders are financial
+  // records and stay (see step 6), with contact details redacted.
+  await run(`delete from cart_items where user_id = $1`);
   await run(`delete from artist_profiles where "userId" = $1`);
   await run(`update pw_qr_tokens set revoked_at = now() where subject_type = 'artist' and subject_id = $1 and revoked_at is null`);
 
@@ -244,6 +270,10 @@ export async function eraseUserIn(client: PoolClient, userId: string): Promise<{
   await run(`update pw_agreements set signed_name = $2 where artist_id = $1`, [userId, pseudonym]);
   await run(`update pw_grievances set contact = '[erased]', body = '[erased]' where user_id = $1`);
   await run(`update pw_audit_log set actor_label = $2 where actor_id = $1`, [userId, pseudonym]);
+  // Orders are retained (tax / dispute records); the buyer's contact details are not.
+  await run(
+    `update orders set buyer_email = '[erased]', buyer_phone = '[erased]', shipping_address = '{"erased": true}'::jsonb where buyer_id = $1`
+  );
 
   // 7. The user row becomes a tombstone the retained records can point at.
   await run(
