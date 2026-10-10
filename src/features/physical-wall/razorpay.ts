@@ -100,13 +100,38 @@ export async function createOrder(
   });
 }
 
+/**
+ * Marketplace checkout order (one payment for the whole cart, however many
+ * sellers). `notes.orderId` is what the shared webhook dispatches on; the
+ * booking flow keeps using `notes.bookingId`, untouched.
+ */
+export async function createMarketplaceOrder(
+  orderId: string,
+  receipt: string,
+  amountPaise: number
+): Promise<RazorpayOrder> {
+  if (!Number.isInteger(amountPaise) || amountPaise < 100) {
+    throw new Error(`Refusing to create an order for ${amountPaise} paise`);
+  }
+  return razorpay<RazorpayOrder>("/orders", {
+    method: "POST",
+    body: {
+      amount: amountPaise,
+      currency: "INR",
+      receipt,
+      payment_capture: 1,
+      notes: { orderId, kind: "marketplace" },
+    },
+  });
+}
+
 export interface RazorpayPayment {
   id: string;
   order_id: string | null;
   amount: number;
   currency: string;
   status: "created" | "authorized" | "captured" | "refunded" | "failed";
-  notes?: { bookingId?: string } | [];
+  notes?: { bookingId?: string; orderId?: string } | [];
 }
 
 export async function fetchPayment(paymentId: string): Promise<RazorpayPayment> {
@@ -149,7 +174,7 @@ export interface RazorpayRefund {
 export async function createRefund(
   paymentId: string,
   amountPaise: number,
-  refs: { bookingId: string; refundId: string }
+  refs: { refundId: string; bookingId?: string; orderId?: string }
 ): Promise<RazorpayRefund> {
   return razorpay<RazorpayRefund>(`/payments/${encodeURIComponent(paymentId)}/refund`, {
     method: "POST",

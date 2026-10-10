@@ -186,13 +186,27 @@ export async function purgeTestData() {
     const bks = `select id from pw_bookings where id like $1 or artist_id like $1`;
     // Database Phase 3 additions that FK to pw_bookings/pw_ledger (0049):
     // must go before pw_bookings/pw_ledger themselves are deleted below.
+    // Marketplace checkout (0066/0067): payouts, escrow, refunds, items, sub-orders, orders, carts.
+    const sos = `select id from seller_orders where seller_id like $1 or order_id in (select id from orders where buyer_id like $1)`;
+    const ords = `select id from orders where buyer_id like $1 or id in (select order_id from seller_orders where seller_id like $1)`;
+    await client.query(`delete from escrow_releases where escrow_hold_id in (select id from escrow_holds where seller_order_id in (${sos}))`, [like]);
+    await client.query(`delete from escrow_holds where seller_order_id in (${sos})`, [like]);
+    await client.query(`delete from payouts where seller_order_id in (${sos})`, [like]);
+    await client.query(`delete from order_refunds where order_id in (${ords})`, [like]);
+    await client.query(`delete from order_events where order_id in (${ords})`, [like]);
+    await client.query(`delete from order_payments where order_id in (${ords})`, [like]);
+    await client.query(`delete from order_items where order_id in (${ords})`, [like]);
+    await client.query(`delete from seller_orders where id in (${sos})`, [like]);
+    await client.query(`delete from orders where id in (${ords})`, [like]);
+    await client.query(`delete from cart_items where user_id like $1`, [like]);
     await client.query(`delete from escrow_releases where escrow_hold_id in (select id from escrow_holds where booking_id in (${bks}) or id like $1)`, [like]);
     await client.query(`delete from escrow_holds where booking_id in (${bks}) or id like $1`, [like]);
     await client.query(`delete from shipment_events where shipment_id in (select id from shipments where booking_id in (${bks}) or id like $1)`, [like]);
     await client.query(`delete from shipments where booking_id in (${bks}) or id like $1`, [like]);
     await client.query(`delete from pw_invoices where booking_id in (${bks})`, [like]);
     await client.query(
-      `delete from pw_ledger where booking_id in (${bks}) or created_by like $1 or source_ref like '%' || $1`,
+      `delete from pw_ledger where booking_id in (${bks}) or created_by like $1 or source_ref like '%' || $1
+         or commission_policy_version_id like $1`,
       [like]
     );
     await client.query(`delete from pw_refunds where booking_id in (${bks})`, [like]);

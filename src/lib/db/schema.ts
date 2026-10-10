@@ -1215,3 +1215,158 @@ export const wallosSlots = pgTable("slots", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ── Marketplace checkout (0066, 0067) ───────────────────────────────────────
+ * Appended as one block, kept apart from the rest of this file. The checkout
+ * code uses raw SQL on the pg pool (it needs transactions and row locks), so
+ * these definitions are for typing and tooling; the SQL migrations are the
+ * source of truth. Money is integer paise. */
+
+export const marketplaceSettings = pgTable("marketplace_settings", {
+  id: integer("id").primaryKey(),
+  checkoutHoldMinutes: integer("checkout_hold_minutes").notNull().default(30),
+  sellerAcceptHours: integer("seller_accept_hours").notNull().default(48),
+  disputeWindowDays: integer("dispute_window_days").notNull().default(3),
+  flatShippingPaise: integer("flat_shipping_paise").notNull().default(25000),
+  maxOrderPaise: integer("max_order_paise").notNull().default(200000000),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const cartItems = pgTable(
+  "cart_items",
+  {
+    userId: text("user_id").notNull(),
+    artworkId: text("artwork_id").notNull(),
+    curatorUserId: text("curator_user_id"),
+    sourceCollectionId: text("source_collection_id"),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.artworkId] })]
+);
+
+/** One checkout, one Razorpay payment. Status: pending_payment | paid | expired | cancelled. */
+export const orders = pgTable("orders", {
+  id: text("id").primaryKey(),
+  orderNumber: text("order_number").notNull().unique(),
+  buyerId: text("buyer_id").notNull(),
+  buyerEmail: text("buyer_email").notNull(),
+  buyerPhone: text("buyer_phone").notNull(),
+  status: text("status").notNull().default("pending_payment"),
+  subtotalPaise: integer("subtotal_paise").notNull(),
+  shippingPaise: integer("shipping_paise").notNull(),
+  gstPaise: integer("gst_paise").notNull().default(0),
+  totalPaise: integer("total_paise").notNull(),
+  currency: text("currency").notNull().default("INR"),
+  shippingAddress: jsonb("shipping_address").notNull(),
+  idempotencyKey: text("idempotency_key"),
+  providerOrderId: text("provider_order_id"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** One per seller in a checkout; carries the lifecycle (see src/features/orders/state-machine.ts). */
+export const sellerOrders = pgTable("seller_orders", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  sellerId: text("seller_id").notNull(),
+  status: text("status").notNull().default("pending_payment"),
+  subtotalPaise: integer("subtotal_paise").notNull(),
+  shippingPaise: integer("shipping_paise").notNull(),
+  totalPaise: integer("total_paise").notNull(),
+  platformFeePaise: integer("platform_fee_paise").notNull(),
+  curatorFeePaise: integer("curator_fee_paise").notNull().default(0),
+  sellerNetPaise: integer("seller_net_paise").notNull(),
+  commissionPolicyVersionId: text("commission_policy_version_id").notNull(),
+  refundedPaise: integer("refunded_paise").notNull().default(0),
+  acceptBy: timestamp("accept_by", { withTimezone: true }),
+  releaseEligibleAt: timestamp("release_eligible_at", { withTimezone: true }),
+  courier: text("courier"),
+  awb: text("awb"),
+  trackingUrl: text("tracking_url"),
+  cancelReason: text("cancel_reason"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  shippedAt: timestamp("shipped_at", { withTimezone: true }),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  buyerConfirmedAt: timestamp("buyer_confirmed_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const orderItems = pgTable("order_items", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  sellerOrderId: text("seller_order_id").notNull(),
+  artworkId: text("artwork_id"),
+  sellerId: text("seller_id").notNull(),
+  titleSnapshot: text("title_snapshot").notNull(),
+  imageSnapshot: text("image_snapshot"),
+  unitPricePaise: integer("unit_price_paise").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  platformFeePaise: integer("platform_fee_paise").notNull(),
+  curatorUserId: text("curator_user_id"),
+  curatorFeePaise: integer("curator_fee_paise").notNull().default(0),
+  sellerNetPaise: integer("seller_net_paise").notNull(),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const orderEvents = pgTable("order_events", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  orderId: text("order_id").notNull(),
+  sellerOrderId: text("seller_order_id"),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  actorId: text("actor_id"),
+  note: text("note"),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const orderPayments = pgTable("order_payments", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  provider: text("provider").notNull().default("razorpay"),
+  providerOrderId: text("provider_order_id"),
+  providerPaymentId: text("provider_payment_id"),
+  eventId: text("event_id"),
+  amountPaise: integer("amount_paise").notNull(),
+  status: text("status").notNull().default("created"),
+  failureCode: text("failure_code"),
+  capturedAt: timestamp("captured_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const orderRefunds = pgTable("order_refunds", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  sellerOrderId: text("seller_order_id"),
+  paymentId: text("payment_id"),
+  amountPaise: integer("amount_paise").notNull(),
+  status: text("status").notNull().default("pending"),
+  providerRefundId: text("provider_refund_id"),
+  attempts: integer("attempts").notNull().default(0),
+  lastError: text("last_error"),
+  reason: text("reason").notNull(),
+  kind: text("kind").notNull(),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const payouts = pgTable("payouts", {
+  id: text("id").primaryKey(),
+  sellerOrderId: text("seller_order_id").notNull(),
+  payeeUserId: text("payee_user_id").notNull(),
+  payeeKind: text("payee_kind").notNull(),
+  amountPaise: integer("amount_paise").notNull(),
+  status: text("status").notNull().default("owed"),
+  utr: text("utr"),
+  approvedBy: text("approved_by"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});

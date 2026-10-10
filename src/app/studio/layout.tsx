@@ -42,7 +42,7 @@ export default async function StudioLayout({
 
   const profile = await ensureArtistProfile(session.user);
   return (
-    <StudioShell artistName={profile.displayName} avatarUrl={profile.avatarUrl}>
+    <StudioShell artistName={profile.displayName} avatarUrl={profile.avatarUrl} showOrders={features.marketplaceCheckout}>
       {children}
     </StudioShell>
   );

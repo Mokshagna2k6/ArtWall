@@ -35,6 +35,8 @@ const STAND_INS = {
   // SEC-1.13 gates every physical-wall action/route on this flag; the whole
   // suite exercises that feature, so it must read as on with no .env (CI).
   PHYSICAL_WALL_ENABLED: "true",
+  // Marketplace checkout is off by default everywhere; the db suite exercises it.
+  MARKETPLACE_CHECKOUT_ENABLED: "true",
   // BC-3.11: createTag's 'qr' path signs every QR token with this KMS-held
   // Ed25519 seed (qr-signing.ts refuses to run with none set, by design —
   // never a hardcoded fallback in app code). A fixed 32-byte hex stand-in is
