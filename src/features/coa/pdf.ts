@@ -1,4 +1,9 @@
+// @pdf-lib/fontkit's Indic (Devanagari) shaper is babel-compiled and needs this global.
+import "regenerator-runtime/runtime";
 import { PDFDocument, StandardFonts, rgb, type PDFFont } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import QRCode from "qrcode";
 
 export interface CertificatePdfData {
@@ -10,7 +15,8 @@ export interface CertificatePdfData {
   dimensions?: string | null;
   year?: number | null;
   issuedAt?: Date | null;
-  metadataHash: string;
+  /** Omitted on the public copy (not shown on the public verify page). */
+  metadataHash?: string | null;
   verifyUrl: string;
   /** JPEG or PNG bytes of the artwork; omitted when it could not be fetched. */
   image?: { bytes: Uint8Array; kind: "jpg" | "png" } | null;
@@ -18,10 +24,38 @@ export interface CertificatePdfData {
   merkle?: { root: string; leaf: string; rootTxHash?: string | null } | null;
 }
 
-/** Standard PDF fonts are WinAnsi only; an unencodable glyph (e.g. Devanagari) would throw. */
-function safe(font: PDFFont, text: string): string {
-  const set = new Set(font.getCharacterSet());
-  return [...text].map((c) => (set.has(c.codePointAt(0)!) ? c : "?")).join("");
+const FONT_DIR = path.join(process.cwd(), "src/features/coa/fonts");
+
+/**
+ * Embedded (subset) Noto fonts, Latin first. The Devanagari face (which also covers ASCII, for
+ * mixed titles) is only embedded when some text needs it, so English certificates stay small.
+ */
+async function loadUnicodeFonts(pdf: PDFDocument, weight: "Regular" | "Bold", text: string): Promise<PDFFont[]> {
+  const embed = async (name: string) =>
+    pdf.embedFont(await readFile(path.join(FONT_DIR, `${name}-${weight}.ttf`)), { subset: true });
+  const latin = await embed("NotoSans");
+  const set = new Set(latin.getCharacterSet());
+  const needsMore = [...text].some((c) => !set.has(c.codePointAt(0)!));
+  return needsMore ? [latin, await embed("NotoSansDevanagari")] : [latin];
+}
+
+/**
+ * Split text into runs, each in the first face that has every glyph in it (Noto Sans Devanagari
+ * has no Latin letters, so mixed titles switch faces). A glyph no face has becomes "?" rather
+ * than making the PDF unwritable.
+ */
+function runs(fonts: PDFFont[], text: string): { font: PDFFont; text: string }[] {
+  const sets = fonts.map((f) => new Set(f.getCharacterSet()));
+  const out: { font: PDFFont; text: string }[] = [];
+  for (const ch of text) {
+    let i = sets.findIndex((set) => set.has(ch.codePointAt(0)!));
+    const c = i < 0 ? "?" : ch;
+    if (i < 0) i = Math.max(0, sets.findIndex((set) => set.has(63)));
+    const last = out[out.length - 1];
+    if (last && last.font === fonts[i]) last.text += c;
+    else out.push({ font: fonts[i], text: c });
+  }
+  return out;
 }
 
 /** Pastel hue sweep (HSV, s=.45, v=1): reads as iridescent foil. */
@@ -36,10 +70,22 @@ function hue(t: number) {
 
 export async function buildCertificatePdf(d: CertificatePdfData): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  const serif = await pdf.embedFont(StandardFonts.TimesRoman);
-  const serifBold = await pdf.embedFont(StandardFonts.TimesRomanBold);
+  let regulars: PDFFont[] = [await pdf.embedFont(StandardFonts.TimesRoman)];
+  let bolds: PDFFont[] = [await pdf.embedFont(StandardFonts.TimesRomanBold)];
+  const userText = [d.title, d.artist, d.medium, d.dimensions].join("");
+  try {
+    pdf.registerFontkit(fontkit);
+    [regulars, bolds] = [
+      await loadUnicodeFonts(pdf, "Regular", userText),
+      await loadUnicodeFonts(pdf, "Bold", userText),
+    ];
+  } catch (error) {
+    console.error("[coa] unicode fonts unavailable, using standard fonts", error);
+  }
+  const serif = regulars[0];
+  const serifBold = bolds[0];
   const mono = await pdf.embedFont(StandardFonts.Courier);
-  pdf.setTitle(`Certificate of Authenticity - ${safe(serifBold, d.title)}`);
+  pdf.setTitle(`Certificate of Authenticity - ${d.title}`);
   pdf.setSubject(`ArtWall certificate ${d.certificateId}`);
   pdf.setProducer("ArtWall");
   const W = 595.28;
@@ -67,14 +113,21 @@ export async function buildCertificatePdf(d: CertificatePdfData): Promise<Uint8A
     borderColor: rgb(0.7, 0.62, 0.35), borderWidth: 0.8,
   });
 
-  const center = (text: string, y: number, font: PDFFont, size: number, color = ink) => {
-    const s = safe(font, text);
-    page.drawText(s, { x: (W - font.widthOfTextAtSize(s, size)) / 2, y, size, font, color });
+  const faces = new Map<PDFFont, PDFFont[]>([[serif, regulars], [serifBold, bolds], [mono, [mono]]]);
+  const width = (text: string, base: PDFFont, size: number) =>
+    runs(faces.get(base)!, text).reduce((w, r) => w + r.font.widthOfTextAtSize(r.text, size), 0);
+  const draw = (text: string, x: number, y: number, base: PDFFont, size: number, color = ink) => {
+    for (const r of runs(faces.get(base)!, text)) {
+      page.drawText(r.text, { x, y, size, font: r.font, color });
+      x += r.font.widthOfTextAtSize(r.text, size);
+    }
   };
-  const fit = (text: string, font: PDFFont, size: number, max: number) => {
-    let s = safe(font, text);
-    while (s.length > 4 && font.widthOfTextAtSize(s, size) > max) s = s.slice(0, -2);
-    return s;
+  const center = (text: string, y: number, base: PDFFont, size: number, color = ink) =>
+    draw(text, (W - width(text, base, size)) / 2, y, base, size, color);
+  const fit = (text: string, base: PDFFont, size: number, max: number) => {
+    let s = [...text];
+    while (s.length > 4 && width(s.join(""), base, size) > max) s = s.slice(0, -2);
+    return s.join("");
   };
 
   center("ARTWALL", H - 92, serifBold, 13, grey);
@@ -106,18 +159,18 @@ export async function buildCertificatePdf(d: CertificatePdfData): Promise<Uint8A
     ["Certificate ID", d.certificateId],
   ];
   for (const [label, value] of rows.filter(([, v]) => v)) {
-    page.drawText(label.toUpperCase(), { x: 90, y, size: 8, font: serifBold, color: grey });
-    page.drawText(fit(value, serif, 12, 340), { x: 190, y: y - 1, size: 12, font: serif, color: ink });
+    draw(label.toUpperCase(), 90, y, serifBold, 8, grey);
+    draw(fit(value, serif, 12, 340), 190, y - 1, serif, 12);
     y -= 20;
   }
 
   y -= 6;
   const small = (label: string, value: string) => {
-    page.drawText(label.toUpperCase(), { x: 90, y, size: 7, font: serifBold, color: grey });
-    page.drawText(fit(value, mono, 7, 330), { x: 190, y, size: 7, font: mono, color: ink });
+    draw(label.toUpperCase(), 90, y, serifBold, 7, grey);
+    draw(fit(value, mono, 7, 330), 190, y, mono, 7);
     y -= 13;
   };
-  small("Fingerprint", d.metadataHash);
+  if (d.metadataHash) small("Fingerprint", d.metadataHash);
   if (d.onChain?.txHash) small("Mint tx", d.onChain.txHash);
   if (d.onChain?.contract) {
     small("Contract", `${d.onChain.contract}${d.onChain.tokenId ? ` #${d.onChain.tokenId}` : ""}${d.onChain.chainId ? ` (chain ${d.onChain.chainId})` : ""}`);

@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // The certificate PDF reads its Noto fonts with fs at request time; tracing can't see that.
+  outputFileTracingIncludes: {
+    "/api/coa/[id]/pdf": ["./src/features/coa/fonts/*.ttf"],
+    "/verify/[hash]/pdf": ["./src/features/coa/fonts/*.ttf"],
+    "/studio/certificates": ["./src/features/coa/fonts/*.ttf"],
+  },
   images: {
     // Cloudinary only. An open remote-image allowlist turns next/image into a
     // free image-resizing proxy for the whole internet, at our bandwidth cost.
