@@ -73,3 +73,19 @@ Accounts: deploys run under the stackfox Gmail's Vercel; PRs/pushes go to `Moksh
 - No "change artwork after booking" UI for slots.
 - Run migrations 0064, 0066, 0067 against a Neon branch before production.
 - `docs/WORK_PLAN.md` still claims AWS SES and Privy; code uses Resend and wagmi/RainbowKit.
+
+## 2d. Monorepo skeleton and the NEW Vercel project (step 1, done on `production-v2`)
+
+Layout now: root `package.json` (private, delegating scripts) + `pnpm-workspace.yaml` (`apps/*`, `packages/*`; pnpm overrides stay there). `apps/web` holds the whole Next.js app (src, public, next/tailwind/postcss/eslint/vitest/playwright configs, `scripts/`, `e2e/`, `vercel.json`). `db/migrations`, `contracts/` and `docs/` stay at the root (db moves to `packages/db` in a later step; `apps/web/scripts/migrate.mjs` reaches it via `../../db`). `apps/api` and `packages/{db,cache,ratelimit,security,shared}` are README + package.json placeholders. `@/*` still maps to `apps/web/src/*`.
+
+**New Vercel project settings (the old project is untouched; it builds other branches from the repo root):**
+
+- Git branch: `production-v2` only; disable auto-builds of other branches (or add an Ignored Build Step) so the old project's branch never deploys here.
+- Root Directory: `apps/web`. Enable "Include source files outside of the Root Directory in the build step" (needed so the workspace lockfile/packages resolve).
+- Framework Preset: Next.js. Node 22.x.
+- Install Command: `pnpm install --frozen-lockfile` (Vercel runs it at the workspace root; pnpm version comes from the root `packageManager`).
+- Build Command: default (`next build`, run in `apps/web`). Output: default.
+- `vercel.json` (crons) is now `apps/web/vercel.json`; Vercel reads it from the Root Directory.
+- Env: a separate set from the old project, with a different `DATABASE_URL` (build queries the DB for the sitemap), `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, Razorpay, Cloudinary, Resend, `CRON_SECRET`, etc. Copy names from the old project, not values for DB/secrets.
+- Local: `.env` now lives at `apps/web/.env` (`db:*` scripts use `--env-file=.env` relative to `apps/web`). CI uses `node apps/web/scripts/...` and `pnpm --filter @artwall/web exec vitest|playwright`.
+- Known: `node apps/web/scripts/migrations-check.mjs` fails on pass 2 (`0003_studio.sql: column "userId" does not exist`); this comes from the migrations themselves, not the move.

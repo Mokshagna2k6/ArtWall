@@ -1,0 +1,6 @@
+{
+  "name": "@artwall/security",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Authz helpers, input validation, headers and WAF notes."
+}

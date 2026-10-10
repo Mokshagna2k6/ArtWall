@@ -1,0 +1,6 @@
+{
+  "name": "@artwall/cache",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Upstash Redis clients and cache helpers."
+}
