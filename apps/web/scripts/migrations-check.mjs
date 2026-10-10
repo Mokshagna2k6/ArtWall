@@ -26,7 +26,7 @@ const name = `artwall_migcheck_${Date.now().toString(36)}`;
 const target = new URL(url);
 target.pathname = `/${name}`;
 
-const dir = join(import.meta.dirname, "..", "db", "migrations");
+const dir = join(import.meta.dirname, "..", "..", "..", "db", "migrations");
 const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
 
 // Everything a re-run could plausibly change: columns, constraints, indexes, triggers, grants.

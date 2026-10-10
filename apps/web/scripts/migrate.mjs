@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import pg from "pg";
 
-const DIR = join(import.meta.dirname, "..", "db", "migrations");
+const DIR = join(import.meta.dirname, "..", "..", "..", "db", "migrations");
 
 if (!process.env.DATABASE_URL) {
   console.error(

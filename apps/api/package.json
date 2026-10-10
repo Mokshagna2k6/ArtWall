@@ -1,0 +1,6 @@
+{
+  "name": "@artwall/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Railway backend: webhooks, crons, workers, PDF and mint jobs."
+}

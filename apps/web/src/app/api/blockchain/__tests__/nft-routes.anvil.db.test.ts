@@ -110,7 +110,7 @@ function deployContract(): Hex {
       admin,
       signer,
     ],
-    { cwd: join(process.cwd(), "contracts"), encoding: "utf8" },
+    { cwd: join(process.cwd(), "..", "..", "contracts"), encoding: "utf8" },
   );
   if (res.status !== 0) {
     throw new Error(`forge create failed: ${res.stdout}\n${res.stderr}`);

@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -11,14 +11,14 @@
 !.yarn/versions
 
 # testing
-/coverage
+coverage
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
-/build
+build
 
 # misc
 .DS_Store
@@ -43,7 +43,7 @@ next-env.d.ts
 .scratch/
 
 # vitest blob reports (CI merges them for coverage)
-/.vitest-reports
+.vitest-reports
 
 # Foundry build artifacts (contracts/) — lib/ (vendored deps) is committed.
 /contracts/out/
@@ -51,6 +51,7 @@ next-env.d.ts
 /contracts/broadcast/
 
 # playwright
-/test-results/
-/playwright-report/
-/blob-report/
+test-results/
+playwright-report/
+blob-report/
+.pnpm-store/

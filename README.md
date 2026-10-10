@@ -30,7 +30,7 @@ documents — never redesign what they specify without a documented reason:
 
 ```bash
 pnpm install
-cp .env.example .env   # then paste your Neon connection string
+cp apps/web/.env.example apps/web/.env   # then paste your Neon connection string (if .env.example is absent, create apps/web/.env)
 pnpm db:migrate        # creates the waitlist table
 pnpm dev
 ```
@@ -76,7 +76,7 @@ because a count-based number is racy under concurrent signups.
 ## Project structure
 
 ```
-src/
+apps/web/src/
   app/            Routes (one folder per page), root layout, global styles
   components/
     brand/        Logo and wordmark
@@ -89,7 +89,8 @@ src/
   config/         Site constants — site.ts, nav.ts, products.ts
   types/          Domain models shared across features
 db/migrations/    Plain-SQL schema
-scripts/          Migration runner
+apps/web/scripts/  Migration runner and DB tooling
+apps/api, packages/*  Placeholders (backend + extracted packages)
 docs/             Product research, UX, and design-system source-of-truth docs
 ```
 
