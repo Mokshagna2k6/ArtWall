@@ -380,6 +380,8 @@ export const pwBookingSlots = pgTable(
   {
     bookingId: text("booking_id").notNull(),
     slotId: text("slot_id").notNull(),
+    /** The work hung in this slot (0064). pw_bookings.artwork_id mirrors the first one. */
+    artworkId: text("artwork_id"),
     /** A copy, not a join: editing the catalog must not re-price a booking. */
     quotedPricePaise: integer("quoted_price_paise").notNull(),
   },
