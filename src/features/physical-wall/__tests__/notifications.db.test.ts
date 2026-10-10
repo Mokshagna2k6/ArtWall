@@ -27,7 +27,7 @@ afterEach(() => {
   delete process.env.RESEND_API_KEY;
 });
 
-// Sample data for every kind. A Record over NotificationKind, so a 15th kind
+// Sample data for every kind. A Record over NotificationKind, so a 20th kind
 // without a sample here fails to compile.
 const SAMPLES: { [K in NotificationKind]: Parameters<(typeof TEMPLATES)[K]>[0] } = {
   "waitlist.offer": { name: "Asha", slotLabel: "B3", expiresAt: "2031-01-01T10:00:00Z" },
@@ -44,12 +44,17 @@ const SAMPLES: { [K in NotificationKind]: Parameters<(typeof TEMPLATES)[K]>[0] }
   "ugc.removed": { caption: "Me at the wall" },
   "system.notice": { subject: "Account erased", body: "Done." },
   "auth.verify-email": { name: "Asha", url: "https://artwall.in/verify?token=x" },
+  "order.confirmed": { name: "Asha", orderNumber: "AW-2031-000001", totalPaise: 1250000 },
+  "order.new_for_seller": { name: "Asha", orderNumber: "AW-2031-000001", totalPaise: 1250000, acceptBy: "2031-01-03T10:00:00Z" },
+  "order.accepted": { name: "Asha", orderNumber: "AW-2031-000001" },
+  "order.shipped": { name: "Asha", orderNumber: "AW-2031-000001", courier: "Delhivery", awb: "AWB123", trackingUrl: null },
+  "order.refunded": { name: "Asha", orderNumber: "AW-2031-000001", amountPaise: 500000 },
 };
 
 describe("notification templates (BE-1.34)", () => {
-  it("there are exactly 14 kinds and each renders a non-empty subject and body", () => {
+  it("there are exactly 19 kinds and each renders a non-empty subject and body", () => {
     const kinds = Object.keys(TEMPLATES) as NotificationKind[];
-    expect(kinds).toHaveLength(14);
+    expect(kinds).toHaveLength(19);
     for (const kind of kinds) {
       const { subject, body } = (TEMPLATES[kind] as (d: unknown) => { subject: string; body: string })(SAMPLES[kind]);
       expect(subject.length, kind).toBeGreaterThan(3);
@@ -83,10 +88,10 @@ describe("notification templates (BE-1.34)", () => {
       return new Response("{}", { status: 200 });
     });
 
-    expect(await deliverPendingNotifications(50, ids)).toEqual({ sent: 14, failed: 0, dead: 0, skipped: 0 });
+    expect(await deliverPendingNotifications(50, ids)).toEqual({ sent: 19, failed: 0, dead: 0, skipped: 0 });
     expect(sent.every((m) => m.to[0] === user.email)).toBe(true);
     const rows = await q<{ status: string; kind: string }>(`select status, kind from pw_notifications where id = any($1)`, [ids]);
-    expect(new Set(rows.map((r) => r.kind)).size).toBe(14);
+    expect(new Set(rows.map((r) => r.kind)).size).toBe(19);
     expect(rows.every((r) => r.status === "sent")).toBe(true);
   });
 
