@@ -124,7 +124,13 @@ export interface BookingDetail extends Booking {
   artistEmail: string;
   artworkTitle: string | null;
   artworkImageUrl: string | null;
-  slots: { slotId: string; label: string; quotedPricePaise: number }[];
+  slots: {
+    slotId: string;
+    label: string;
+    quotedPricePaise: number;
+    artworkId: string | null;
+    artworkTitle: string | null;
+  }[];
   addons: { id: string; label: string; pricePaise: number }[];
   /** Admin view only (listAllBookings): install/de-install photos and damage. */
   condition?: ConditionReport;

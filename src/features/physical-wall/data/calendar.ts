@@ -92,7 +92,7 @@ export async function getCalendar(
        join pw_booking_slots bs on bs.booking_id = b.id
        join pw_slots s on s.id = bs.slot_id
        join "user" u on u.id = b.artist_id
-       left join artworks a on a.id = b.artwork_id
+       left join artworks a on a.id = bs.artwork_id
        where b.status in ('paid', 'completed')
          and b.start_date <= $2::date and b.end_date >= $1::date
        order by s.row_index asc, s.col_index asc, b.start_date asc`,

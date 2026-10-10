@@ -213,7 +213,8 @@ export async function forceRelease(
 
         await client.query(
           `update artworks set "physicalStatus" = null
-           where id = (select artwork_id from pw_bookings where id = $1)`,
+           where id in (select artwork_id from pw_booking_slots
+                        where booking_id = $1 and artwork_id is not null)`,
           [affected.id]
         );
       } else {

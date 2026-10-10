@@ -68,7 +68,11 @@ function BookingRow({
             {booking.status}
           </p>
           <p className="font-heading text-card mt-1">
-            {booking.artworkTitle ?? "No artwork attached"}
+            {booking.slots.some((s) => s.artworkTitle)
+              ? booking.slots
+                  .map((s) => `${s.label}: ${s.artworkTitle ?? "—"}`)
+                  .join(" · ")
+              : "No artwork attached"}
           </p>
           <p className="text-ink-muted mt-1 text-sm">
             {booking.artistName} · {booking.startDate} → {booking.endDate} ·{" "}

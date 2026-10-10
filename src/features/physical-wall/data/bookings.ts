@@ -161,9 +161,11 @@ async function loadSlots(bookingIds: string[]) {
 
   const sql = getSql();
   const rows = (await sql.query(
-    `select bs.booking_id, bs.slot_id, bs.quoted_price_paise, s.label
+    `select bs.booking_id, bs.slot_id, bs.quoted_price_paise, s.label,
+            bs.artwork_id, a.title as artwork_title
      from pw_booking_slots bs
      join pw_slots s on s.id = bs.slot_id
+     left join artworks a on a.id = bs.artwork_id
      where bs.booking_id = any($1::text[])
      order by s.row_index asc, s.col_index asc`,
     [bookingIds]
@@ -176,6 +178,8 @@ async function loadSlots(bookingIds: string[]) {
       slotId: String(row.slot_id),
       label: String(row.label),
       quotedPricePaise: Number(row.quoted_price_paise),
+      artworkId: (row.artwork_id as string) ?? null,
+      artworkTitle: (row.artwork_title as string) ?? null,
     });
     map.set(key, list);
   }
