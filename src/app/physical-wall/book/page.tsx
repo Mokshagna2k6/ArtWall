@@ -10,6 +10,7 @@ import {
 } from "@/features/physical-wall/data/catalogs";
 import { getActiveGrid, listSlots } from "@/features/physical-wall/data/wall";
 import { releaseLapsedHolds } from "@/features/physical-wall/expiry";
+import { listBookableWallosHierarchy } from "@/features/wallos/actions";
 import { getSql } from "@/lib/db";
 
 export const metadata: Metadata = {
@@ -63,12 +64,13 @@ export default async function BookPage() {
     );
   }
 
-  const [slots, addons, artworks, settings, policy] = await Promise.all([
+  const [slots, addons, artworks, settings, policy, hierarchy] = await Promise.all([
     listSlots(grid.id),
     listAddons(),
     listOwnArtworks(actor.id),
     getSettings(),
     getCurrentRefundPolicy(),
+    listBookableWallosHierarchy(),
   ]);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -95,6 +97,7 @@ export default async function BookPage() {
           venueName="Ric Platter, Jaipur"
           refundPercentage={policy?.percentage ?? null}
           gstRatePct={settings.gstRateBp / 100}
+          hierarchy={hierarchy}
         />
       </div>
     </main>

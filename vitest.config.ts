@@ -26,6 +26,7 @@ export const worktreeExcludes = [
   "**/.kilo/**",
   "**/.next/**",
   "contracts/**",
+  "e2e/**", // Playwright specs (pnpm test:e2e)
 ];
 
 /**

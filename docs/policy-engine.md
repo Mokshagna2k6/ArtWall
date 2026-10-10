@@ -290,6 +290,120 @@ decision-log row must never fail the request it was only observing.
   DigiLocker, insurance, DPDP items, outbox ADR, editions cap, COA levels,
   Locked Product Rules traceability table).
 
+## Admin roles (SEC-3.02, SEC-3.03)
+
+The 8-role admin model from the Bible, real and enforced — not just schema.
+This is a backend-only slice; FE-3.17 (a later, separate task) builds the
+admin UI against the contract below.
+
+### The two authorization axes
+
+1. **Generic `role`** (`src/features/physical-wall/authorize.ts`,
+   `ROLES`/`Role`/`requireRole`/`hasRole`/`getActor`) — unchanged, still the
+   broad gate every existing admin page/action relies on. `visitor < artist <
+   staff < admin`, stored on `"user".role`.
+2. **Named admin role** (new, additive) — `admin_roles`/`admin_role_assignments`
+   (migration `0049_db3_escrow_admin_tags_shipments.sql`, DB-3.10), now wired
+   to real authorization decisions:
+
+```ts
+export const ADMIN_ROLES = [
+  "super_admin", "curator_admin", "venue_admin", "finance_admin",
+  "support_admin", "compliance_admin", "content_admin", "readonly_admin",
+] as const;
+export type AdminRoleName = (typeof ADMIN_ROLES)[number];
+
+function hasAdminRole(actor: Actor | null, required: AdminRoleName): Promise<boolean>;
+function requireAdminRole(required: AdminRoleName): Promise<Actor>; // throws NotAuthorisedAdminRoleError
+```
+
+`requireAdminRole` first calls `requireRole("admin")` (the existing gate),
+then additionally checks `admin_role_assignments` for a live (unrevoked) row
+matching the named role. A caller needs both: generic `admin` AND the
+specific named role.
+
+### Scope decision: which call sites were migrated
+
+This task deliberately did **not** force every existing `requireRole("admin")`
+call site onto the new system — that is a much larger, riskier sweep (dozens
+of admin actions/pages across the app) than SEC-3.02/3.03 asks for. Instead,
+the two clearest, highest-value existing admin actions that map 1:1 onto one
+of the 8 Bible roles were migrated, as a real end-to-end proof the new system
+works:
+
+| Action | File | Now requires |
+|---|---|---|
+| `reviewIdentity` | `src/features/physical-wall/actions/identity.ts` | `requireAdminRole("compliance_admin")` — matches `admin_roles.description` ("DPDP, KYC, identity verification review") verbatim |
+| `approveCurator` / `suspendCurator` (via `moveCurator`) | `src/features/curators/actions.ts` | `requireAdminRole("curator_admin")` — matches `admin_roles.description` ("Curation and exhibition approvals") |
+
+Everything else on an admin surface (grid edits, ledger, grievances,
+moderation, bookings, `getCuratorsForReview`'s read, `getIdentityDocumentUrl`'s
+viewer check, …) is unchanged and still gated by the broad
+`requireRole("admin")`/`hasRole(actor, "admin")` catch-all. Migrating the rest
+is follow-on work, not part of this slice — each call site is its own diff to
+review for "does this change behaviour for an existing admin."
+
+### ADMIN_EMAILS removal and the bootstrap question
+
+`getActor()` previously auto-promoted any session user whose *verified* email
+matched the `ADMIN_EMAILS` env var, on every request. That live, request-time
+bootstrap is **removed** (SEC-3.02's "the ADMIN_EMAILS allowlist is removed").
+
+This was safe to remove outright, not just move, because
+`scripts/seed-accounts.mjs` already creates the first admin a different way —
+directly in the database (`update "user" set role = 'admin' ...`), run
+out-of-band, never from live request-handling code. That script is now also
+the only thing that assigns `super_admin` (the one admin role that can grant
+others), since `grantAdminRole` itself requires an existing `super_admin` to
+call it. So:
+
+- **First admin, first super_admin:** `node --env-file=.env scripts/seed-accounts.mjs`
+  — seeds the master admin AND grants them `super_admin` in
+  `admin_role_assignments`.
+- **Every admin/role after that:** `grantAdminRole`/`revokeAdminRole` below,
+  called by an existing `super_admin`.
+- `ADMIN_EMAILS` still exists as an env var, but only for
+  `notifications.ts`'s `alertAdmins` (an alert-recipient mailing list, not a
+  privilege grant) — unrelated to authorization, left untouched.
+
+### `grantAdminRole` / `revokeAdminRole` (SEC-3.03)
+
+`src/features/physical-wall/actions/admin-roles.ts`:
+
+```ts
+function grantAdminRole(targetUserId: string, role: AdminRoleName): Promise<Result<{ assignmentId: string }>>;
+function revokeAdminRole(targetUserId: string, role: AdminRoleName): Promise<Result<{ revoked: boolean }>>;
+function listAdminRoleAssignments(): Promise<{ id, user_id, name, email, role, granted_by, granted_at }[]>;
+```
+
+Guards, in order:
+1. Caller must hold `super_admin` (`requireAdminRole("super_admin")`, which
+   itself requires generic `admin` first).
+2. No self-grant / no self-revoke: `targetUserId === actor.id` is rejected
+   with a `PreconditionError` before any write.
+3. Idempotent grant: a live assignment of the same (user, role) already
+   existing returns that assignment rather than erroring (the schema's own
+   partial unique index — `(user_id, role_id) where revoked_at is null` —
+   would reject a raw duplicate insert; checked first for a clean message).
+4. Revoke is append-only by schema (0049's `admin_role_assignments_no_mutate`
+   trigger forbids UPDATE of anything but `revoked_by`/`revoked_at`, forbids
+   DELETE entirely) — `revokeAdminRole` sets those two columns on the live
+   row, same close-out-don't-delete pattern as `pw_consents` and
+   `commission_policy_versions`.
+5. Every grant/revoke writes `pw_audit_log` via `recordAudit` (SEC-2.11's
+   existing pattern) — action `admin-role.granted` / `admin-role.revoked`,
+   actor = the granting/revoking super_admin, subject = the target user,
+   `after: { role, assignmentId }`.
+
+Tests: `src/features/physical-wall/__tests__/admin-roles.db.test.ts` — a
+non-super-admin (plain `admin`) is rejected; a non-admin is rejected before
+the super_admin check even applies; self-grant and self-revoke by a
+super_admin are both rejected; a legitimate grant/revoke by a super_admin
+succeeds, is audit-logged, and takes effect immediately (`hasAdminRole` reads
+live, no caching); granting the same role twice is idempotent (no duplicate
+row, no second audit entry); revoking a role not held is a no-op, not an
+error; `listAdminRoleAssignments` is itself `super_admin`-gated.
+
 ## BE-3.14 and BE-3.18 scope interpretation
 
 Both tasks carry a tracker-native `(confirm scope: ...)` caveat, quoted
