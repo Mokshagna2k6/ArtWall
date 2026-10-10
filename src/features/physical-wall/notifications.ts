@@ -79,6 +79,10 @@ export const TEMPLATES = {
     subject: d.subject,
     body: `${d.body}${SIGN_OFF}`,
   }),
+  "auth.verify-email": (d: { name: string; url: string }) => ({
+    subject: "Verify your email for ArtWall",
+    body: `Hi ${d.name},\n\nConfirm this is your email address:\n${d.url}\n\nIf you didn't request this, you can ignore it.${SIGN_OFF}`,
+  }),
 };
 
 export type NotificationKind = keyof typeof TEMPLATES;
@@ -94,15 +98,25 @@ interface QueueInput {
   dedupeKey?: string | null;
 }
 
+/**
+ * The outbox row's event-schema version (BE-3.22, F70): a plain integer so a
+ * future broker bridge (SQS/SNS/whatever) can tell which shape a row is in
+ * without guessing from which columns are populated. Bump this, not the
+ * table, when the row's shape changes; every producer goes through
+ * `queueNotification` below, so none of them need to know this exists.
+ */
+export const NOTIFICATION_SCHEMA_VERSION = 1;
+
 /** Queue a notification. Never throws into the caller's flow. */
 export async function queueNotification(input: QueueInput): Promise<string | null> {
   try {
     const sql = getSql();
     const id = newId("ntf");
     const rows = (await sql`
-      insert into pw_notifications (id, user_id, recipient, subject, body, kind, channel, dedupe_key)
+      insert into pw_notifications (id, user_id, recipient, subject, body, kind, channel, dedupe_key, schema_version)
       values (${id}, ${input.userId ?? null}, ${input.recipient}, ${input.subject},
-              ${input.body}, ${input.kind}, ${input.channel ?? "email"}, ${input.dedupeKey ?? null})
+              ${input.body}, ${input.kind}, ${input.channel ?? "email"}, ${input.dedupeKey ?? null},
+              ${NOTIFICATION_SCHEMA_VERSION})
       on conflict (dedupe_key) where dedupe_key is not null do nothing
       returning id
     `) as { id: string }[];

@@ -82,6 +82,9 @@ export async function uploadToCloudinary(
     apiKey: string;
     cloudName: string;
     folder: string;
+    moderation?: string;
+    allowedFormats?: string;
+    type?: string;
   }
 ): Promise<UploadedAsset> {
   const body = new FormData();
@@ -90,6 +93,13 @@ export async function uploadToCloudinary(
   body.append("timestamp", String(signature.timestamp));
   body.append("signature", signature.signature);
   body.append("folder", signature.folder);
+  // Every param the server signed must also be sent, or Cloudinary rejects
+  // the upload as a signature mismatch — these three are only present when
+  // the signer actually set them (see createUploadSignature), so omitting
+  // them here silently broke every upload once any of them was signed.
+  if (signature.moderation) body.append("moderation", signature.moderation);
+  if (signature.allowedFormats) body.append("allowed_formats", signature.allowedFormats);
+  if (signature.type) body.append("type", signature.type);
 
   const response = await fetch(
     `https://api.cloudinary.com/v1_1/${signature.cloudName}/image/upload`,

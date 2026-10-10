@@ -31,6 +31,11 @@ export const user = pgTable("user", {
   artistVerificationStatus: text("artist_verification_status").notNull().default("unverified"),
   /** Self-declared 18+. Null means not yet asked (DPDP §5.4). */
   ageDeclaredAdult: boolean("ageDeclaredAdult"),
+  /** artist | curator | buyer. Null means not yet asked ("What brings you to
+   *  ArtWall?", shown once after sign-up/first sign-in). Not user.role (an
+   *  unrelated internal access tier) and not inferred from artist_profiles /
+   *  curators row presence - those tables predate this question. */
+  onboardingPersona: text("onboarding_persona"),
   onboardedAt: timestamp("onboardedAt", { withTimezone: true }),
   nomineeName: text("nomineeName"),
   nomineeContact: text("nomineeContact"),
@@ -129,13 +134,55 @@ export const contacts = pgTable("contacts", {
   kind: text("kind").notNull().default("collector"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
-export const collections = pgTable("collections", {
-  id: text("id").primaryKey(),
-  userId: text("userId").notNull(),
-  name: text("name").notNull(),
-  description: text("description"),
-  createdAt: timestamp("createdAt").notNull().defaultNow(),
-});
+/**
+ * A reusable grouping of artwork references (DB-COLL.01, 0057).
+ *
+ * Not a wishlist and not ownership: membership lives entirely in
+ * `collectionArtworks`, a many-to-many join table, so one artwork can sit in
+ * any number of collections and a collection never "owns" what it lists.
+ *
+ * `type` fixes what a collection is for and drives authorization in
+ * src/features/collections/policy.ts — it is never client-trusted:
+ *   BUYER   — any signed-in user organizing artworks they like. Private by
+ *             default, not commission-enabled.
+ *   ARTIST  — an artist's own portfolio/series. Every member artwork must be
+ *             owned by the same `ownerId`. Appears on the artist's profile.
+ *   CURATOR — editorial, commerce-oriented. Can mix artworks from any artist.
+ *             Commission attribution hangs off this type only (see
+ *             referrerId on sales, once that flow exists) — never on BUYER
+ *             or ARTIST collections.
+ */
+export const collections = pgTable(
+  "collections",
+  {
+    id: text("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    type: text("type").notNull().default("BUYER").$type<"BUYER" | "ARTIST" | "CURATOR">(),
+    title: text("title").notNull(),
+    description: text("description"),
+    /** Curator's curation statement. Artists may use it as an optional series note. Buyers don't. */
+    thesis: text("thesis"),
+    coverArtworkId: text("cover_artwork_id"),
+    visibility: text("visibility").notNull().default("private").$type<"public" | "private">(),
+    slug: text("slug").notNull(),
+    isFeatured: boolean("is_featured").notNull().default(false),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  }
+);
+
+/** Collection <-> Artwork membership (N:N). `position` is the persisted display order. */
+export const collectionArtworks = pgTable(
+  "collection_artworks",
+  {
+    collectionId: text("collection_id").notNull(),
+    artworkId: text("artwork_id").notNull(),
+    position: integer("position").notNull().default(0),
+    addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [primaryKey({ columns: [table.collectionId, table.artworkId] })]
+);
 export const tasks = pgTable("tasks", {
   id: text("id").primaryKey(),
   userId: text("userId").notNull(),
@@ -242,6 +289,10 @@ export const pwSlots = pgTable("pw_slots", {
   state: text("state").notNull().default("available"),
   /** Optimistic lock. Two admins can edit the grid at the same time. */
   version: integer("version").notNull().default(1),
+  /** BE-3.13 bridge (0050): nullable FK into the `slots` hierarchy leaf. Null
+   *  for rows never linked (should not happen post-migration, but the column
+   *  itself must stay nullable per the migration's own definition). */
+  wallosSlotId: text("wallos_slot_id"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -1036,12 +1087,19 @@ export const demandAggregates = pgTable("demand_aggregates", {
   computedAt: timestamp("computed_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Escrow (DB-3.09, 0049). Linked to pw_bookings (this codebase's "order"). */
+/**
+ * Escrow (DB-3.09, 0049; release state added BE-3.11, 0057). Linked to
+ * pw_bookings (this codebase's "order").
+ */
 export const escrowHolds = pgTable("escrow_holds", {
   id: text("id").primaryKey(),
   bookingId: text("booking_id").notNull(),
   amountPaise: integer("amount_paise").notNull(),
   reason: text("reason"),
+  status: text("status").notNull().default("held"),
+  disputeWindowDays: integer("dispute_window_days").notNull().default(3),
+  releaseEligibleAt: timestamp("release_eligible_at", { withTimezone: true }),
+  commissionPolicyVersionId: text("commission_policy_version_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -1089,4 +1147,69 @@ export const shipmentEvents = pgTable("shipment_events", {
   eventType: text("event_type").notNull(),
   payload: jsonb("payload").notNull().default({}),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── WallOS hierarchy (BE-3.13/BE-3.14, 0050) ───────────────────────────────
+ * organizations -> venues -> buildings -> floors -> rooms_zones -> walls -> slots.
+ * A parallel structure to pw_slots, not a replacement — see the migration's
+ * own header. pw_slots.wallosSlotId (above) is the one bridge column. */
+
+export const organizations = pgTable("organizations", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const venues = pgTable("venues", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const buildings = pgTable("buildings", {
+  id: text("id").primaryKey(),
+  venueId: text("venue_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const floors = pgTable("floors", {
+  id: text("id").primaryKey(),
+  buildingId: text("building_id").notNull(),
+  name: text("name").notNull(),
+  level: integer("level").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const roomsZones = pgTable("rooms_zones", {
+  id: text("id").primaryKey(),
+  floorId: text("floor_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const walls = pgTable("walls", {
+  id: text("id").primaryKey(),
+  roomZoneId: text("room_zone_id").notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** The hierarchy's leaf. `onChainSlotId` (BE-3.14) is nullable and unused for
+ *  MVP — on-chain WallOS slot registration is Growth-phase (docs/policy-engine.md). */
+export const wallosSlots = pgTable("slots", {
+  id: text("id").primaryKey(),
+  wallId: text("wall_id").notNull(),
+  label: text("label").notNull(),
+  onChainSlotId: text("on_chain_slot_id"),
+  pwSlotId: text("pw_slot_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

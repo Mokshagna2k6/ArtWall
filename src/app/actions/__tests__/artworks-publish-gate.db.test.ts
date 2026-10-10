@@ -21,7 +21,9 @@ describe("artwork publish gate (BE-3.01/3.03)", () => {
         imageUrl: `https://res.cloudinary.com/${process.env.CLOUDINARY_CLOUD_NAME}/image/upload/artwall/artwork/x.jpg`,
         isPublic: true,
       })
-    ).resolves.toBeUndefined();
+      // createArtwork returns a FormResult (merged from Frontend Phase 2's
+      // form-result.ts) rather than void — { ok: true } is success.
+    ).resolves.toEqual({ ok: true });
   });
 
   it("createArtwork refuses to go public without an image, and logs the denial", async () => {
@@ -45,7 +47,7 @@ describe("artwork publish gate (BE-3.01/3.03)", () => {
   it("createArtwork with isPublic: false never calls the gate (a draft needs no title/image check)", async () => {
     const artist = await makeUser();
     actAs(artist);
-    await expect(createArtwork({ title: `betest ${tid("t")}`, isPublic: false })).resolves.toBeUndefined();
+    await expect(createArtwork({ title: `betest ${tid("t")}`, isPublic: false })).resolves.toEqual({ ok: true });
   });
 
   it("setArtworkPublic refuses to flip an imageless work public, and the row stays private", async () => {

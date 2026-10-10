@@ -2,7 +2,7 @@
 
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
@@ -87,14 +87,53 @@ export async function createEdition(raw: z.input<typeof editionSchema>): Promise
     if (!artwork) throw new PreconditionError("Artwork not found");
 
     const editionId = newId("ed");
-    await db.insert(editions).values({
-      id: editionId,
-      artworkId: input.artworkId,
-      userId,
-      editionType: input.editionType,
-      totalEditions: input.editionType === "limited" ? input.totalEditions : null,
-      isAp: input.isAp ?? false,
-      status: "active",
+    const isAp = input.isAp ?? false;
+
+    // Limited editions are capped server-side (BE-3.23): "5/50" means at most
+    // 5 numbered rows can ever exist for this artwork's limited run. Artist
+    // Proofs sit outside that numbered run (common editioning convention —
+    // "AP 1/3" rather than "5/50") so they don't consume a numbered slot and
+    // don't get an editionNumber.
+    //
+    // A race between two concurrent createEdition calls for the same artwork
+    // could both read "4 of 5 taken" and both insert #5. Serialize with the
+    // same transaction-scoped advisory lock pattern as install-window
+    // capacity (BE-2.10, src/features/physical-wall/actions/ops.ts).
+    await db.transaction(async (tx) => {
+      // ponytail: one lock per artwork id; a global lock would be overkill
+      // here since edition creation is rare and already scoped per artwork.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"edition:" + input.artworkId}))`);
+
+      let editionNumber: number | null = null;
+      if (input.editionType === "limited" && !isAp) {
+        const [{ count }] = await tx
+          .select({ count: sql<number>`count(*)::int` })
+          .from(editions)
+          .where(
+            and(
+              eq(editions.artworkId, input.artworkId),
+              eq(editions.editionType, "limited"),
+              eq(editions.isAp, false)
+            )
+          );
+        if (count >= (input.totalEditions as number)) {
+          throw new PreconditionError(
+            `This edition is sold out: all ${input.totalEditions} numbered prints already exist.`
+          );
+        }
+        editionNumber = count + 1;
+      }
+
+      await tx.insert(editions).values({
+        id: editionId,
+        artworkId: input.artworkId,
+        userId,
+        editionType: input.editionType,
+        editionNumber,
+        totalEditions: input.editionType === "limited" ? input.totalEditions : null,
+        isAp,
+        status: "active",
+      });
     });
 
     revalidatePath("/studio/editions");

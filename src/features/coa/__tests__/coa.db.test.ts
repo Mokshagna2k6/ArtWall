@@ -100,4 +100,50 @@ describe("COA / provenance (BE-1.17 – 1.20)", () => {
       await q(`update commission_policies set active = true where kind = 'mint_royalty' and id = 'cpol_mint_v1'`);
     }
   });
+
+  it("BE-3.23: limited editions are numbered and capped server-side; AP sits outside the numbered run", async () => {
+    const artist = await makeUser();
+    const art = await makeArtwork(artist.id);
+    actAs(artist);
+
+    const first = await createEdition({ artworkId: art, editionType: "limited", totalEditions: 2 });
+    if (!first.ok) throw new Error(first.error);
+    const second = await createEdition({ artworkId: art, editionType: "limited", totalEditions: 2 });
+    if (!second.ok) throw new Error(second.error);
+
+    const [row1] = await q<{ edition_number: number }>(`select edition_number from editions where id = $1`, [first.data]);
+    const [row2] = await q<{ edition_number: number }>(`select edition_number from editions where id = $1`, [second.data]);
+    expect([row1.edition_number, row2.edition_number].sort()).toEqual([1, 2]);
+
+    // The cap is 2 and both numbered slots are taken: a third numbered edition is refused.
+    const third = await createEdition({ artworkId: art, editionType: "limited", totalEditions: 2 });
+    expect(third).toMatchObject({ ok: false, error: expect.stringMatching(/sold out/i) });
+
+    // An Artist Proof doesn't consume a numbered slot — it's allowed even though the run is full.
+    const ap = await createEdition({ artworkId: art, editionType: "limited", totalEditions: 2, isAp: true });
+    if (!ap.ok) throw new Error(ap.error);
+    const [apRow] = await q<{ edition_number: number | null; is_ap: boolean }>(
+      `select edition_number, is_ap from editions where id = $1`,
+      [ap.data]
+    );
+    expect(apRow).toEqual({ edition_number: null, is_ap: true });
+  });
+
+  it("BE-3.23: concurrent createEdition calls for the same artwork never exceed the cap", async () => {
+    const artist = await makeUser();
+    const art = await makeArtwork(artist.id);
+    actAs(artist);
+
+    const results = await Promise.all(
+      Array.from({ length: 6 }, () => createEdition({ artworkId: art, editionType: "limited", totalEditions: 3 }))
+    );
+    const succeeded = results.filter((r) => r.ok);
+    expect(succeeded).toHaveLength(3);
+
+    const numbers = await q<{ edition_number: number }>(
+      `select edition_number from editions where artwork_id = $1 and is_ap = false order by edition_number`,
+      [art]
+    );
+    expect(numbers.map((r) => r.edition_number)).toEqual([1, 2, 3]);
+  });
 });

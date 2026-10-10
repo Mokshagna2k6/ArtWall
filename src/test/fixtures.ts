@@ -33,6 +33,23 @@ export async function makeUser(role: "artist" | "admin" | "staff" = "artist"): P
   return user;
 }
 
+/**
+ * SEC-3.02/3.03: grant `userId` one of the 8 admin_roles rows directly
+ * (bypassing grantAdminRole's own super_admin/self-grant checks — those are
+ * exactly what admin-roles.db.test.ts exercises; every other suite that
+ * merely needs an actor who already holds a specific admin role, e.g.
+ * compliance_admin for reviewIdentity, uses this instead).
+ */
+export async function grantTestAdminRole(userId: string, role: string) {
+  const id = tid("ara");
+  await q(
+    `insert into admin_role_assignments (id, user_id, role_id)
+     select $1, $2, id from admin_roles where name = $3`,
+    [id, userId, role]
+  );
+  return id;
+}
+
 export async function makeProfile(userId: string, opts: { published?: boolean; wallet?: string | null } = {}) {
   await q(
     `insert into artist_profiles ("userId", handle, "displayName", published, wallet_address)
@@ -221,7 +238,15 @@ export async function purgeTestData() {
     await client.query(`delete from commission_policy_versions where id like $1`, [like]);
     await client.query(`delete from demand_aggregates where artwork_id like $1`, [like]);
     await client.query(`delete from demand_signals where artwork_id like $1`, [like]);
-    await client.query(`delete from admin_role_assignments where id like $1`, [like]);
+    // Matched by user_id too, not just id: grantAdminRole mints its own
+    // ara_-prefixed ids (src/features/physical-wall/actions/admin-roles.ts),
+    // so a row created through the real action (rather than inserted
+    // directly by a test with a betest_-prefixed id) only matches on
+    // user_id/granted_by/revoked_by.
+    await client.query(
+      `delete from admin_role_assignments where id like $1 or user_id like $1 or granted_by like $1 or revoked_by like $1`,
+      [like]
+    );
     for (const t of DELETE_REVOKED) await client.query(`revoke delete on ${t} from current_user`);
     for (const t of GUARDED) await client.query(`alter table ${t} enable trigger user`);
     await client.query("commit");

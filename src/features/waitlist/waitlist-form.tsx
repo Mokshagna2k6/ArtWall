@@ -74,6 +74,8 @@ export function WaitlistForm({ defaultName, accountEmail }: WaitlistFormProps) {
   const [state, formAction] = useActionState(joinWaitlist, initialState);
   const [artwork, setArtwork] = useState<UploadedAsset | null>(null);
   const [selfie, setSelfie] = useState<UploadedAsset | null>(null);
+  const [role, setRole] = useState<"artist" | "collector">("artist");
+  const isArtist = role === "artist";
 
   if (state.status === "success") {
     return (
@@ -105,7 +107,7 @@ export function WaitlistForm({ defaultName, accountEmail }: WaitlistFormProps) {
               { value: "artist", label: "An artist" },
               { value: "collector", label: "A collector" },
             ] as const
-          ).map((option, index) => (
+          ).map((option) => (
             <label
               key={option.value}
               className="border-border has-checked:border-foreground has-checked:bg-foreground flex h-11 flex-1 cursor-pointer items-center justify-center border text-sm transition-colors has-checked:text-white"
@@ -114,7 +116,8 @@ export function WaitlistForm({ defaultName, accountEmail }: WaitlistFormProps) {
                 type="radio"
                 name="role"
                 value={option.value}
-                defaultChecked={index === 0}
+                checked={role === option.value}
+                onChange={() => setRole(option.value)}
                 className="sr-only"
               />
               {option.label}
@@ -174,69 +177,61 @@ export function WaitlistForm({ defaultName, accountEmail }: WaitlistFormProps) {
         />
       </div>
 
-      {/* Uploads. Optional, an artist can hold a place without one, and add
-          their work later. The artwork is what becomes their tile. */}
-      <fieldset className="border-border flex flex-col gap-5 border p-4">
-        <legend className="text-muted-foreground px-1 text-xs tracking-[0.14em] uppercase">
-          Your place on the wall
-        </legend>
+      {/* Artist-only: a collector has no work to put on the wall. Uploads are
+          optional even for an artist - they can hold a place and add work
+          later. The artwork is what becomes their tile. */}
+      {isArtist && (
+        <fieldset className="border-border flex flex-col gap-5 border p-4">
+          <legend className="text-muted-foreground px-1 text-xs tracking-[0.14em] uppercase">
+            Your place on the wall
+          </legend>
 
-        <div className="grid gap-5 sm:grid-cols-2">
-          <ImageDrop
-            kind="artwork"
-            label="Your artwork"
-            hint="This becomes your tile on the wall."
-            onChange={setArtwork}
+          <div className="grid gap-5 sm:grid-cols-2">
+            <ImageDrop
+              kind="artwork"
+              label="Your artwork"
+              hint="This becomes your tile on the wall."
+              onChange={setArtwork}
+            />
+            <ImageDrop
+              kind="selfie"
+              label="You (optional)"
+              hint="Shown with your work. Only add it if you're happy for it to be public."
+              onChange={setSelfie}
+            />
+          </div>
+
+          <Field
+            id="artworkTitle"
+            name="artworkTitle"
+            label="Title of the work"
           />
-          <ImageDrop
-            kind="selfie"
-            label="You (optional)"
-            hint="Shown with your work. Only add it if you're happy for it to be public."
-            onChange={setSelfie}
-          />
-        </div>
 
-        <Field
-          id="artworkTitle"
-          name="artworkTitle"
-          label="Title of the work"
-        />
+          <div className="flex flex-col gap-2">
+            <label htmlFor="quote" className="text-muted-foreground text-eyebrow">
+              One line about it
+            </label>
+            <textarea
+              id="quote"
+              name="quote"
+              rows={2}
+              maxLength={280}
+              placeholder="Why you made it, or what it's of."
+              className="border-input focus:border-foreground placeholder:text-muted-foreground border bg-white p-3 leading-7 transition-colors outline-none"
+            />
+          </div>
+        </fieldset>
+      )}
 
-        <div className="flex flex-col gap-2">
-          <label htmlFor="quote" className="text-muted-foreground text-eyebrow">
-            One line about it
-          </label>
-          <textarea
-            id="quote"
-            name="quote"
-            rows={2}
-            maxLength={280}
-            placeholder="Why you made it, or what it's of."
-            className="border-input focus:border-foreground placeholder:text-muted-foreground border bg-white p-3 leading-7 transition-colors outline-none"
-          />
-        </div>
-
-        {/* Upload results travel with the form post and are re-validated
-            server-side against Cloudinary's host. */}
-        <input type="hidden" name="artworkUrl" value={artwork?.url ?? ""} />
-        <input
-          type="hidden"
-          name="artworkPublicId"
-          value={artwork?.publicId ?? ""}
-        />
-        <input type="hidden" name="artworkWidth" value={artwork?.width ?? ""} />
-        <input
-          type="hidden"
-          name="artworkHeight"
-          value={artwork?.height ?? ""}
-        />
-        <input type="hidden" name="selfieUrl" value={selfie?.url ?? ""} />
-        <input
-          type="hidden"
-          name="selfiePublicId"
-          value={selfie?.publicId ?? ""}
-        />
-      </fieldset>
+      {/* Upload results travel with the form post and are re-validated
+          server-side against Cloudinary's host. Always present (empty for a
+          collector) so the server action's field list never changes shape. */}
+      <input type="hidden" name="artworkUrl" value={artwork?.url ?? ""} />
+      <input type="hidden" name="artworkPublicId" value={artwork?.publicId ?? ""} />
+      <input type="hidden" name="artworkWidth" value={artwork?.width ?? ""} />
+      <input type="hidden" name="artworkHeight" value={artwork?.height ?? ""} />
+      <input type="hidden" name="selfieUrl" value={selfie?.url ?? ""} />
+      <input type="hidden" name="selfiePublicId" value={selfie?.publicId ?? ""} />
 
       {/* Founding Membership is opt-in. Everyone who joins gets a numbered
           place; claiming founding status is a separate, deliberate yes, so it

@@ -85,6 +85,46 @@ export async function recordAuditIn(
   );
 }
 
+export interface AuditLogRow {
+  id: string;
+  actor_label: string | null;
+  action: string;
+  subject_type: string;
+  subject_id: string | null;
+  created_at: Date;
+}
+
+/**
+ * FE-3.19/9b: the same recent-entries read used by the Super Admin page's
+ * activity feed and, now, the admin shell header's notification bell —
+ * extracted here so both UIs share one query instead of drifting apart.
+ */
+export async function getRecentAuditActivity(limit: number): Promise<AuditLogRow[]> {
+  const sql = getSql();
+  return (await sql`
+    select id, actor_label, action, subject_type, subject_id, at as created_at
+    from pw_audit_log
+    order by at desc
+    limit ${limit}
+  `) as AuditLogRow[];
+}
+
+/**
+ * FE-3.19: count of audit rows in the last 24h, for the bell's badge.
+ *
+ * Simplest correct option that needs no new infrastructure: no "last seen"
+ * column exists on any admin account, and adding one is a new migration +
+ * write-on-every-admin-page-view for a badge count. A rolling 24h window is
+ * a reasonable proxy for "what's new" and costs one indexed-by-time query.
+ */
+export async function countRecentAuditActivity(): Promise<number> {
+  const sql = getSql();
+  const rows = (await sql`
+    select count(*)::int as count from pw_audit_log where at > now() - interval '24 hours'
+  `) as { count: number }[];
+  return rows[0]?.count ?? 0;
+}
+
 /** Write standalone. Never throws. */
 export async function recordAudit(entry: AuditEntry): Promise<void> {
   try {
