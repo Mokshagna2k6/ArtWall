@@ -3,6 +3,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 
 import { siteConfig } from "@/config/site";
+import { getCertificateForVerify } from "@/lib/catalog-cache";
 import { getCertificateProof } from "@/features/coa/merkle-commit";
 import { buildCertificatePdf } from "@/features/coa/pdf";
 import { uploadRawFile } from "@/lib/cloudinary";
@@ -52,6 +53,29 @@ export async function renderCertificatePdf(certificateId: string) {
     image: await fetchArtworkImage(artwork.imageUrl),
     onChain: { chainId: cert.chainId, contract: cert.contractAddr, tokenId: cert.tokenId, txHash: cert.txHash },
     merkle: proof ? { root: proof.root, leaf: proof.leaf, rootTxHash: proof.rootTxHash } : null,
+  });
+}
+
+/**
+ * Public copy for /verify/:hashOrId/pdf. Built only from getCertificateForVerify
+ * (what the public verify page shows): no owner id, no metadata hash, no Merkle
+ * proof, and drafts are excluded. Null when unknown.
+ */
+export async function renderPublicCertificatePdf(key: string) {
+  const cert = await getCertificateForVerify(key);
+  if (!cert) return null;
+  return buildCertificatePdf({
+    certificateId: cert.id,
+    status: cert.status === "revoked" ? "revoked" : "issued",
+    title: cert.artworkTitle,
+    artist: cert.artistName ?? "Unknown",
+    medium: cert.medium,
+    dimensions: cert.dimensions,
+    year: cert.year,
+    issuedAt: cert.issuedAt ? new Date(cert.issuedAt) : null, // the catalog cache serialises dates
+    verifyUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? siteConfig.url}/verify/${cert.id}`,
+    image: await fetchArtworkImage(cert.artworkImage),
+    onChain: { chainId: cert.chainId, contract: cert.contractAddr, tokenId: cert.tokenId, txHash: cert.txHash },
   });
 }
 
