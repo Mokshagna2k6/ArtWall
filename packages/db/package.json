@@ -2,5 +2,21 @@
   "name": "@artwall/db",
   "version": "0.0.0",
   "private": true,
-  "description": "Drizzle schema, migrations, RLS policies and queries."
+  "description": "Drizzle schema, db client, SQL migrations (and, later, RLS policies).",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "db:migrate": "node --env-file=../../apps/web/.env scripts/migrate.mjs",
+    "db:migrations-check": "node --env-file=../../apps/web/.env scripts/migrations-check.mjs"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.2",
+    "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.21.0"
+  }
 }

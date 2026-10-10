@@ -44,7 +44,7 @@ jobs:
       # Postgres, not just a placeholder URL — an empty migrated database is
       # enough, sitemap.ts only needs the query to succeed, not return rows.
       - name: Apply all migrations
-        run: node apps/web/scripts/migrate.mjs
+        run: node packages/db/scripts/migrate.mjs
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
@@ -125,7 +125,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Migrations apply twice to an empty database
-        run: node apps/web/scripts/migrations-check.mjs
+        run: node packages/db/scripts/migrations-check.mjs
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
@@ -172,7 +172,7 @@ jobs:
           PGPASSWORD: postgres
 
       - name: Apply all migrations
-        run: node apps/web/scripts/migrate.mjs
+        run: node packages/db/scripts/migrate.mjs
 
       # Reference data the suite books against (sizes, slot types, refund policy).
       - name: Seed catalogs
@@ -244,7 +244,7 @@ jobs:
         run: pnpm --filter @artwall/web exec playwright install --with-deps chromium
 
       - name: Migrate the e2e database
-        run: node apps/web/scripts/migrate.mjs
+        run: node packages/db/scripts/migrate.mjs
 
       - name: Seed catalogs
         run: node apps/web/scripts/seed-physical-wall.mjs

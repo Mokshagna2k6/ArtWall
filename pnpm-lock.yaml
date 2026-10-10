@@ -31,6 +31,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@artwall/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@base-ui/react':
         specifier: ^1.7.0
         version: 1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -182,7 +185,18 @@ importers:
 
   packages/cache: {}
 
-  packages/db: {}
+  packages/db:
+    dependencies:
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@neondatabase/serverless@1.1.0)(@types/pg@8.21.0)(kysely@0.29.5)(pg@8.23.0)
+      pg:
+        specifier: ^8.23.0
+        version: 8.23.0
+    devDependencies:
+      '@types/pg':
+        specifier: ^8.21.0
+        version: 8.21.0
 
   packages/ratelimit: {}
 
