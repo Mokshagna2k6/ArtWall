@@ -1,5 +1,6 @@
 import "server-only";
 
+import { ROLES, roleSatisfies, type Role } from "@artwall/security";
 import { redirect } from "next/navigation";
 
 import { features } from "@/config/site";
@@ -19,16 +20,8 @@ import { getSql } from "@/lib/db";
  * forgets to call one of these functions has no session to read at all.
  */
 
-export const ROLES = ["visitor", "artist", "staff", "admin"] as const;
-export type Role = (typeof ROLES)[number];
-
-/** Ascending authority. `admin` can do anything `staff` can, and so on. */
-const RANK: Record<Role, number> = {
-  visitor: 0,
-  artist: 1,
-  staff: 2,
-  admin: 3,
-};
+// Pure role policy lives in @artwall/security; re-exported so existing imports keep working.
+export { ROLES, type Role };
 
 export interface Actor extends SessionUser {
   role: Role;
@@ -179,8 +172,7 @@ export async function getActor(): Promise<Actor | null> {
 }
 
 export function hasRole(actor: Actor | null, required: Role): boolean {
-  if (!actor) return false;
-  return RANK[actor.role] >= RANK[required];
+  return roleSatisfies(actor?.role, required);
 }
 
 /**

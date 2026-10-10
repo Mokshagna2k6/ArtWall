@@ -1,3 +1,4 @@
+import { buildCsp, buildCspReportOnly } from "@artwall/security";
 import { NextRequest, NextResponse } from "next/server";
 
 // SEC-2.03: the CSP in next.config.ts used to allow 'unsafe-inline' for
@@ -13,21 +14,8 @@ export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
 
-  const cspHeader = `
-    default-src 'self';
-    script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""};
-    style-src 'self' 'unsafe-inline';
-    img-src 'self' data: blob: https://res.cloudinary.com;
-    font-src 'self' data:;
-    connect-src 'self' https://api.cloudinary.com https://api.razorpay.com https://checkout.razorpay.com https://cdn.razorpay.com https://lumberjack.razorpay.com https://*.walletconnect.com wss://*.walletconnect.com https://*.walletconnect.org wss://*.walletconnect.org https://*.reown.com wss://*.reown.com https://*.web3modal.org https://*.web3modal.com https://sepolia.base.org https://mainnet.base.org;
-    frame-src https://checkout.razorpay.com https://api.razorpay.com https://verify.walletconnect.com https://verify.walletconnect.org;
-    object-src 'none';
-    base-uri 'self';
-    form-action 'self';
-    frame-ancestors 'none';
-  `
-    .replace(/\s{2,}/g, " ")
-    .trim();
+  const cspHeader = buildCsp({ nonce, isDev });
+  const cspReportOnly = buildCspReportOnly({ nonce, isDev });
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-nonce", nonce);
@@ -43,6 +31,7 @@ export function proxy(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", cspHeader);
+  response.headers.set("Content-Security-Policy-Report-Only", cspReportOnly);
   return response;
 }
 
