@@ -244,6 +244,12 @@ export async function revokeCertificate(certId: string, reason: string): Promise
       .set({ status: "revoked", revokedAt: new Date(), revokeReason: input.reason })
       .where(eq(coaCertificates.id, input.certId));
 
+    // Re-archive so the stored copy and pdf_url show REVOKED; never throws, so revocation cannot fail on it.
+    try {
+      after(() => archiveCertificatePdf(input.certId));
+    } catch {
+      // Outside a request scope (tests/scripts): the on-demand route is always fresh anyway.
+    }
     // A revoked certificate must stop verifying as issued immediately (PERF-2.07).
     expireCatalog();
     revalidatePath("/studio/certificates");
