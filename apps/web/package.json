@@ -22,6 +22,7 @@
   "dependencies": {
     "@base-ui/react": "^1.7.0",
     "@neondatabase/serverless": "^1.1.0",
+    "@artwall/ratelimit": "workspace:*",
     "@noble/hashes": "2.3.0",
     "@pdf-lib/fontkit": "^1.1.1",
     "@rainbow-me/rainbowkit": "^2.2.11",

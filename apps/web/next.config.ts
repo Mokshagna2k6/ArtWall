@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Workspace packages ship TypeScript source.
+  transpilePackages: ["@artwall/ratelimit"],
   // The certificate PDF reads its Noto fonts with fs at request time; tracing can't see that.
   outputFileTracingIncludes: {
     "/api/coa/[id]/pdf": ["./src/features/coa/fonts/*.ttf"],

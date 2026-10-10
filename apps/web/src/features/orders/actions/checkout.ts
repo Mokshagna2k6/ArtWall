@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { addressSchema } from "@/features/orders/address";
 import { requireBuyer } from "@/features/orders/authorize";
+import { enforcePolicy } from "@/features/orders/rate-limit";
 import { createPendingOrder, releasePendingOrder } from "@/features/orders/checkout";
 import { settleCheckoutPayment } from "@/features/orders/settlement";
 import { attempt, inTransaction, newId, parseInput, PreconditionError, type Result } from "@/features/physical-wall/actions/shared";
@@ -46,6 +47,7 @@ export async function placeCheckout(raw: unknown): Promise<Result<CheckoutStart>
   return attempt("placeCheckout", async () => {
     const { address, idempotencyKey } = parseInput(placeInput, raw);
     const buyer = await requireBuyer();
+    await enforcePolicy("checkout", buyer.id);
     if (!isRazorpayConfigured()) throw new PreconditionError("Online payment is not switched on yet.");
     const keyId = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? process.env.RAZORPAY_KEY_ID ?? "";
 
