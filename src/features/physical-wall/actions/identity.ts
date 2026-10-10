@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { recordAudit } from "@/features/physical-wall/audit";
-import { getActor, hasRole, requireRole } from "@/features/physical-wall/authorize";
+import { getActor, hasRole, requireAdminRole, requireRole } from "@/features/physical-wall/authorize";
 import { notify } from "@/features/physical-wall/notifications";
 import {
   type ActionState,
@@ -101,7 +101,12 @@ export async function reviewIdentity(
   formData: FormData
 ): Promise<ActionState> {
   try {
-    const actor = await requireRole("admin");
+    // SEC-3.02: identity verification review maps directly onto the Bible's
+    // compliance_admin role ("DPDP, KYC, identity verification review" per
+    // admin_roles.description) — one of the clearest, highest-value proof
+    // points for the new granular-role system, so it uses it instead of the
+    // broad requireRole("admin") gate.
+    const actor = await requireAdminRole("compliance_admin");
     const { verificationId, verdict, note } = formInput(
       z.object({
         verificationId: z.string({ error: "Which verification?" }).min(1, "Which verification?").max(64),

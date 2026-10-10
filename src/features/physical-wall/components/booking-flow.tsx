@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, Check, Circle, CheckCircle2 } from "lucide-react";
 
@@ -15,6 +21,10 @@ import {
   inputClass,
   SubmitButton,
 } from "@/features/physical-wall/components/form-bits";
+import {
+  HierarchySlotPicker,
+  type HierarchyOrg,
+} from "@/features/physical-wall/components/hierarchy-slot-picker";
 import { Stepper } from "@/features/physical-wall/components/stepper";
 import { WallGrid } from "@/features/physical-wall/components/wall-grid";
 import { formatINR } from "@/features/physical-wall/money";
@@ -59,6 +69,7 @@ export function BookingFlow({
   venueName,
   refundPercentage,
   gstRatePct,
+  hierarchy,
 }: {
   slots: SlotWithCatalog[];
   rowCount: number;
@@ -69,10 +80,15 @@ export function BookingFlow({
   venueName: string;
   refundPercentage: number | null;
   gstRatePct: number;
+  /** FE-3.13: the WallOS hierarchy, for the venue/wall/slot picker alongside
+   *  the flat grid. Empty when nothing is linked yet (see that component's
+   *  own empty state) — never blocks the grid, which still works either way. */
+  hierarchy: HierarchyOrg[];
 }) {
   const [step, setStep] = useState(1);
   const [furthest, setFurthest] = useState(1);
   const [selected, setSelected] = useState<string[]>([]);
+  const [pickerMode, setPickerMode] = useState<"grid" | "hierarchy">("grid");
   const [durationDays, setDurationDays] = useState(7);
   const [startDate, setStartDate] = useState(today);
   const [addonIds, setAddonIds] = useState<string[]>([]);
@@ -83,6 +99,17 @@ export function BookingFlow({
   const [pricing, startPricing] = useTransition();
 
   const [state, formAction] = useActionState(reserveBooking, IDLE);
+
+  // Moving between steps swaps the whole panel; send focus to the new step's
+  // heading so keyboard and screen-reader users land on it (FE-2.18). Skipped
+  // on first render so the page doesn't steal focus on load.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const shownStep = useRef(step);
+  useEffect(() => {
+    if (shownStep.current === step) return;
+    shownStep.current = step;
+    headingRef.current?.focus();
+  }, [step]);
 
   // Re-price whenever the basket changes. The empty-basket case is derived in
   // render rather than cleared here — a setState called synchronously inside an
@@ -172,27 +199,58 @@ export function BookingFlow({
         <div className="border-hairline min-w-0 rounded-md border p-5 sm:p-6">
           {step === 1 && (
             <section>
-              <h2 className="font-heading text-section">Choose your position</h2>
-              <p className="text-ink-muted mt-2 text-sm leading-6">
-                {available} of {slots.length} slots open. Each is drawn at its
-                real proportions — prices are per day, before duration discounts.
-              </p>
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">Choose your position</h2>
+                  <p className="text-ink-muted mt-2 text-sm leading-6">
+                    {pickerMode === "grid"
+                      ? `${available} of ${slots.length} slots open. Each is drawn at its real proportions — prices are per day, before duration discounts.`
+                      : "Pick a venue, then a wall, then a slot."}
+                  </p>
+                </div>
+                <div className="border-hairline-strong inline-flex rounded-md border p-0.5 text-xs">
+                  <button
+                    type="button"
+                    aria-pressed={pickerMode === "grid"}
+                    onClick={() => setPickerMode("grid")}
+                    className={`rounded-[5px] px-3 py-1.5 transition-colors ${pickerMode === "grid" ? "bg-ink text-wall-paper" : "text-ink-muted hover:text-ink"}`}
+                  >
+                    Wall map
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={pickerMode === "hierarchy"}
+                    onClick={() => setPickerMode("hierarchy")}
+                    className={`rounded-[5px] px-3 py-1.5 transition-colors ${pickerMode === "hierarchy" ? "bg-ink text-wall-paper" : "text-ink-muted hover:text-ink"}`}
+                  >
+                    By venue
+                  </button>
+                </div>
+              </div>
               <div className="mt-6">
-                <WallGrid
-                  slots={slots}
-                  rowCount={rowCount}
-                  colCount={colCount}
-                  mode="select"
-                  selected={selected}
-                  onToggle={toggleSlot}
-                />
+                {pickerMode === "grid" ? (
+                  <WallGrid
+                    slots={slots}
+                    rowCount={rowCount}
+                    colCount={colCount}
+                    mode="select"
+                    selected={selected}
+                    onToggle={toggleSlot}
+                  />
+                ) : (
+                  <HierarchySlotPicker
+                    hierarchy={hierarchy}
+                    selected={selected}
+                    onToggle={toggleSlot}
+                  />
+                )}
               </div>
             </section>
           )}
 
           {step === 2 && (
             <section>
-              <h2 className="font-heading text-section">How long for?</h2>
+              <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">How long for?</h2>
               <p className="text-ink-muted mt-2 text-sm leading-6">
                 Longer stays cost less per day.
               </p>
@@ -245,7 +303,7 @@ export function BookingFlow({
 
           {step === 3 && (
             <section>
-              <h2 className="font-heading text-section">What are you hanging?</h2>
+              <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">What are you hanging?</h2>
               <p className="text-ink-muted mt-2 text-sm leading-6">
                 You can decide later — but the work has to be attached before a
                 staff member can install it.
@@ -287,7 +345,7 @@ export function BookingFlow({
 
           {step === 4 && (
             <section>
-              <h2 className="font-heading text-section">Anything else?</h2>
+              <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">Anything else?</h2>
               <p className="text-ink-muted mt-2 text-sm leading-6">
                 Optional. Priced as one-off items, not per day or per slot.
               </p>
@@ -337,7 +395,7 @@ export function BookingFlow({
 
           {step === 5 && (
             <section>
-              <h2 className="font-heading text-section">
+              <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">
                 The exhibition agreement
               </h2>
               <p className="text-ink-muted mt-2 text-sm leading-6">
@@ -422,7 +480,7 @@ export function BookingFlow({
               </button>
             ) : (
               <div className="flex flex-col items-end gap-2">
-                <SubmitButton>
+                <SubmitButton disabled={!canContinue}>
                   Sign and hold{" "}
                   {shownQuote ? `· ${formatINR(shownQuote.totalPaise)}` : ""}
                 </SubmitButton>

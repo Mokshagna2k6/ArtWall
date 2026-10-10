@@ -6,6 +6,7 @@ import {
   listDeadNotifications,
   MAX_NOTIFICATION_ATTEMPTS,
   notify,
+  NOTIFICATION_SCHEMA_VERSION,
   retryDelayMinutes,
   queueScheduledNotifications,
   TEMPLATES,
@@ -26,7 +27,7 @@ afterEach(() => {
   delete process.env.RESEND_API_KEY;
 });
 
-// Sample data for every kind. A Record over NotificationKind, so a 14th kind
+// Sample data for every kind. A Record over NotificationKind, so a 15th kind
 // without a sample here fails to compile.
 const SAMPLES: { [K in NotificationKind]: Parameters<(typeof TEMPLATES)[K]>[0] } = {
   "waitlist.offer": { name: "Asha", slotLabel: "B3", expiresAt: "2031-01-01T10:00:00Z" },
@@ -42,18 +43,27 @@ const SAMPLES: { [K in NotificationKind]: Parameters<(typeof TEMPLATES)[K]>[0] }
   "ugc.approved": { caption: "Me at the wall" },
   "ugc.removed": { caption: "Me at the wall" },
   "system.notice": { subject: "Account erased", body: "Done." },
+  "auth.verify-email": { name: "Asha", url: "https://artwall.in/verify?token=x" },
 };
 
 describe("notification templates (BE-1.34)", () => {
-  it("there are exactly 13 kinds and each renders a non-empty subject and body", () => {
+  it("there are exactly 14 kinds and each renders a non-empty subject and body", () => {
     const kinds = Object.keys(TEMPLATES) as NotificationKind[];
-    expect(kinds).toHaveLength(13);
+    expect(kinds).toHaveLength(14);
     for (const kind of kinds) {
       const { subject, body } = (TEMPLATES[kind] as (d: unknown) => { subject: string; body: string })(SAMPLES[kind]);
       expect(subject.length, kind).toBeGreaterThan(3);
       expect(body, kind).toContain("Artwall Labs");
     }
     expect(TEMPLATES["booking.confirmed"](SAMPLES["booking.confirmed"]).body).toContain("11,800");
+  });
+
+  it("BE-3.22: every queued row carries the outbox schema_version, with no producer change needed", async () => {
+    const user = await makeUser();
+    const id = await notify("system.notice", { userId: user.id, email: user.email }, { subject: "x", body: "y" });
+    const [row] = await q<{ schema_version: number }>(`select schema_version from pw_notifications where id = $1`, [id]);
+    expect(row.schema_version).toBe(NOTIFICATION_SCHEMA_VERSION);
+    expect(NOTIFICATION_SCHEMA_VERSION).toBe(1);
   });
 
   it("every kind is queued and delivered through Resend", async () => {
@@ -73,10 +83,10 @@ describe("notification templates (BE-1.34)", () => {
       return new Response("{}", { status: 200 });
     });
 
-    expect(await deliverPendingNotifications(50, ids)).toEqual({ sent: 13, failed: 0, dead: 0, skipped: 0 });
+    expect(await deliverPendingNotifications(50, ids)).toEqual({ sent: 14, failed: 0, dead: 0, skipped: 0 });
     expect(sent.every((m) => m.to[0] === user.email)).toBe(true);
     const rows = await q<{ status: string; kind: string }>(`select status, kind from pw_notifications where id = any($1)`, [ids]);
-    expect(new Set(rows.map((r) => r.kind)).size).toBe(13);
+    expect(new Set(rows.map((r) => r.kind)).size).toBe(14);
     expect(rows.every((r) => r.status === "sent")).toBe(true);
   });
 

@@ -108,6 +108,41 @@ external monitor for catching an incident within minutes.
    public disclosure decision; this runbook covers technical containment
    only, not legal/regulatory response.
 
+#### DPDP Rules 2025 breach notification (BE-3.20)
+
+A basic notification procedure — see SEC-3.07 for the full tabletop exercise
+this overlaps with. Clock starts the moment the breach is **confirmed**
+(not merely suspected); confirming it is step 1 above.
+
+1. **Notify the Data Protection Board of India without delay.** Rules 2025
+   does not give a grace period for the Board notification the way it does
+   for affected users below — treat "without delay" as "the same day
+   containment (step 1 above) completes," and do it even before full root
+   cause is known. A follow-up report with fuller detail is expected within
+   72 hours of becoming aware of the breach; file an initial notice first
+   rather than waiting to have every field filled in.
+2. **Notify affected data principals,** in clear and plain language. Includes,
+   at minimum: what personal data was affected, the likely consequences, the
+   mitigation steps already taken, and how to reach the grievance officer
+   (above, and `siteConfig.grievanceOfficer` / the rights centre's grievance
+   section). Use the same channel already proven for this account —
+   `notify()` (`src/features/physical-wall/notifications.ts`) to the
+   affected users' registered emails — plus a prominent banner if the
+   breach is large enough that email alone would under-reach.
+3. **Scope "affected" from the append-only trails**, not guesswork: cross
+   -reference `pw_audit_log`, `policy_decisions`, and access logs for the
+   incident window to build the precise list of users/records touched
+   before notifying — DPDP requires accuracy about what was exposed, not a
+   blanket "everyone."
+4. **Record the notification itself** as a `recordAudit` entry
+   (`action: "breach.notified"`, `subjectType: "incident"`) so the
+   notification timeline is itself part of the accountability trail the
+   Board can later ask for.
+5. This section is the minimum viable procedure for BE-3.20; a full
+   tabletop exercise (who holds the pen on Board correspondence, legal
+   sign-off before public statements, a rehearsed drill) is SEC-3.07's
+   scope, not this one's.
+
 ## Rotating `MINT_SIGNER_PRIVATE_KEY` (BC-2.05)
 
 The platform voucher signer key lives only in the deploy environment's secret

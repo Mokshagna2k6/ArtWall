@@ -1,0 +1,6 @@
+.claude
+.kilo
+.next
+node_modules
+coverage
+.vitest-reports

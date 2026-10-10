@@ -34,6 +34,83 @@ export interface Actor extends SessionUser {
   role: Role;
 }
 
+/**
+ * SEC-3.02: the named admin roles (migration 0049 + 0059, `admin_roles`).
+ * This is a SECOND, additive authorization axis on top of the generic `Role`
+ * above — a user still needs the generic `admin` role to reach an admin
+ * surface at all (that gate is unchanged), and on top of that, specific
+ * admin actions can require one of these specific roles via
+ * `requireAdminRole` below. Kept as a literal union (not read from the DB at
+ * type-check time) because `admin_roles` is a fixed, migration-seeded set,
+ * same as `Role` above being a literal union over a column with a fixed set
+ * of values.
+ *
+ * FE-3.18: 9 identifiers, not 8 — the Bible (Section 24) names exactly 8
+ * admin roles (Super, Operations, Finance, Content, Support, Analytics, Wall
+ * Network, Blockchain), but `curator_admin` has no Bible equivalent (curator
+ * application review isn't one of the 8 domains) and is kept as a 9th,
+ * non-Bible role rather than folded into content_admin/operations_admin and
+ * silently changing what existing curator_admin grants can do. Same
+ * reasoning for `compliance_admin` (identity/KYC review). See migration
+ * 0059's header for the full per-role rename/mapping decision, and
+ * `BIBLE_ROLES`/`ROLE_DISPLAY_NAMES` below for how the two non-Bible roles
+ * surface in the admin nav shell (as links inside a Bible role's landing
+ * page, not as their own top-level tile). `readonly_admin` was renamed to
+ * `analytics_admin` by 0059 (a real data migration on the existing row, not
+ * just a label swap) to match the Bible's "Analytics Admin"; `venue_admin`
+ * keeps its identifier (only its UI label becomes "Wall Network Admin" —
+ * renaming the identifier itself would touch every wallos/actions.ts call
+ * site and *.db.test.ts fixture that already writes `venue_admin`, for a
+ * change that is cosmetic everywhere else); `operations_admin` and
+ * `blockchain_admin` are brand new in 0059, with no prior equivalent.
+ */
+export const ADMIN_ROLES = [
+  "super_admin",
+  "operations_admin",
+  "finance_admin",
+  "content_admin",
+  "support_admin",
+  "analytics_admin",
+  "venue_admin",
+  "blockchain_admin",
+  "curator_admin",
+  "compliance_admin",
+] as const;
+export type AdminRoleName = (typeof ADMIN_ROLES)[number];
+
+/**
+ * FE-3.18: the Bible's exact 8 roles, in the Bible's own order, each paired
+ * with the display label the admin nav shell renders. This is what the nav
+ * shell iterates to always show all 8 tiles regardless of what the viewer
+ * holds — `curator_admin` and `compliance_admin` are deliberately absent
+ * (not Bible roles; see `ADMIN_ROLES`'s comment above) and surface instead
+ * as a link inside the Content Admin / Operations Admin landing page.
+ */
+export const BIBLE_ROLES: readonly { role: AdminRoleName; label: string }[] = [
+  { role: "super_admin", label: "Super Admin" },
+  { role: "operations_admin", label: "Operations Admin" },
+  { role: "finance_admin", label: "Finance Admin" },
+  { role: "content_admin", label: "Content Admin" },
+  { role: "support_admin", label: "Support Admin" },
+  { role: "analytics_admin", label: "Analytics Admin" },
+  { role: "venue_admin", label: "Wall Network Admin" },
+  { role: "blockchain_admin", label: "Blockchain Admin" },
+];
+
+/** Display label for any of the 10 stored role identifiers, Bible or not. */
+export const ROLE_DISPLAY_NAMES: Record<AdminRoleName, string> = {
+  super_admin: "Super Admin",
+  operations_admin: "Operations Admin",
+  finance_admin: "Finance Admin",
+  content_admin: "Content Admin",
+  support_admin: "Support Admin",
+  analytics_admin: "Analytics Admin",
+  venue_admin: "Wall Network Admin",
+  blockchain_admin: "Blockchain Admin",
+  curator_admin: "Curator Admin (non-Bible)",
+  compliance_admin: "Compliance Admin (non-Bible)",
+};
+
 export class NotAuthorisedError extends Error {
   readonly status = 403;
   constructor(required: Role) {
@@ -91,13 +168,6 @@ export async function getActor(): Promise<Actor | null> {
     `) as { role: string; emailVerified: boolean }[];
 
     const role = rows[0]?.role;
-    // KB-C01: an email match alone is not proof of ownership — anyone can put
-    // an admin's address in a sign-up form. Only a *verified* email (proven
-    // via the auth provider) may claim the allowlisted admin identity.
-    if (role !== "admin" && rows[0]?.emailVerified && isAllowlisted(user.email)) {
-      await promoteToAdmin(user.id);
-      return { ...user, role: "admin" };
-    }
     return { ...user, role: isRole(role) ? role : "artist" };
   } catch (error) {
     // An unreadable role must not be an *escalated* role. Falling back to the
@@ -180,48 +250,111 @@ export async function requireRole(required: Role): Promise<Actor> {
 }
 
 /**
- * Promote the founders named in ADMIN_EMAILS.
+ * SEC-3.02/SEC-3.03: does this actor currently hold the named admin role?
  *
- * Bootstrapping problem: the first admin cannot be promoted through an admin
- * screen. Rather than a seeded password or a magic user id, the allowlist is an
- * env var and promotion happens inside `getActor` - so it fires wherever the
- * actor is first resolved, including the header on the home page, rather than
- * only on an admin route the founder cannot discover until they are already an
- * admin. Demotion is not automatic - removing an email from the list does not
- * strip a role someone may have been legitimately granted since.
+ * `super_admin` always passes, regardless of `required` — FE-3.17/FE-3.18:
+ * "for super admin everything would be the same as the Bible," i.e. the top
+ * role's experience never narrows just because a newer, more specific role
+ * check gets added somewhere. `requireAnyAdminRolePage` already had this
+ * bypass; it belongs here too so the same guarantee holds for every server
+ * action gated by `requireAdminRole` (below), not just pages. Checked before
+ * the query below runs the actual lookup, not after, as a true short-circuit.
+ *
+ * Reads `admin_role_assignments` live (same "no caching, revocation takes
+ * effect immediately" reasoning as `getActor`'s role read above) for a row
+ * with this user, this role, not revoked. `admin_roles.name` is the human
+ * name (e.g. "compliance_admin"); `admin_role_assignments.role_id` stores the
+ * `admin_roles.id` foreign key, so the check joins through it.
  */
-function isAllowlisted(email: string): boolean {
-  return (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean)
-    .includes(email.toLowerCase());
-}
-
-async function promoteToAdmin(userId: string): Promise<void> {
+export async function hasAdminRole(
+  actor: Actor | null,
+  required: AdminRoleName
+): Promise<boolean> {
+  if (!actor) return false;
   try {
     const sql = getSql();
     const rows = (await sql`
-      update "user" set role = 'admin'
-      where id = ${userId} and role <> 'admin'
-      returning id
-    `) as { id: string }[];
-
-    if (rows.length > 0) {
-      // SEC-2.11: this IS a role grant — just allowlist-driven rather than
-      // admin-driven. Lazy import: audit.ts imports the Actor *type* from this
-      // module, so a static import here would be a real (if type-erased at
-      // runtime) cycle — avoided the same way requireOnboardedPage avoids one.
-      const { recordAudit } = await import("@/features/physical-wall/audit");
-      await recordAudit({
-        actor: null,
-        action: "user.role-granted",
-        subjectType: "user",
-        subjectId: userId,
-        after: { role: "admin", via: "ADMIN_EMAILS allowlist" },
-      });
-    }
+      select 1 from admin_role_assignments a
+      join admin_roles r on r.id = a.role_id
+      where a.user_id = ${actor.id}
+        and (r.name = ${required} or r.name = 'super_admin')
+        and a.revoked_at is null
+      limit 1
+    `) as unknown[];
+    return rows.length > 0;
   } catch (error) {
-    console.error("[physical-wall] Could not sync admin allowlist", error);
+    console.error("[physical-wall] Could not read admin role assignment", error);
+    return false;
+  }
+}
+
+/**
+ * Require a *specific* named admin role (one of the 8 in `ADMIN_ROLES`) in a
+ * server action, throwing if the caller lacks it.
+ *
+ * This is additional to, not a replacement for, `requireRole("admin")`: it
+ * still requires the caller to be a generic `admin` first (the existing,
+ * proven gate every admin surface already relies on), and on top of that
+ * requires the specific granted role. New/stricter admin actions that map
+ * cleanly onto one of the 8 Bible roles should call this; the broad
+ * `requireRole("admin")` remains the catch-all for everything else — see
+ * docs/policy-engine.md's "Admin roles" section for the scope reasoning.
+ */
+export async function requireAdminRole(required: AdminRoleName): Promise<Actor> {
+  const actor = await requireRole("admin");
+  if (!(await hasAdminRole(actor, required))) throw new NotAuthorisedAdminRoleError(required);
+  return actor;
+}
+
+/**
+ * FE-3.17: every named admin role this actor currently holds (live,
+ * unrevoked rows only — same "no caching" reasoning as `hasAdminRole`). Used
+ * to decide which admin-console sections to show/allow, where a single
+ * `hasAdminRole` check per role would mean one query per section per page
+ * render instead of one query total.
+ */
+export async function listOwnAdminRoles(actor: Actor | null): Promise<AdminRoleName[]> {
+  if (!actor) return [];
+  try {
+    const sql = getSql();
+    const rows = (await sql`
+      select r.name from admin_role_assignments a
+      join admin_roles r on r.id = a.role_id
+      where a.user_id = ${actor.id} and a.revoked_at is null
+    `) as { name: string }[];
+    return rows.map((r) => r.name).filter((n): n is AdminRoleName =>
+      (ADMIN_ROLES as readonly string[]).includes(n)
+    );
+  } catch (error) {
+    console.error("[physical-wall] Could not read admin role assignments", error);
+    return [];
+  }
+}
+
+/**
+ * Require *any one* of a set of named admin roles in a **page**, redirecting
+ * if the caller holds none of them. `super_admin` is always accepted
+ * (FE-3.17: the top role sees everything) even if it is not in `allowed`.
+ *
+ * Same "signed out -> sign in, signed in but lacking role -> public wall"
+ * behaviour as `requireRolePage`, since confirming a gated admin section
+ * exists to someone who can't reach it is not useful to them.
+ */
+export async function requireAnyAdminRolePage(
+  allowed: readonly AdminRoleName[],
+  returnTo: string
+): Promise<Actor> {
+  const actor = await requireRolePage("admin", returnTo);
+  const held = await listOwnAdminRoles(actor);
+  const ok = held.includes("super_admin") || allowed.some((role) => held.includes(role));
+  if (!ok) redirect("/physical-wall/admin");
+  return actor;
+}
+
+export class NotAuthorisedAdminRoleError extends Error {
+  readonly status = 403;
+  constructor(required: AdminRoleName) {
+    super(`This action needs the ${required} admin role.`);
+    this.name = "NotAuthorisedAdminRoleError";
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Loader2 } from "lucide-react";
 
@@ -8,7 +8,8 @@ import { submitSurvey } from "@/features/survey/actions";
 import {
   commissionBands,
   incomeBands,
-  painPoints,
+  OTHER_PAIN_POINT,
+  painPointsByRole,
   surveyRoles,
   type SurveyInput,
   type SurveyState,
@@ -17,6 +18,15 @@ import { practices } from "@/features/waitlist/schema";
 import { cn } from "@/lib/utils";
 
 const initialState: SurveyState = { status: "idle" };
+
+type SurveyRole = (typeof surveyRoles)[number];
+
+const roleQuestionCopy: Record<SurveyRole, string> = {
+  artist: "Which of these have you lived through?",
+  collector: "What gets in the way when you're trying to buy?",
+  gallery: "What gets in the way of curating or showing work?",
+  other: "Is anything here familiar?",
+};
 
 function fieldError(state: SurveyState, field: keyof SurveyInput) {
   return state.status === "error" ? state.fieldErrors?.[field] : undefined;
@@ -55,6 +65,9 @@ function SubmitButton() {
  */
 export function SurveyForm() {
   const [state, formAction] = useActionState(submitSurvey, initialState);
+  const [role, setRole] = useState<SurveyRole>("artist");
+  const [showOtherDetail, setShowOtherDetail] = useState(false);
+  const activePainPoints = painPointsByRole[role];
 
   if (state.status === "success") {
     return (
@@ -96,39 +109,51 @@ export function SurveyForm() {
       <fieldset>
         <legend className="text-muted-foreground text-eyebrow">You are</legend>
         <div className="mt-4 flex flex-wrap gap-2">
-          {surveyRoles.map((role, index) => (
+          {surveyRoles.map((option, index) => (
             <label
-              key={role}
+              key={option}
               className="border-border has-checked:border-foreground has-checked:bg-foreground cursor-pointer border px-4 py-2.5 text-sm capitalize transition-colors has-checked:text-white"
             >
               <input
                 type="radio"
                 name="role"
-                value={role}
+                value={option}
                 defaultChecked={index === 0}
+                onChange={() => {
+                  setRole(option);
+                  setShowOtherDetail(false);
+                }}
                 className="sr-only"
               />
-              {role === "other" ? "Someone else" : role}
+              {option === "other" ? "Someone else" : option}
             </label>
           ))}
         </div>
       </fieldset>
 
+      {/* The question and the options both change with the role above - an
+          artist, a collector and a gallery are not blocked by the same
+          things, so asking them the same ten checkboxes wastes their answer. */}
       <fieldset>
         <legend className="text-muted-foreground text-eyebrow">
-          Which of these have you lived through?
+          {roleQuestionCopy[role]}
         </legend>
         <p className="text-muted-foreground mt-3 text-sm">
           Choose as many as apply. This is the only required question.
         </p>
         <ul className="border-border mt-5 border-t">
-          {painPoints.map((point) => (
+          {activePainPoints.map((point) => (
             <li key={point} className="border-border border-b">
               <label className="group flex cursor-pointer items-start gap-4 py-4">
                 <input
                   type="checkbox"
                   name="painPoints"
                   value={point}
+                  onChange={(event) => {
+                    if (point === OTHER_PAIN_POINT) {
+                      setShowOtherDetail(event.target.checked);
+                    }
+                  }}
                   className="border-input accent-foreground mt-1 size-4 shrink-0"
                 />
                 <span className="leading-7">{point}</span>
@@ -141,29 +166,73 @@ export function SurveyForm() {
             {fieldError(state, "painPoints")}
           </p>
         )}
+
+        {showOtherDetail && (
+          <div className="mt-5 flex flex-col gap-3">
+            <label
+              htmlFor="otherPainPointDetail"
+              className="text-muted-foreground text-eyebrow"
+            >
+              What is it?
+            </label>
+            <textarea
+              id="otherPainPointDetail"
+              name="otherPainPointDetail"
+              rows={2}
+              maxLength={300}
+              aria-invalid={
+                fieldError(state, "otherPainPointDetail") ? true : undefined
+              }
+              aria-describedby={
+                fieldError(state, "otherPainPointDetail")
+                  ? "otherPainPointDetail-error"
+                  : undefined
+              }
+              className={cn(
+                "border-input focus:border-foreground border bg-white p-3 leading-7 transition-colors outline-none",
+                fieldError(state, "otherPainPointDetail") &&
+                  "border-destructive"
+              )}
+            />
+            {fieldError(state, "otherPainPointDetail") && (
+              <p
+                id="otherPainPointDetail-error"
+                className="text-destructive text-sm"
+              >
+                {fieldError(state, "otherPainPointDetail")}
+              </p>
+            )}
+          </div>
+        )}
       </fieldset>
 
       {/* Bottom-aligned: one of these labels wraps to two lines on a narrow
-          desktop, and top-aligned controls would step down with it. */}
+          desktop, and top-aligned controls would step down with it.
+          Commission/income only mean something if you make and sell the
+          work, so they only show up for an artist. */}
       <div className="grid items-end gap-8 sm:grid-cols-2">
-        <Select
-          id="fairCommission"
-          name="fairCommission"
-          label="What commission would feel fair?"
-          options={commissionBands}
-        />
-        <Select
-          id="earnsFromArt"
-          name="earnsFromArt"
-          label="How much of your income comes from your art?"
-          options={incomeBands}
-        />
-        <Select
-          id="practice"
-          name="practice"
-          label="What you make"
-          options={practices}
-        />
+        {role === "artist" && (
+          <>
+            <Select
+              id="fairCommission"
+              name="fairCommission"
+              label="What commission would feel fair?"
+              options={commissionBands}
+            />
+            <Select
+              id="earnsFromArt"
+              name="earnsFromArt"
+              label="How much of your income comes from your art?"
+              options={incomeBands}
+            />
+            <Select
+              id="practice"
+              name="practice"
+              label="What you make"
+              options={practices}
+            />
+          </>
+        )}
         <Text
           id="city"
           name="city"

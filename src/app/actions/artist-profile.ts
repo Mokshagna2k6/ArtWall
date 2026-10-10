@@ -11,6 +11,8 @@ import { expireCatalog } from "@/lib/catalog-cache";
 import { isOwnAsset } from "@/lib/cloudinary";
 import { db } from "@/lib/db/index";
 import { artistProfiles } from "@/lib/db/schema";
+import { recordAudit } from "@/features/physical-wall/audit";
+import { formFail, formInvalid, type FormResult } from "@/lib/form-result";
 
 const profileSchema = z.object({
   displayName: z.string().trim().min(2).max(100),
@@ -70,14 +72,17 @@ export async function getStudioArtistProfile() {
   return ensureArtistProfile(await currentUser());
 }
 
-export async function saveArtistProfile(input: unknown) {
+export async function saveArtistProfile(input: unknown): Promise<FormResult> {
   const user = await currentUser();
   const current = await ensureArtistProfile(user);
-  const data = profileSchema.parse(input);
+  const parsed = profileSchema.safeParse(input);
+  if (!parsed.success) return formInvalid(parsed.error);
+  const data = parsed.data;
 
   if (data.avatarUrl && !isOwnAsset(data.avatarUrl, "artwall/selfie")) {
-    throw new Error(
-      "That profile image could not be verified. Please upload it again."
+    return formFail(
+      "That profile image could not be verified. Please upload it again.",
+      "avatarUrl"
     );
   }
 
@@ -88,7 +93,7 @@ export async function saveArtistProfile(input: unknown) {
       .where(eq(artistProfiles.handle, data.handle))
       .limit(1);
     if (owner[0] && owner[0].userId !== user.id) {
-      throw new Error("That ArtWall handle is already taken.");
+      return formFail("That ArtWall handle is already taken.", "handle");
     }
   }
 
@@ -101,12 +106,31 @@ export async function saveArtistProfile(input: unknown) {
     })
     .where(eq(artistProfiles.userId, user.id));
 
+  // BE-3.19: self-service correction of personal data is logged (DPDP §120-127).
+  // Everywhere else this profile shows up (marketplace listings, /artists,
+  // /artist/[handle]) reads it live via a join (src/features/marketplace/actions.ts) —
+  // nothing else denormalizes displayName/bio/etc, so there's no further
+  // propagation needed. The one true snapshot, coa_certificates.creatorName,
+  // is deliberately frozen at issuance (its value is baked into the
+  // certificate's metadata_hash and the 0029 guard trigger forbids changing
+  // an issued certificate) — a later name correction must NOT silently rewrite
+  // already-issued certificates, so that one is correctly left alone.
+  await recordAudit({
+    actor: { id: user.id, name: user.name, email: user.email },
+    action: "profile.corrected",
+    subjectType: "artist_profile",
+    subjectId: user.id,
+    before: current,
+    after: data,
+  });
+
   revalidatePath("/studio");
   revalidatePath("/studio/settings");
   expireCatalog();
   revalidatePath("/artists");
   revalidatePath(`/artist/${current.handle}`);
   revalidatePath(`/artist/${data.handle}`);
+  return { ok: true };
 }
 
 export async function publishArtistProfile() {

@@ -4,6 +4,7 @@ import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
 import { commissionPolicies } from "@/lib/db/schema";
+import { applyBp } from "@/features/physical-wall/money";
 import { PreconditionError } from "@/features/physical-wall/actions/shared";
 
 /**
@@ -54,4 +55,27 @@ export async function getActiveCommissionPolicy(
     );
   }
   return row;
+}
+
+/**
+ * BE-3.14: the venue's cut of a transaction, in paise. Reads the active
+ * "venue_revenue_share" rate (never a literal in src) and applies it with
+ * the same integer basis-point math every other money path on the physical
+ * wall uses (`applyBp` — round half-up, no float). `venueId` is accepted but
+ * not yet used to pick a per-venue rate: one active row covers every venue
+ * today (0055 seeds a single kind, not one row per venue), same scope as
+ * every other commission kind in this table. A later per-venue override
+ * would key off this argument without changing the signature.
+ */
+export async function computeVenueRevenueShare(
+  venueId: string,
+  transactionAmountPaise: number
+): Promise<{ policyId: string; rateBps: number; shareAmountPaise: number }> {
+  if (!venueId.trim()) throw new PreconditionError("Which venue?");
+  const policy = await getActiveCommissionPolicy("venue_revenue_share");
+  return {
+    policyId: policy.id,
+    rateBps: policy.rateBps,
+    shareAmountPaise: applyBp(transactionAmountPaise, policy.rateBps),
+  };
 }

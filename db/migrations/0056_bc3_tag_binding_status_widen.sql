@@ -32,11 +32,14 @@
 
 begin;
 
+-- The old 3-state check must be dropped before the backfill below, or the
+-- UPDATE to 'unprovisioned' (not in the old allowed set) violates it.
+alter table art_tags drop constraint if exists art_tags_binding_status_check;
+
 update art_tags set binding_status = 'unprovisioned' where binding_status = 'unbound';
 
 alter table art_tags alter column binding_status set default 'unprovisioned';
 
-alter table art_tags drop constraint if exists art_tags_binding_status_check;
 alter table art_tags add constraint art_tags_binding_status_check
   check (binding_status in ('unprovisioned', 'provisioned', 'bound', 'revoked'));
 

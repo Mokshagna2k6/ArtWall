@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { pool } from "@/lib/db/index";
+import { notify } from "@/features/physical-wall/notifications";
 
 const baseUrl =
   process.env.BETTER_AUTH_URL ??
@@ -38,6 +39,18 @@ export const auth = betterAuth({
   baseURL: baseUrl,
   trustedOrigins,
   emailAndPassword: { enabled: true },
+  // KB-C03 follow-up: a Google sign-in can only auto-link onto an existing
+  // local account once that account's email is verified (see accountLinking
+  // below). Without this, that local account's emailVerified stayed false
+  // forever and Google linking was permanently blocked for every user who
+  // signed up with email/password first.
+  emailVerification: {
+    sendOnSignUp: true,
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: async ({ user, url }) => {
+      await notify("auth.verify-email", { userId: user.id, email: user.email }, { name: user.name, url });
+    },
+  },
   // Off: better-auth's built-in limiter defaults to per-instance memory, which
   // does nothing on serverless. The credential endpoints are limited by the
   // shared Postgres limiter in app/api/auth/[...all]/route.ts instead.
