@@ -132,9 +132,28 @@ export const quoteRequestSchema = z.object({
   addonIds: z.array(id).max(20).default([]),
 });
 
-export const reserveSchema = quoteRequestSchema.extend({
-  artworkId: id.optional(),
-});
+/** One artwork per slot: [{ slotId, artworkId }]. */
+export const slotArtworksSchema = z
+  .array(z.object({ slotId: id, artworkId: id }))
+  .max(60)
+  .superRefine((items, ctx) => {
+    if (new Set(items.map((i) => i.slotId)).size !== items.length) {
+      ctx.addIssue({ code: "custom", message: "A slot holds one artwork." });
+    }
+    if (new Set(items.map((i) => i.artworkId)).size !== items.length) {
+      ctx.addIssue({ code: "custom", message: "An artwork can hang in only one slot of a booking." });
+    }
+  });
+
+export const reserveSchema = quoteRequestSchema
+  .extend({ slotArtworks: slotArtworksSchema.default([]) })
+  .superRefine((value, ctx) => {
+    // Capacity: every assignment must target a slot of this basket.
+    const chosen = new Set(value.slotIds);
+    if (value.slotArtworks.some((a) => !chosen.has(a.slotId))) {
+      ctx.addIssue({ code: "custom", path: ["slotArtworks"], message: "That artwork is assigned to a slot you did not choose." });
+    }
+  });
 
 /* ── Cancellation (F10) ─────────────────────────────────────────────────── */
 

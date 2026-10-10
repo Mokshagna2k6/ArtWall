@@ -424,8 +424,8 @@ export async function verifyAndGoLive(
       // is the code that goes on the wall beside the piece and that visitors
       // scan (F21/F22) — distinct from the booking code staff just scanned.
       const artwork = await client.query<{ artwork_id: string | null }>(
-        `select artwork_id from pw_bookings where id = $1`,
-        [bookingId]
+        `select artwork_id from pw_booking_slots where booking_id = $1 and slot_id = $2`,
+        [bookingId, slotId]
       );
       const artworkId = artwork.rows[0]?.artwork_id;
 

@@ -243,7 +243,7 @@ export async function listLiveArtworks(): Promise<LiveArtwork[]> {
       from pw_slots s
       join pw_booking_slots bs on bs.slot_id = s.id
       join pw_bookings b       on b.id = bs.booking_id and b.status in ('paid', 'completed')
-      join artworks a          on a.id = b.artwork_id
+      join artworks a          on a.id = bs.artwork_id
       join "user" u            on u.id = b.artist_id
       left join artist_profiles p on p."userId" = b.artist_id
       where s.state = 'live'
@@ -279,8 +279,8 @@ export async function getPublicArtwork(
       from artworks a
       join "user" u on u.id = a."userId"
       left join artist_profiles p on p."userId" = a."userId"
-      left join pw_bookings b on b.artwork_id = a.id and b.status in ('paid', 'completed')
-      left join pw_booking_slots bs on bs.booking_id = b.id
+      left join pw_booking_slots bs on bs.artwork_id = a.id
+      left join pw_bookings b on b.id = bs.booking_id and b.status in ('paid', 'completed')
       left join pw_slots s on s.id = bs.slot_id and s.state = 'live'
       where a.id = ${artworkId} and a."isPublic" = true
       order by b.created_at desc

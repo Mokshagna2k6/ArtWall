@@ -113,8 +113,12 @@ export async function recordDamage(_previous: ActionState, formData: FormData): 
 
     const id = await inTransaction(async (client) => {
       const booking = await client.query<{ artwork_id: string | null }>(
-        `select artwork_id from pw_bookings where id = $1`,
-        [bookingId]
+        // The damaged slot's work when a slot is named, else the booking's primary.
+        `select coalesce(
+           (select artwork_id from pw_booking_slots where booking_id = $1 and slot_id = $2),
+           artwork_id) as artwork_id
+         from pw_bookings where id = $1`,
+        [bookingId, slotId]
       );
       if (!booking.rowCount) throw new PreconditionError("No such booking.");
       if (photoId) {

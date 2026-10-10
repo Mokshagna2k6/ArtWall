@@ -92,7 +92,8 @@ export function BookingFlow({
   const [durationDays, setDurationDays] = useState(7);
   const [startDate, setStartDate] = useState(today);
   const [addonIds, setAddonIds] = useState<string[]>([]);
-  const [artworkId, setArtworkId] = useState("");
+  // slotId -> artworkId; one artwork per slot, missing/"" = decide later.
+  const [slotArtworks, setSlotArtworks] = useState<Record<string, string>>({});
   const [agreed, setAgreed] = useState(false);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [quoteError, setQuoteError] = useState<string | null>(null);
@@ -194,7 +195,14 @@ export function BookingFlow({
         ))}
         <input type="hidden" name="startDate" value={startDate} />
         <input type="hidden" name="durationDays" value={durationDays} />
-        <input type="hidden" name="artworkId" value={artworkId} />
+        {selected.map((slotId) => (
+          <input
+            key={`art-${slotId}`}
+            type="hidden"
+            name={`artwork_${slotId}`}
+            value={slotArtworks[slotId] ?? ""}
+          />
+        ))}
 
         <div className="border-hairline min-w-0 rounded-md border p-5 sm:p-6">
           {step === 1 && (
@@ -305,26 +313,46 @@ export function BookingFlow({
             <section>
               <h2 ref={headingRef} tabIndex={-1} className="font-heading text-section focus:outline-none">What are you hanging?</h2>
               <p className="text-ink-muted mt-2 text-sm leading-6">
-                You can decide later — but the work has to be attached before a
-                staff member can install it.
+                One artwork per slot. You can decide later — but each work has
+                to be attached before a staff member can install it.
               </p>
 
-              <div className="mt-6 max-w-md">
-                <Field label="Artwork" htmlFor="artworkId-select">
-                  <select
-                    id="artworkId-select"
-                    value={artworkId}
-                    onChange={(event) => setArtworkId(event.target.value)}
-                    className={inputClass}
+              <div className="mt-6 flex max-w-md flex-col gap-4">
+                {chosenSlots.map((slot) => (
+                  <Field
+                    key={slot.id}
+                    label={`Artwork for ${slot.label}`}
+                    htmlFor={`artwork-${slot.id}`}
                   >
-                    <option value="">Decide later</option>
-                    {artworks.map((artwork) => (
-                      <option key={artwork.id} value={artwork.id}>
-                        {artwork.title}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
+                    <select
+                      id={`artwork-${slot.id}`}
+                      value={slotArtworks[slot.id] ?? ""}
+                      onChange={(event) =>
+                        setSlotArtworks((current) => ({
+                          ...current,
+                          [slot.id]: event.target.value,
+                        }))
+                      }
+                      className={inputClass}
+                    >
+                      <option value="">Decide later</option>
+                      {artworks
+                        // A work can hang in only one slot of a booking.
+                        .filter(
+                          (artwork) =>
+                            slotArtworks[slot.id] === artwork.id ||
+                            !Object.entries(slotArtworks).some(
+                              ([sid, aid]) => sid !== slot.id && selected.includes(sid) && aid === artwork.id
+                            )
+                        )
+                        .map((artwork) => (
+                          <option key={artwork.id} value={artwork.id}>
+                            {artwork.title}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                ))}
 
                 {artworks.length === 0 && (
                   <p className="border-hairline text-ink-muted mt-4 rounded-md border border-dashed p-4 text-sm leading-6">

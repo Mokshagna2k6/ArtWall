@@ -31,7 +31,7 @@ export async function searchArtworks(
          select bs.slot_id
          from pw_bookings b
          join pw_booking_slots bs on bs.booking_id = b.id
-         where b.artwork_id = a.id and b.status in ('paid', 'completed', 'live')
+         where bs.artwork_id = a.id and b.status in ('paid', 'completed', 'live')
          limit 1
        )
        where a.status = 'available' and a."isPublic" = true
