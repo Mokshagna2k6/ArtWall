@@ -1,3 +1,4 @@
+import { POLICIES } from "@artwall/ratelimit";
 import { toNextJsHandler } from "better-auth/next-js";
 
 import { auth } from "@/lib/auth";
@@ -14,8 +15,6 @@ const handler = toNextJsHandler(auth.handler);
 
 export const { GET } = handler;
 
-const MIN = 60_000;
-
 /**
  * Credential endpoints (PERF-1.05). better-auth's own limiter is disabled in
  * lib/auth.ts (it is in-memory per instance); these persistent limits replace
@@ -30,17 +29,12 @@ const MIN = 60_000;
  *  - reset-password (token submit): 10 per hour per IP; tokens are long random
  *              strings, this just stops hammering.
  */
+// Values live in the policy table (packages/ratelimit/src/policies.ts); all fail closed.
 const RULES: Record<string, { ip: RateLimitRule; identifier?: RateLimitRule }> = {
-  "/sign-in/email": {
-    ip: { limit: 20, windowMs: 15 * MIN },
-    identifier: { limit: 5, windowMs: 15 * MIN },
-  },
-  "/sign-up/email": { ip: { limit: 5, windowMs: 60 * MIN } },
-  "/request-password-reset": {
-    ip: { limit: 10, windowMs: 60 * MIN },
-    identifier: { limit: 3, windowMs: 60 * MIN },
-  },
-  "/reset-password": { ip: { limit: 10, windowMs: 60 * MIN } },
+  "/sign-in/email": { ip: POLICIES.login, identifier: POLICIES["login-identifier"] },
+  "/sign-up/email": { ip: POLICIES.signup },
+  "/request-password-reset": { ip: POLICIES["password-reset"], identifier: POLICIES["password-reset-identifier"] },
+  "/reset-password": { ip: POLICIES["reset-password"] },
 };
 
 export async function POST(request: Request) {
