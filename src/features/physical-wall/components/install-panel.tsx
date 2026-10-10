@@ -49,13 +49,17 @@ export function InstallPanel({
             {booking.startDate}
           </p>
           <p className="font-heading text-card mt-1">
-            {booking.artworkTitle ?? "No artwork attached yet"}
+            {booking.slots.some((s) => s.artworkTitle)
+              ? booking.slots
+                  .map((s) => `${s.label}: ${s.artworkTitle ?? "—"}`)
+                  .join(" · ")
+              : "No artwork attached yet"}
           </p>
           <p className="text-ink-muted mt-1 text-sm">{booking.artistName}</p>
         </div>
       </header>
 
-      {!booking.artworkTitle && (
+      {!booking.slots.every((s) => s.artworkTitle) && (
         <p className="border-terracotta mt-4 rounded-md border border-dashed p-3 text-sm leading-6">
           The artist hasn&rsquo;t attached a work to this booking yet. Ask them
           to do that before you install — the QR label has nothing to point at

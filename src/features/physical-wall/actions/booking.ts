@@ -36,6 +36,10 @@ import {
   WALL_TAG,
 } from "@/features/physical-wall/actions/shared";
 import { releaseLapsedHoldsIn } from "@/features/physical-wall/expiry";
+import {
+  assertArtworksAssignableIn,
+  setSlotArtworksIn,
+} from "@/features/physical-wall/slot-artworks";
 import { getSql } from "@/lib/db";
 
 /**
@@ -158,11 +162,18 @@ export async function reserveBooking(
       durationDays: formData.get("durationDays"),
       startDate: formData.get("startDate"),
       addonIds: formData.getAll("addonIds").map(String),
-      artworkId: formData.get("artworkId") || undefined,
+      // One field per slot: artwork_<slotId>=<artworkId>; blank = decide later.
+      slotArtworks: formData
+        .getAll("slotIds")
+        .map(String)
+        .flatMap((slotId) => {
+          const artworkId = String(formData.get(`artwork_${slotId}`) ?? "");
+          return artworkId ? [{ slotId, artworkId }] : [];
+        }),
     });
     if (!parsed.success) return fail(firstIssue(parsed.error));
 
-    const { slotIds, durationDays, startDate, addonIds, artworkId } = parsed.data;
+    const { slotIds, durationDays, startDate, addonIds, slotArtworks } = parsed.data;
     const endDate = addDays(startDate, durationDays - 1);
 
     const grid = await getActiveGrid();
@@ -232,17 +243,14 @@ export async function reserveBooking(
         );
       }
 
-      // 3. The artwork must belong to the artist reserving. Without this, a
+      // 3. Every artwork must belong to the artist reserving. Without this, a
       //    guessed id would let anyone hang someone else's work on the wall.
-      if (artworkId) {
-        const owned = await client.query(
-          `select 1 from artworks where id = $1 and "userId" = $2`,
-          [artworkId, actor.id]
-        );
-        if (owned.rowCount === 0) {
-          throw new PreconditionError("That artwork is not yours to place.");
-        }
-      }
+      await assertArtworksAssignableIn(client, {
+        artistId: actor.id,
+        artworkIds: slotArtworks.map((a) => a.artworkId),
+        startDate,
+        endDate,
+      });
 
       // 4. Price it here, from the locked rows — not from anything the client sent.
       const chosenAddons = addons
@@ -272,16 +280,15 @@ export async function reserveBooking(
 
       await client.query(
         `insert into pw_bookings
-           (id, artist_id, artwork_id, status, start_date, end_date, duration_days,
+           (id, artist_id, status, start_date, end_date, duration_days,
             base_amount_paise, addon_amount_paise, discount_amount_paise,
             gst_amount_paise, total_amount_paise, surge_applied,
             refund_policy_version, hold_expires_at)
-         values ($1, $2, $3, 'held', $4::date, $5::date, $6, $7, $8, $9, $10, $11, $12, $13,
-                 now() + $14::interval)`,
+         values ($1, $2, 'held', $3::date, $4::date, $5, $6, $7, $8, $9, $10, $11, $12,
+                 now() + $13::interval)`,
         [
           id,
           actor.id,
-          artworkId ?? null,
           startDate,
           endDate,
           durationDays,
@@ -320,6 +327,8 @@ export async function reserveBooking(
         }
       }
 
+      await setSlotArtworksIn(client, id, slotArtworks);
+
       for (const addon of chosenAddons) {
         await client.query(
           `insert into pw_booking_addons (id, booking_id, addon_id, label, price_paise)
@@ -335,6 +344,7 @@ export async function reserveBooking(
         subjectId: id,
         after: {
           slotIds,
+          slotArtworks,
           durationDays,
           startDate,
           endDate,
@@ -368,39 +378,61 @@ export async function attachArtwork(
 ): Promise<ActionState> {
   try {
     const actor = await requireRole("artist");
-    const { bookingId, artworkId } = formInput(
+    const { bookingId, artworkId, slotId } = formInput(
       z.object({
         bookingId: z.string({ error: "Choose an artwork." }).min(1, "Choose an artwork.").max(64),
         artworkId: z.string({ error: "Choose an artwork." }).min(1, "Choose an artwork.").max(64),
+        slotId: z.string().max(64).optional(),
       }),
       formData
     );
 
-    const sql = getSql();
+    await inTransaction(async (client) => {
+      // Booking ownership in the lookup; artwork ownership + date clash below.
+      const booking = await client.query<{ start_date: string; end_date: string }>(
+        `select start_date::text, end_date::text from pw_bookings
+         where id = $1 and artist_id = $2 and status in ('held', 'paid')
+         for update`,
+        [bookingId, actor.id]
+      );
+      if (booking.rowCount === 0) {
+        throw new PreconditionError("That booking or artwork is not available to change.");
+      }
 
-    // Both ownership checks in the update itself: the booking must be the
-    // artist's and the artwork must be theirs too.
-    const rows = (await sql`
-      update pw_bookings
-      set artwork_id = ${artworkId}, updated_at = now()
-      where id = ${bookingId}
-        and artist_id = ${actor.id}
-        and status in ('held', 'paid')
-        and exists (
-          select 1 from artworks
-          where id = ${artworkId} and "userId" = ${actor.id}
-        )
-      returning id
-    `) as { id: string }[];
+      await assertArtworksAssignableIn(client, {
+        artistId: actor.id,
+        artworkIds: [artworkId],
+        startDate: booking.rows[0].start_date,
+        endDate: booking.rows[0].end_date,
+        excludeBookingId: bookingId,
+      });
 
-    if (rows.length === 0) {
-      return fail("That booking or artwork is not available to change.");
-    }
+      // No slotId (older single-artwork callers): first slot still empty.
+      const target =
+        slotId ||
+        (
+          await client.query<{ slot_id: string }>(
+            `select slot_id from pw_booking_slots where booking_id = $1
+             order by (artwork_id is not null), slot_id limit 1`,
+            [bookingId]
+          )
+        ).rows[0]?.slot_id;
+      if (!target) throw new PreconditionError("That booking has no slots.");
 
-    await sql`
-      update artworks set "physicalStatus" = 'booked'
-      where id = ${artworkId} and "userId" = ${actor.id}
-    `;
+      // A work hangs in one slot: moving it frees the slot it was in.
+      await client.query(
+        `update pw_booking_slots set artwork_id = null
+         where booking_id = $1 and artwork_id = $2 and slot_id <> $3`,
+        [bookingId, artworkId, target]
+      );
+      await setSlotArtworksIn(client, bookingId, [{ slotId: target, artworkId }]);
+
+      await client.query(
+        `update artworks set "physicalStatus" = 'booked'
+         where id = $1 and "userId" = $2`,
+        [artworkId, actor.id]
+      );
+    });
 
     updateTag(WALL_TAG);
     return ok("Artwork attached to the booking.");
@@ -451,10 +483,9 @@ export async function cancelBooking(
         status: string;
         total_amount_paise: number;
         refund_policy_version: number | null;
-        artwork_id: string | null;
       }>(
         `select id, artist_id, status, total_amount_paise,
-                refund_policy_version, artwork_id
+                refund_policy_version
          from pw_bookings
          where id = $1
          for update`,
@@ -536,14 +567,13 @@ export async function cancelBooking(
         [booking.id]
       );
 
-      // Clear artwork physicalStatus if one was attached.
-      if (booking.artwork_id) {
-        await client.query(
-          `update artworks set "physicalStatus" = null
-           where id = $1`,
-          [booking.artwork_id]
-        );
-      }
+      // Clear physicalStatus on every artwork attached to the booking's slots.
+      await client.query(
+        `update artworks set "physicalStatus" = null
+         where id in (select artwork_id from pw_booking_slots
+                      where booking_id = $1 and artwork_id is not null)`,
+        [booking.id]
+      );
 
       await recordAuditIn(client, {
         actor,
