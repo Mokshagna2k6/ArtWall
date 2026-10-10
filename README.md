@@ -42,6 +42,7 @@ The dev server runs at [http://localhost:3000](http://localhost:3000).
 | Variable       | Required | Purpose                                               |
 | -------------- | -------- | ----------------------------------------------------- |
 | `DATABASE_URL` | Yes      | Neon Postgres connection string (pooled) for waitlist |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | No | Upstash Redis for `@artwall/cache`; in-memory when unset |
 
 Without `DATABASE_URL` the site still builds and renders — the roster count
 falls back to zero and the join form reports a clear failure rather than
