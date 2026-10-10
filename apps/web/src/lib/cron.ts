@@ -1,6 +1,6 @@
 import "server-only";
 
-import { timingSafeEqual } from "node:crypto";
+import { safeEqual } from "@artwall/security";
 
 import { alertAdmins } from "@/features/physical-wall/notifications";
 
@@ -11,9 +11,7 @@ import { alertAdmins } from "@/features/physical-wall/notifications";
 export function isCronAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
   if (!secret) return false;
-  const expected = Buffer.from(`Bearer ${secret}`);
-  const actual = Buffer.from(request.headers.get("authorization") ?? "");
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
+  return safeEqual(`Bearer ${secret}`, request.headers.get("authorization") ?? "");
 }
 
 /**

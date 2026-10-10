@@ -20,6 +20,7 @@
     "db:seed-accounts": "node --env-file=.env scripts/seed-accounts.mjs"
   },
   "dependencies": {
+    "@artwall/security": "workspace:*",
     "@base-ui/react": "^1.7.0",
     "@neondatabase/serverless": "^1.1.0",
     "@noble/hashes": "2.3.0",
