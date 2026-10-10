@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { verifyHmacSha256 } from "@artwall/security";
 
 /**
  * Razorpay (F17).
@@ -147,11 +147,8 @@ export async function fetchOrder(orderId: string): Promise<RazorpayOrder & { sta
  * with the key secret (not the webhook secret). Constant-time compare.
  */
 export function verifyPaymentSignature(orderId: string, paymentId: string, signature: string): boolean {
-  const secret = process.env.RAZORPAY_KEY_SECRET;
-  if (!secret || !orderId || !paymentId || !signature) return false;
-  const expected = Buffer.from(createHmac("sha256", secret).update(`${orderId}|${paymentId}`).digest("hex"));
-  const actual = Buffer.from(signature);
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
+  if (!orderId || !paymentId) return false;
+  return verifyHmacSha256(process.env.RAZORPAY_KEY_SECRET, `${orderId}|${paymentId}`, signature);
 }
 
 export interface RazorpayRefund {
@@ -207,14 +204,6 @@ export function verifyWebhookSignature(
   rawBody: string,
   signature: string | null
 ): boolean {
-  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-  if (!secret || !signature) return false;
-
-  const expected = Buffer.from(
-    createHmac("sha256", secret).update(rawBody).digest("hex")
-  );
-  const actual = Buffer.from(signature);
-  if (expected.length !== actual.length) return false;
-
-  return timingSafeEqual(expected, actual);
+  return verifyHmacSha256(process.env.RAZORPAY_WEBHOOK_SECRET, rawBody, signature);
 }
+
