@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  transpilePackages: ["@artwall/db"],
   // The certificate PDF reads its Noto fonts with fs at request time; tracing can't see that.
   outputFileTracingIncludes: {
     "/api/coa/[id]/pdf": ["./src/features/coa/fonts/*.ttf"],

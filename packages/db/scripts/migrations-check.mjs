@@ -3,7 +3,7 @@
  * can be applied a SECOND time without error and without changing the schema.
  *
  * Creates a throwaway database on the server DATABASE_URL points at, applies
- * db/migrations/*.sql in order, each file in its own transaction (exactly as
+ * packages/db/migrations/*.sql in order, each file in its own transaction (exactly as
  * scripts/migrate.mjs does), fingerprints the catalog, applies every file
  * again, fingerprints again, compares, and drops the database.
  *
@@ -26,7 +26,7 @@ const name = `artwall_migcheck_${Date.now().toString(36)}`;
 const target = new URL(url);
 target.pathname = `/${name}`;
 
-const dir = join(import.meta.dirname, "..", "..", "..", "db", "migrations");
+const dir = join(import.meta.dirname, "..", "migrations");
 const files = (await readdir(dir)).filter((f) => f.endsWith(".sql")).sort();
 
 // Everything a re-run could plausibly change: columns, constraints, indexes, triggers, grants.

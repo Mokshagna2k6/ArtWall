@@ -1,5 +1,5 @@
 /**
- * Apply SQL migrations in db/migrations, in filename order.
+ * Apply SQL migrations in packages/db/migrations, in filename order.
  *
  * Each file's statements + the ledger insert run inside a single transaction,
  * so a mid-file failure rolls back cleanly instead of leaving partial state.
@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import pg from "pg";
 
-const DIR = join(import.meta.dirname, "..", "..", "..", "db", "migrations");
+const DIR = join(import.meta.dirname, "..", "migrations");
 
 if (!process.env.DATABASE_URL) {
   console.error(
