@@ -1,5 +1,7 @@
 import "server-only";
 
+import { notFound, redirect } from "next/navigation";
+
 import { features } from "@/config/site";
 import { PreconditionError } from "@/features/physical-wall/actions/shared";
 import { requireAdminRole, type Actor } from "@/features/physical-wall/authorize";
@@ -25,6 +27,14 @@ export interface MarketUser {
 /** The feature flag, as a refusal. 404-flavoured text: a disabled feature does not confirm itself. */
 export function requireMarketplaceEnabled(): void {
   if (!features.marketplaceCheckout) throw new PreconditionError("Not found.");
+}
+
+/** For pages: not-found while the flag is off, sign-in redirect when signed out. */
+export async function requireBuyerPage(returnTo: string): Promise<MarketUser> {
+  if (!features.marketplaceCheckout) notFound();
+  const user = await getSessionUser();
+  if (!user) redirect(`/sign-in?callbackUrl=${encodeURIComponent(returnTo)}`);
+  return { id: user.id, name: user.name, email: user.email };
 }
 
 export async function requireBuyer(): Promise<MarketUser> {
