@@ -15,6 +15,7 @@ import {
   LogOut,
   Menu,
   Settings2,
+  ShoppingBag,
   Tag,
   Users,
   X,
@@ -40,10 +41,13 @@ export function StudioShell({
   children,
   artistName,
   avatarUrl,
+  showOrders = false,
 }: {
   children: ReactNode;
   artistName: string;
   avatarUrl: string | null;
+  /** Marketplace checkout is on: show the seller's Orders inbox. */
+  showOrders?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -87,7 +91,7 @@ export function StudioShell({
         <div className="px-4 py-3">
           <p className="studio-eyebrow px-3 pb-3">Workspace</p>
           <nav aria-label="Studio navigation" className="flex flex-col gap-1">
-            {navigation.map((item) => {
+            {(showOrders ? [...navigation, { label: "Orders", href: "/studio/orders", icon: ShoppingBag }] : navigation).map((item) => {
               const active =
                 pathname === item.href ||
                 (item.href !== "/studio" && pathname.startsWith(item.href));
