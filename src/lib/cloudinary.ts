@@ -334,3 +334,36 @@ export async function createSignedIdentityViewUrl(
     api_secret: apiSecret,
   } as PrivateDownloadUrlOptions & { cloud_name: string; api_key: string; api_secret: string });
 }
+
+/**
+ * Server-side signed upload of a generated file (e.g. a certificate PDF) as a
+ * `raw` asset. Re-uploading the same `publicId` overwrites it, so callers get
+ * idempotence for free. For raw assets the public id must carry the extension.
+ */
+export async function uploadRawFile(
+  bytes: Uint8Array,
+  publicId: string,
+  contentType = "application/pdf"
+): Promise<string> {
+  const { cloudName, apiKey, apiSecret } = readCredentials();
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const signature = sign({ overwrite: "true", public_id: publicId, timestamp }, apiSecret);
+
+  const body = new FormData();
+  body.set("file", new Blob([bytes as BlobPart], { type: contentType }), publicId.split("/").pop());
+  body.set("public_id", publicId);
+  body.set("overwrite", "true");
+  body.set("timestamp", timestamp);
+  body.set("api_key", apiKey);
+  body.set("signature", signature);
+
+  const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/raw/upload`, {
+    method: "POST",
+    body,
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) throw new Error(`Cloudinary raw upload failed: ${response.status}`);
+  const data = (await response.json()) as { secure_url?: string };
+  if (!data.secure_url) throw new Error("Cloudinary raw upload returned no URL");
+  return data.secure_url;
+}
