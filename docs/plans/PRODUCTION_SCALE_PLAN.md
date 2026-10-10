@@ -43,6 +43,19 @@ Accounts: deploys run under the stackfox Gmail's Vercel; PRs/pushes go to `Moksh
 - **Backend:** finish the deferred backend of everything built so far (see §4) and clean up the architecture, before/while moving to the new stack. Exact scope to be confirmed.
 - **Repo: same repo, new Vercel project**, provided the existing Vercel project is not affected. Isolation rule: the existing project keeps deploying its current production branch only; the new project deploys a dedicated long-lived branch (proposed `production-v2`). Never merge `production-v2` into the branch the old project deploys. Old project must not auto-build `production-v2` (disable previews for it / ignored-build-step). The two projects must use different databases and env vars. A second repo only if this isolation proves unworkable.
 
+## 2c. Findings and structure requirement (2026-10-10)
+
+- **Existing Vercel project is connected to `stackfoxtech-maker/ArtWall`** (a third repo, not `myfork` or `origin`), and its Git connection currently shows a **GitHub 403 error** (needs Reconnect). Pushes to `Mokshagna2k6/ArtWall` do not deploy to it. Resolve before relying on git-triggered deploys.
+- **Structure requirement:** frontend, backend, database, caching, rate limiting and security must live in separate, clearly named folders so developers can debug each independently. Proposed layout (production-v2 branch only; the current branch stays untouched):
+  - `apps/web` — Next.js frontend (App Router must stay inside it)
+  - `apps/api` — Railway backend (webhooks, crons, workers, PDF/mint jobs)
+  - `packages/db` — Drizzle schema, migrations, RLS policies, queries
+  - `packages/cache` — Upstash Redis clients/helpers
+  - `packages/ratelimit` — rate-limit policies
+  - `packages/security` — authz helpers, input validation, headers/WAF notes
+  - `packages/shared` — shared types and Zod schemas
+  pnpm workspaces; migrate incrementally, one package per PR, tests green at each step.
+
 ## 3. Open decisions (needed before the final plan)
 
 - Existing-user migration: Supabase Auth import of better-auth users (password hashes compatibility? else force reset) — cutover plan?
