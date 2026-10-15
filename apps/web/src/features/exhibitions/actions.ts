@@ -299,6 +299,35 @@ export async function getExhibitionLifecycleState(
   });
 }
 
+/**
+ * Every published exhibition, newest first — the public index at
+ * /exhibitions. Added because the marketplace-first header (CHANGES-PLAN.md
+ * §3) puts Exhibitions in the primary nav, and only /exhibitions/[id] existed,
+ * so the nav item would have pointed at a 404.
+ *
+ * No session and no input: the same list for every visitor, which is what
+ * lets the page serve it from the catalogue cache.
+ */
+export async function listPublicExhibitions() {
+  return readSafely("listPublicExhibitions", [], async () =>
+    db
+      .select({
+        id: exhibitions.id,
+        title: exhibitions.title,
+        description: exhibitions.description,
+        venue: exhibitions.venue,
+        startDate: exhibitions.startDate,
+        endDate: exhibitions.endDate,
+        artistName: artistProfiles.displayName,
+      })
+      .from(exhibitions)
+      .innerJoin(artistProfiles, eq(exhibitions.userId, artistProfiles.userId))
+      .where(and(eq(exhibitions.status, "published"), eq(artistProfiles.published, true)))
+      .orderBy(desc(exhibitions.startDate), desc(exhibitions.id))
+      .limit(200)
+  );
+}
+
 export async function getPublicExhibition(exhibitionId: string) {
   return readSafely("getPublicExhibition", null, () => loadPublicExhibition(parseInput(id, exhibitionId)));
 }

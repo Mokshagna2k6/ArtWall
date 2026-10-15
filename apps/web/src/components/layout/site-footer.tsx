@@ -19,8 +19,13 @@ const socials = [
  * a category rather than somewhere to go - listing it next to its two walls
  * would offer three links to two places. Unlike the header this can read the
  * feature flag directly, because the footer is a Server Component.
+ *
+ * Every nav item, with no slice. This used to be `navItems.slice(1)`, which
+ * existed only to drop the old "Home" entry; the marketplace-first nav
+ * (CHANGES-PLAN.md §3) has no Home item - the wordmark is the way home - so
+ * slicing would now quietly drop Discover out of the footer instead.
  */
-const exploreLinks = navItems.slice(1).flatMap((item) => {
+const exploreLinks = navItems.flatMap((item) => {
   const children = visibleChildren(item, {
     physicalWallEnabled: features.physicalWall,
   });
