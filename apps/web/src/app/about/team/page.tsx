@@ -10,7 +10,7 @@ export const metadata: Metadata = {
   title: "Team",
   description:
     "The people building ArtWall: law and regulatory, AI and ML engineering, art community, and operations.",
-  alternates: { canonical: "/team" },
+  alternates: { canonical: "/about/team" },
 };
 
 /**
