@@ -348,18 +348,23 @@ export function SiteHeader({
           {user ? (
             <UserMenu user={user} />
           ) : (
+            // CHANGES-PLAN.md §3: Login + Sign up for a logged-out visitor,
+            // replacing the single "Join the Wall" CTA. "/" is a marketplace
+            // now, so the ask is an account, not a programme. Join the Wall
+            // is still one click away, in the The Wall dropdown and the
+            // mobile menu.
             <>
               <Link
                 href="/sign-in"
                 className="text-muted-foreground hover:text-foreground hidden text-sm transition-colors lg:inline-flex"
               >
-                Sign in
+                Login
               </Link>
               <Link
-                href={primaryCta.href}
+                href="/sign-up"
                 className="bg-foreground hidden h-10 items-center px-5 text-sm font-medium text-white transition-colors duration-200 hover:bg-[#2b3245] lg:inline-flex"
               >
-                {primaryCta.label}
+                Sign up
               </Link>
             </>
           )}
@@ -507,16 +512,24 @@ export function SiteHeader({
             ) : (
               <>
                 <Link
-                  href={primaryCta.href}
+                  href="/sign-up"
                   className="bg-foreground inline-flex h-12 items-center justify-center px-5 text-sm font-medium text-white"
                 >
-                  {primaryCta.label}
+                  Sign up
                 </Link>
                 <Link
                   href="/sign-in"
                   className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors"
                 >
-                  Sign in
+                  Login
+                </Link>
+                {/* The artist's way in, kept on the phone where the dropdown
+                    that now holds it is flattened into the list above. */}
+                <Link
+                  href={primaryCta.href}
+                  className="border-border hover:border-foreground inline-flex h-12 items-center justify-center border px-5 text-sm transition-colors"
+                >
+                  {primaryCta.label}
                 </Link>
               </>
             )}
