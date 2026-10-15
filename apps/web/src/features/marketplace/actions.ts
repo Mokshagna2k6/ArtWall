@@ -222,6 +222,9 @@ async function artworkDetail(id: string) {
       pricePaise: artworks.pricePaise,
       category: artworks.category,
       status: artworks.status,
+      /** Own state domain (0047, Bible §18): never folded into `status`. */
+      exhibitionStatus: artworks.exhibitionStatus,
+      commerceStatus: artworks.commerceStatus,
       artistName: artistProfiles.displayName,
       artistHandle: artistProfiles.handle,
       artistBio: artistProfiles.bio,

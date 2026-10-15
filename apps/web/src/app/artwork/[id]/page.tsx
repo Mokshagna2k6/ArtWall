@@ -90,10 +90,22 @@ export default async function ArtworkDetailPage({
   // §8.7: Buy Now only when the work is genuinely purchasable. This is the
   // same rule the cart and checkout enforce (features/orders/cart-rules.ts),
   // so the page cannot offer a purchase that checkout would then refuse.
-  const buy = purchasability(artwork, viewerId, features.marketplaceCheckout);
+  // `demand.thresholdCrossed` is passed as a BOOLEAN only. Bible §44 forbids a
+  // score, threshold or confidence number reaching a public surface.
+  const buy = purchasability(
+    artwork,
+    viewerId,
+    features.marketplaceCheckout,
+    demand.thresholdCrossed
+  );
   // Structured data must describe the work, not the viewer: the owner looking
   // at their own listing must not strip the Offer out of the page's JSON-LD.
-  const publiclyForSale = purchasability(artwork, null, features.marketplaceCheckout).buyable;
+  const publiclyForSale = purchasability(
+    artwork,
+    null,
+    features.marketplaceCheckout,
+    demand.thresholdCrossed
+  ).buyable;
 
   // `callbackUrl` and not `next`: that is the param /sign-in reads on this
   // branch, and it goes through the existing safeCallback open-redirect check.
