@@ -1,8 +1,9 @@
 import { AuthPage } from "@/components/auth/auth-page";
 
 export default async function SignUpPage(props: PageProps<"/sign-up">) {
-  const { callbackUrl } = await props.searchParams;
-  const returnTo = typeof callbackUrl === "string" ? callbackUrl : undefined;
+  // `next` is an alias for `callbackUrl` — see the note in sign-in/page.tsx.
+  const { callbackUrl, next } = await props.searchParams;
+  const returnTo = [callbackUrl, next].find((v) => typeof v === "string");
 
   return (
     <AuthPage

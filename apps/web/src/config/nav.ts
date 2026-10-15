@@ -92,6 +92,13 @@ export const navItems: readonly NavItem[] = [
         href: "/team",
         description: "The people building ArtWall",
       },
+      {
+        // The six-systems narrative that used to be the homepage. Kept
+        // reachable (and in the sitemap) now that "/" is the marketplace.
+        label: "The Platform",
+        href: "/about/platform",
+        description: "The six systems, the living map, and the numbers",
+      },
     ],
   },
 ] as const;
