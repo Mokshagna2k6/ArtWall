@@ -8,7 +8,12 @@ import { purchasability } from "@/features/marketplace/purchasable";
  * matters — offering a purchase the checkout would then refuse.
  */
 
-const buyable = { ownerId: "user_seller", status: "available", pricePaise: 450_000 };
+const buyable = {
+  ownerId: "user_seller",
+  status: "available",
+  pricePaise: 450_000,
+  exhibitionStatus: "not_exhibited",
+};
 
 describe("purchasability", () => {
   it("allows a buy for an available, priced work with checkout on", () => {
@@ -54,6 +59,40 @@ describe("purchasability", () => {
   it("does not treat a logged-out visitor as the owner", () => {
     // Regression guard: an empty-string viewer id must not collide with a seller id.
     expect(purchasability({ ...buyable, ownerId: "" }, null, true)).toEqual({ buyable: true });
+  });
+
+  // Bible §14/§42 (CHANGES-PLAN §22.2): exhibited work is not for sale by
+  // default; only the demand-triggered sale makes it purchasable.
+  it.each(["scheduled", "on_display"])(
+    "refuses an otherwise-buyable work that is %s, until demand triggers the sale",
+    (exhibitionStatus) => {
+      const work = { ...buyable, exhibitionStatus };
+      expect(purchasability(work, "user_buyer", true)).toMatchObject({
+        buyable: false,
+        reason: "on_exhibition",
+      });
+      // Threshold crossed = the sale was triggered, so it becomes buyable.
+      expect(purchasability(work, "user_buyer", true, true)).toEqual({ buyable: true });
+    }
+  );
+
+  it.each(["not_exhibited", "returned"])(
+    "treats a %s work as an ordinary direct listing",
+    (exhibitionStatus) => {
+      expect(
+        purchasability({ ...buyable, exhibitionStatus }, "user_buyer", true)
+      ).toEqual({ buyable: true });
+    }
+  );
+
+  it("still refuses a sold work even once the demand threshold is crossed", () => {
+    const result = purchasability(
+      { ...buyable, status: "sold", exhibitionStatus: "on_display" },
+      "user_buyer",
+      true,
+      true
+    );
+    expect(result.buyable).toBe(false);
   });
 
   it("always carries a message a visitor can read when it refuses", () => {
