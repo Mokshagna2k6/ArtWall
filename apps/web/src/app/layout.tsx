@@ -150,13 +150,22 @@ function isAdminAccount(role: string | undefined): boolean {
 
 /**
  * Routes the takeover must never hijack even for an un-opted-out admin:
- * the unrelated, password-gated virtual-wall-tiles tool at /admin (explicitly
- * out of scope — see AGENTS.md task brief), and anything under /api, which
+ * the unrelated, password-gated virtual-wall-tiles tool — now at /admin/tiles
+ * (CHANGES-PLAN.md §5) rather than /admin — and anything under /api, which
  * route handlers hit directly and never renders this layout's children as a
  * page the admin is "looking at" in the first place.
+ *
+ * Narrowed from the old `pathname === "/admin" || startsWith("/admin/")` on
+ * purpose. The exemption only ever existed to let an admin reach that tool
+ * without being bounced into the shell, and §5 reserves the bare /admin path
+ * for the super admin area. Exempting the whole /admin subtree would mean that
+ * when the shell does move there, the one route the takeover exists to deliver
+ * people to would be the one route excluded from it — so the exemption names
+ * the tool, not the prefix. /admin/tiles keeps its own password gate either way
+ * (features/admin/actions.ts); this function decides chrome, never access.
  */
 function bypassesTakeover(pathname: string): boolean {
-  return pathname === "/admin" || pathname.startsWith("/admin/") || pathname.startsWith("/api/");
+  return pathname === "/admin/tiles" || pathname.startsWith("/api/");
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

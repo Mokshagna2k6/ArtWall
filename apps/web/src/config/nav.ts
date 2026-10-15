@@ -88,8 +88,10 @@ export const navItems: readonly NavItem[] = [
         description: "The company, the mark, and what we're building",
       },
       {
+        // /team redirects here permanently (CHANGES-PLAN.md §5); the nav and
+        // the sitemap point at the new URL so neither keeps feeding the hop.
         label: "Team",
-        href: "/team",
+        href: "/about/team",
         description: "The people building ArtWall",
       },
     ],
