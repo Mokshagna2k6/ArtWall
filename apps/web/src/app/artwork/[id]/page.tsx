@@ -95,9 +95,12 @@ export default async function ArtworkDetailPage({
   // at their own listing must not strip the Offer out of the page's JSON-LD.
   const publiclyForSale = purchasability(artwork, null, features.marketplaceCheckout).buyable;
 
+  // `callbackUrl` and not `next`: that is the param /sign-in reads on this
+  // branch, and it goes through the existing safeCallback open-redirect check.
+  // Phase 1 adds `next` as an alias for it, so this keeps working either way.
   const inquireHref = viewerId
     ? `/studio/contacts?artwork=${artwork.id}`
-    : `/sign-in?next=${encodeURIComponent(`/artwork/${artwork.id}`)}`;
+    : `/sign-in?callbackUrl=${encodeURIComponent(`/artwork/${artwork.id}`)}`;
 
   const images = [artwork.imageUrl].filter((url): url is string => Boolean(url));
   const linkedTag = artwork.tags[0] ?? null;
