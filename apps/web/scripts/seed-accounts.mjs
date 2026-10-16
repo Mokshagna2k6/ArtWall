@@ -30,6 +30,8 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { neon } from "@neondatabase/serverless";
 import { hashPassword } from "better-auth/crypto";
 
+import { assertSafeSeedTarget } from "./seed-guard.mjs";
+
 if (!process.env.DATABASE_URL) {
   console.error(
     "DATABASE_URL is not set. Run with:  node --env-file=.env scripts/seed-accounts.mjs"
@@ -37,9 +39,19 @@ if (!process.env.DATABASE_URL) {
   process.exit(1);
 }
 
-if (process.env.NODE_ENV === "production" && !process.env.SEED_PASSWORD) {
+// Hostname guard, not a NODE_ENV guard. NODE_ENV is "development" or unset
+// whenever a human runs this at a terminal with --env-file=.env, and that .env
+// points at the live Neon instance — so the old NODE_ENV check passed in
+// exactly the case that mattered. The host in the connection string is the
+// only fact that identifies the target database. Fails closed; never prints
+// the connection string. Shared with the demo seed/purge scripts.
+try {
+  assertSafeSeedTarget(process.env.DATABASE_URL);
+} catch (error) {
+  console.error(`REFUSED: ${error.message ?? error}`);
   console.error(
-    "Refusing to seed test accounts in production without an explicit SEED_PASSWORD."
+    "This script bootstraps the first admin and is allowed to run against a " +
+      "real non-production database, but never against production."
   );
   process.exit(1);
 }
