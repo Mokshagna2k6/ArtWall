@@ -114,6 +114,13 @@ export const navItems: readonly NavItem[] = [
         href: "/survey",
         description: "Tell us what is broken. Two minutes.",
       },
+      {
+        // /team redirects here permanently (CHANGES-PLAN.md §5); the nav and
+        // the sitemap point at the new URL so neither keeps feeding the hop.
+        label: "Team",
+        href: "/about/team",
+        description: "The people building ArtWall",
+      },
     ],
   },
 ] as const;
