@@ -13,6 +13,7 @@ import { loadDemandSignal } from "@/features/demand/aggregate";
 import { DemandMeter } from "@/features/demand/demand-meter";
 import { loadEscrowSplitPreview } from "@/features/escrow/preview";
 import { EscrowSplitBreakdown } from "@/features/escrow/split-breakdown";
+import { InquireButton } from "@/features/inquiries/inquire-button";
 import { getArtworkDetail } from "@/features/marketplace/actions";
 import { ArtworkTabs } from "@/features/marketplace/artwork-tabs";
 import { ArtworkViewer } from "@/features/marketplace/artwork-viewer";
@@ -110,9 +111,7 @@ export default async function ArtworkDetailPage({
   // `callbackUrl` and not `next`: that is the param /sign-in reads on this
   // branch, and it goes through the existing safeCallback open-redirect check.
   // Phase 1 adds `next` as an alias for it, so this keeps working either way.
-  const inquireHref = viewerId
-    ? `/studio/contacts?artwork=${artwork.id}`
-    : `/sign-in?callbackUrl=${encodeURIComponent(`/artwork/${artwork.id}`)}`;
+  const signInHref = `/sign-in?callbackUrl=${encodeURIComponent(`/artwork/${artwork.id}`)}`;
 
   const images = [artwork.imageUrl].filter((url): url is string => Boolean(url));
   const linkedTag = artwork.tags[0] ?? null;
@@ -171,9 +170,13 @@ export default async function ArtworkDetailPage({
           )}
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Link href={inquireHref} className="studio-button">
-              Inquire about work
-            </Link>
+            <InquireButton
+              artworkId={artwork.id}
+              artworkTitle={artwork.title}
+              artistName={artwork.artistName}
+              viewerName={session?.user.name ?? null}
+              signInHref={signInHref}
+            />
             <AddToCollectionButton artworkId={artwork.id} />
           </div>
 

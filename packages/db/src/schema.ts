@@ -132,6 +132,11 @@ export const contacts = pgTable("contacts", {
   name: text("name").notNull(),
   email: text("email"),
   kind: text("kind").notNull().default("collector"),
+  /** The inquiry that created this contact, if it was not typed in by hand (0069). */
+  sourceInquiryId: text("source_inquiry_id"),
+  /** The account behind this contact. Unique per owner, so one person's repeat
+   *  inquiries attach to one contact rather than duplicating it (0069). */
+  sourceUserId: text("source_user_id"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
 });
 /**
@@ -1369,4 +1374,38 @@ export const payouts = pgTable("payouts", {
   paidAt: timestamp("paid_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── Artwork inquiries (0069) ─────────────────────────────────────────────── */
+
+/**
+ * One thread about one artwork, between a signed-in sender and the work's
+ * owner (CHANGES-PLAN §8.5). Sending requires sign-in, so `senderId` is never
+ * null and every inquiry has an identity to rate-limit and moderate.
+ *
+ * Neither party's email address is stored here. The platform relays: the
+ * recipient sees a thread in /studio/contacts, not the sender's inbox.
+ */
+export const inquiries = pgTable("inquiries", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull(),
+  senderId: text("sender_id").notNull(),
+  recipientId: text("recipient_id").notNull(),
+  subject: text("subject").notNull(),
+  /** open | replied | closed. CHECK in 0069. */
+  status: text("status").notNull().default("open"),
+  /** Set when the RECIPIENT reads the thread; null is what the unread badge counts. */
+  readAt: timestamp("read_at", { withTimezone: true }),
+  repliedAt: timestamp("replied_at", { withTimezone: true }),
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const inquiryMessages = pgTable("inquiry_messages", {
+  id: text("id").primaryKey(),
+  inquiryId: text("inquiry_id").notNull(),
+  authorId: text("author_id").notNull(),
+  /** 1..2000 chars, CHECKed in 0069 as well as in the Zod schema. */
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
