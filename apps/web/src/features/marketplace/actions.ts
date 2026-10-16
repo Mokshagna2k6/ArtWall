@@ -4,7 +4,7 @@ import { eq, and, gte, ilike, lte, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/lib/db/index";
-import { artworks, artistProfiles, coaCertificates } from "@/lib/db/schema";
+import { artworks, artistProfiles, artTags, coaCertificates, editions } from "@/lib/db/schema";
 import { parseInput, readSafely } from "@/features/physical-wall/actions/shared";
 
 export type MarketplaceSort = "recent" | "price_asc" | "price_desc" | "title";
@@ -210,6 +210,8 @@ async function artworkDetail(id: string) {
   const [artwork] = await db
     .select({
       id: artworks.id,
+      /** The seller. Needed to refuse "buy your own work" and to route inquiries. */
+      ownerId: artworks.userId,
       title: artworks.title,
       imageUrl: artworks.imageUrl,
       imagePublicId: artworks.imagePublicId,
@@ -220,10 +222,14 @@ async function artworkDetail(id: string) {
       pricePaise: artworks.pricePaise,
       category: artworks.category,
       status: artworks.status,
+      /** Own state domain (0047, Bible §18): never folded into `status`. */
+      exhibitionStatus: artworks.exhibitionStatus,
+      commerceStatus: artworks.commerceStatus,
       artistName: artistProfiles.displayName,
       artistHandle: artistProfiles.handle,
       artistBio: artistProfiles.bio,
       artistAvatar: artistProfiles.avatarUrl,
+      artistLocation: artistProfiles.location,
     })
     .from(artworks)
     .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
@@ -231,17 +237,59 @@ async function artworkDetail(id: string) {
 
   if (!artwork) return null;
 
-  const certs = await db
-    .select({
-      id: coaCertificates.id,
-      hash: coaCertificates.metadataHash,
-      status: coaCertificates.status,
-      issuedAt: coaCertificates.issuedAt,
-    })
-    .from(coaCertificates)
-    .where(eq(coaCertificates.artworkId, id));
+  const [certs, editionRows, tagRows] = await Promise.all([
+    db
+      .select({
+        id: coaCertificates.id,
+        hash: coaCertificates.metadataHash,
+        status: coaCertificates.status,
+        issuedAt: coaCertificates.issuedAt,
+        coaLevel: coaCertificates.coaLevel,
+        pdfUrl: coaCertificates.pdfUrl,
+        txHash: coaCertificates.txHash,
+        tokenId: coaCertificates.tokenId,
+        contractAddr: coaCertificates.contractAddr,
+        creatorName: coaCertificates.creatorName,
+        objectType: coaCertificates.objectType,
+        /** Row-level privacy flag; "private" hides issuer/owner identity. */
+        privacy: coaCertificates.privacy,
+      })
+      .from(coaCertificates)
+      .where(eq(coaCertificates.artworkId, id)),
+    db
+      .select({
+        editionType: editions.editionType,
+        editionNumber: editions.editionNumber,
+        totalEditions: editions.totalEditions,
+        isAp: editions.isAp,
+      })
+      .from(editions)
+      .where(eq(editions.artworkId, id))
+      .limit(1),
+    // The NFC/QR "linked" indicator (§8.7). Only bound tags count; a
+    // provisioned-but-unbound tag says nothing about this work.
+    db
+      .select({
+        id: artTags.id,
+        tagType: artTags.tagType,
+        tagUid: artTags.tagUid,
+        boundAt: artTags.boundAt,
+        boundBy: artTags.boundBy,
+        bindingStatus: artTags.bindingStatus,
+        scanCount: artTags.scanCount,
+        linkedByName: artistProfiles.displayName,
+      })
+      .from(artTags)
+      .leftJoin(artistProfiles, eq(artTags.boundBy, artistProfiles.userId))
+      .where(and(eq(artTags.artworkId, id), eq(artTags.bindingStatus, "bound"))),
+  ]);
 
-  return { ...artwork, certificates: certs };
+  return {
+    ...artwork,
+    certificates: certs,
+    edition: editionRows[0] ?? null,
+    tags: tagRows,
+  };
 }
 
 export async function getDistinctMediums(): Promise<string[]> {
