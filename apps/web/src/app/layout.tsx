@@ -8,6 +8,8 @@ import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SkipLink } from "@/components/layout/skip-link";
 import { features, siteConfig } from "@/config/site";
+import { assistantEnabled } from "@/features/assistant/config";
+import { AssistantWidget } from "@/features/assistant/assistant-widget";
 import { getActor } from "@/features/physical-wall/authorize";
 import "./globals.css";
 import { JsonLd } from "@/components/seo/json-ld";
@@ -197,6 +199,14 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             {children}
           </main>
           {!isAdminShell && <SiteFooter />}
+          {/* Every page, signed in or out (§8.1) — except the admin shell,
+              which is an internal tool, not a visitor surface. Rendered only
+              when ANTHROPIC_API_KEY is set: a missing key means no launcher,
+              never a broken page or build. Same server-reads-env pattern as
+              SiteHeader above. */}
+          {!isAdminShell && assistantEnabled() && (
+            <AssistantWidget signedIn={Boolean(user)} />
+          )}
         </MotionProvider>
       </body>
     </html>

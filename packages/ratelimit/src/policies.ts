@@ -54,6 +54,17 @@ export const POLICIES = {
    * is somebody's inbox.
    */
   inquiry: { limit: 10, windowMs: HOUR, failOpen: false },
+  /**
+   * The AI assistant. Every allowed request bills a real Anthropic API call,
+   * and the launcher is on public pages, so this is a direct cost-abuse
+   * vector. Fails CLOSED: if the limiter is unreachable we cannot prove the
+   * caller is under the limit, and the cost of being wrong is money.
+   *
+   * Deliberately tight — 15/hour is a long genuine conversation and a poor
+   * scraping budget. Anonymous callers get this per IP; signed-in callers get
+   * it per account (plus the shared-IP multiple in limitRequest).
+   */
+  assistant: { limit: 15, windowMs: HOUR, failOpen: false },
   /** Default for any other API route/action with no specific policy. */
   api: { limit: 120, windowMs: MIN, failOpen: false },
 } as const satisfies Record<string, PolicyRule>;

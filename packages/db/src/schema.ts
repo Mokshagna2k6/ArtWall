@@ -1388,10 +1388,13 @@ export const payouts = pgTable("payouts", {
  */
 export const inquiries = pgTable("inquiries", {
   id: text("id").primaryKey(),
-  artworkId: text("artwork_id").notNull(),
+  /** Null only for an assistant escalation, which is about no single work (0070). */
+  artworkId: text("artwork_id"),
   senderId: text("sender_id").notNull(),
   recipientId: text("recipient_id").notNull(),
   subject: text("subject").notNull(),
+  /** artwork | assistant. CHECKed with artworkId in 0070. */
+  source: text("source").notNull().default("artwork"),
   /** open | replied | closed. CHECK in 0069. */
   status: text("status").notNull().default("open"),
   /** Set when the RECIPIENT reads the thread; null is what the unread badge counts. */

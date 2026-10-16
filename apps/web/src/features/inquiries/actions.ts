@@ -254,7 +254,10 @@ export async function markInquiryRead(rawId: string): Promise<Result<null>> {
 
 export interface InquiryThread {
   id: string;
-  artworkId: string;
+  /** "artwork" | "assistant". An escalation (0070) has no artwork. */
+  source: string;
+  artworkId: string | null;
+  /** The work's title, or a label for a thread that is not about one. */
   artworkTitle: string;
   artworkImage: string | null;
   /** The other participant's display name. Never their email. */
@@ -280,6 +283,8 @@ export async function getMyInquiries(): Promise<InquiryThread[]> {
         artworkId: inquiries.artworkId,
         artworkTitle: artworks.title,
         artworkImage: artworks.imageUrl,
+        source: inquiries.source,
+        subject: inquiries.subject,
         senderId: inquiries.senderId,
         recipientId: inquiries.recipientId,
         senderName: userTable.name,
@@ -289,7 +294,10 @@ export async function getMyInquiries(): Promise<InquiryThread[]> {
         messageCount: sql<number>`(select count(*) from ${inquiryMessages} where ${inquiryMessages.inquiryId} = ${inquiries.id})`,
       })
       .from(inquiries)
-      .innerJoin(artworks, eq(inquiries.artworkId, artworks.id))
+      // LEFT join, not inner: an assistant escalation (0070) has no artwork,
+      // and an inner join would silently drop every one of those threads out
+      // of the inbox they were escalated into.
+      .leftJoin(artworks, eq(inquiries.artworkId, artworks.id))
       .innerJoin(userTable, eq(inquiries.senderId, userTable.id))
       .where(sql`${inquiries.recipientId} = ${me.id} or ${inquiries.senderId} = ${me.id}`)
       .orderBy(desc(inquiries.lastMessageAt))
@@ -313,8 +321,11 @@ export async function getMyInquiries(): Promise<InquiryThread[]> {
       const incoming = row.recipientId === me.id;
       return {
         id: row.id,
+        source: row.source,
         artworkId: row.artworkId,
-        artworkTitle: row.artworkTitle,
+        // An escalation has no artwork row to take a title from, so the
+        // thread's own subject is the heading.
+        artworkTitle: row.artworkTitle ?? row.subject,
         artworkImage: row.artworkImage,
         counterpartName: incoming
           ? row.senderName
