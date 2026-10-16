@@ -18,6 +18,22 @@ const nextConfig: NextConfig = {
     ],
     formats: ["image/avif", "image/webp"],
   },
+  /**
+   * CHANGES-PLAN.md §5. Permanent (308) rather than temporary: both old URLs
+   * carried a canonical tag and a nav link, so the redirect is what passes
+   * their ranking to the new location instead of stranding it.
+   *
+   * `/team` is freed deliberately — §5 reserves it for team members once the
+   * admin shell moves off /physical-wall/admin. Until then it redirects to the
+   * founders page, so no inbound link breaks in the meantime.
+   */
+  async redirects() {
+    return [
+      { source: "/team", destination: "/about/team", permanent: true },
+      // The virtual-wall-tiles tool, moved to free /admin for the super admin.
+      { source: "/admin", destination: "/admin/tiles", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
