@@ -55,3 +55,8 @@ test-results/
 playwright-report/
 blob-report/
 .pnpm-store/
+
+# Seed/dummy account credentials — NEVER commit (AGENTS.md: never echo credentials)
+SEED-CREDENTIALS.md
+SEED-CREDENTIALS*.md
+*.credentials.json
