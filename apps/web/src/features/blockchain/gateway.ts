@@ -4,6 +4,7 @@ import { createWalletClient, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { eq } from "drizzle-orm";
 
+import { newId } from "@/features/physical-wall/actions/shared";
 import { db } from "@/lib/db/index";
 import { merkleRoots, mintCommitments, provenanceEvents } from "@/lib/db/schema";
 import { chainFor, resilientTransport, NFT_CONTRACT_ADDRESS, DEFAULT_CHAIN_ID } from "@/lib/blockchain/chain";
@@ -114,7 +115,7 @@ export async function recordOnChainProvenance(rootId: string, txHash: string, bl
     .where(eq(mintCommitments.merkleRootId, rootId));
 
   for (const c of commitments) {
-    const provId = `prov_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const provId = newId("prov");
     await db.insert(provenanceEvents).values({
       id: provId,
       artworkId: c.artworkId,

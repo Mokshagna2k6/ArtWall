@@ -114,31 +114,29 @@ export async function createInquiry(
       throw new PreconditionError("This is your own work.");
     }
 
-    const [existing] = await db
-      .select({ id: inquiries.id })
-      .from(inquiries)
-      .where(and(eq(inquiries.artworkId, work.id), eq(inquiries.senderId, sender.id)))
-      .limit(1);
-
-    const inquiryId = existing?.id ?? newId("inq");
     const now = new Date();
 
-    if (!existing) {
-      await db.insert(inquiries).values({
-        id: inquiryId,
+    // One statement, not select-then-insert: two sends from the same person on
+    // the same work can interleave between those two, and both would insert.
+    // inquiries_artwork_sender_idx (0072) makes the conflict branch reachable,
+    // and a repeat send makes the thread unread for the recipient again.
+    const [thread] = await db
+      .insert(inquiries)
+      .values({
+        id: newId("inq"),
         artworkId: work.id,
         senderId: sender.id,
         recipientId: work.ownerId,
         subject: work.title,
         lastMessageAt: now,
-      });
-    } else {
-      // A new message makes the thread unread for the recipient again.
-      await db
-        .update(inquiries)
-        .set({ lastMessageAt: now, readAt: null, status: "open" })
-        .where(eq(inquiries.id, inquiryId));
-    }
+      })
+      .onConflictDoUpdate({
+        target: [inquiries.artworkId, inquiries.senderId],
+        set: { lastMessageAt: now, readAt: null, status: "open" },
+      })
+      .returning({ id: inquiries.id });
+
+    const inquiryId = thread.id;
 
     await db.insert(inquiryMessages).values({
       id: newId("imsg"),
