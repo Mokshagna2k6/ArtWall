@@ -25,17 +25,47 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
-const navigation = [
+type NavLeaf = { label: string; href: string; icon: typeof LayoutDashboard };
+type NavItem = NavLeaf & { children?: NavLeaf[] };
+
+/**
+ * Six entries, not ten (§8.3/§8.4). Artworks is deliberately not a top-level
+ * item — the Overview's tabbed work list is its entry point — but it stays a
+ * child of Works so the existing /studio/artworks route keeps a nav home.
+ */
+const navigation: NavItem[] = [
   { label: "Overview", href: "/studio", icon: LayoutDashboard },
-  { label: "Artworks", href: "/studio/artworks", icon: Grid2X2 },
-  { label: "Collections", href: "/studio/collections", icon: FolderKanban },
+  {
+    label: "Works",
+    href: "/studio/artworks",
+    icon: Grid2X2,
+    children: [
+      { label: "Artworks", href: "/studio/artworks", icon: Grid2X2 },
+      { label: "Collections", href: "/studio/collections", icon: FolderKanban },
+      { label: "Certificates", href: "/studio/certificates", icon: BadgeCheck },
+      { label: "Tags / NFTs", href: "/studio/tags", icon: Tag },
+    ],
+  },
+  {
+    label: "Programme",
+    href: "/studio/exhibitions",
+    icon: GalleryHorizontal,
+    children: [
+      { label: "Exhibitions", href: "/studio/exhibitions", icon: GalleryHorizontal },
+      { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
+      { label: "Tasks", href: "/studio/tasks", icon: ClipboardList },
+    ],
+  },
   { label: "Contacts", href: "/studio/contacts", icon: Users },
-  { label: "Certificates", href: "/studio/certificates", icon: BadgeCheck },
-  { label: "Exhibitions", href: "/studio/exhibitions", icon: GalleryHorizontal },
-  { label: "Tags", href: "/studio/tags", icon: Tag },
-  { label: "Calendar", href: "/studio/calendar", icon: CalendarDays },
-  { label: "Tasks", href: "/studio/tasks", icon: ClipboardList },
 ];
+
+/** A group is open when the current page is inside it; otherwise collapsed. */
+function containsPath(item: NavItem, pathname: string): boolean {
+  const hrefs = item.children?.map((c) => c.href) ?? [item.href];
+  return hrefs.some(
+    (href) => pathname === href || (href !== "/studio" && pathname.startsWith(`${href}/`))
+  );
+}
 
 export function StudioShell({
   children,
@@ -91,27 +121,19 @@ export function StudioShell({
         <div className="px-4 py-3">
           <p className="studio-eyebrow px-3 pb-3">Workspace</p>
           <nav aria-label="Studio navigation" className="flex flex-col gap-1">
-            {(showOrders ? [...navigation, { label: "Orders", href: "/studio/orders", icon: ShoppingBag }] : navigation).map((item) => {
-              const active =
-                pathname === item.href ||
-                (item.href !== "/studio" && pathname.startsWith(item.href));
-              const Icon = item.icon;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className={cn(
-                    "studio-nav-link",
-                    active && "studio-nav-link-active"
-                  )}
-                  aria-current={active ? "page" : undefined}
-                >
-                  <Icon aria-hidden />
-                  {item.label}
-                </Link>
-              );
-            })}
+            {(showOrders
+              ? [...navigation, { label: "Orders", href: "/studio/orders", icon: ShoppingBag }]
+              : navigation
+            ).map((item) => (
+              <StudioNavItem
+                // Re-keyed on pathname so a group re-collapses/expands to match
+                // the new page after a client-side navigation.
+                key={`${item.label}:${pathname}`}
+                item={item}
+                pathname={pathname}
+                onNavigate={() => setOpen(false)}
+              />
+            ))}
           </nav>
         </div>
         <div className="border-studio-border mt-auto flex flex-col gap-1 border-t px-4 py-5">
@@ -168,6 +190,85 @@ export function StudioShell({
         </header>
         <main className="studio-content">{children}</main>
       </div>
+    </div>
+  );
+}
+
+/** One sidebar row: a plain link, or a group that expands to its children. */
+function StudioNavItem({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavigate: () => void;
+}) {
+  const inGroup = containsPath(item, pathname);
+  // Local so a user can open a group they are not currently inside; the caller
+  // re-keys this component on pathname, so navigation resets it to `inGroup`.
+  const [expanded, setExpanded] = useState(inGroup);
+  const Icon = item.icon;
+
+  if (!item.children) {
+    const active =
+      pathname === item.href ||
+      (item.href !== "/studio" && pathname.startsWith(item.href));
+    return (
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        className={cn("studio-nav-link", active && "studio-nav-link-active")}
+        aria-current={active ? "page" : undefined}
+      >
+        <Icon aria-hidden />
+        {item.label}
+      </Link>
+    );
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        aria-expanded={expanded}
+        className={cn(
+          "studio-nav-link w-full text-left",
+          inGroup && "studio-nav-link-active"
+        )}
+      >
+        <Icon aria-hidden />
+        {item.label}
+        <ChevronDown
+          aria-hidden
+          className={cn("ml-auto transition-transform", expanded && "rotate-180")}
+        />
+      </button>
+      {expanded && (
+        <div className="border-studio-border ml-5 flex flex-col gap-1 border-l pl-2">
+          {item.children.map((child) => {
+            const active =
+              pathname === child.href || pathname.startsWith(`${child.href}/`);
+            const ChildIcon = child.icon;
+            return (
+              <Link
+                key={child.href}
+                href={child.href}
+                onClick={onNavigate}
+                className={cn(
+                  "studio-nav-link text-sm",
+                  active && "studio-nav-link-active"
+                )}
+                aria-current={active ? "page" : undefined}
+              >
+                <ChildIcon aria-hidden />
+                {child.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
