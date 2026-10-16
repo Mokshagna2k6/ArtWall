@@ -17,7 +17,9 @@
     "test:watch": "vitest",
     "test:db": "vitest run --config vitest.db.config.ts",
     "test:e2e": "playwright test",
-    "db:seed-accounts": "node --env-file=.env scripts/seed-accounts.mjs"
+    "db:seed-accounts": "node --env-file=.env scripts/seed-accounts.mjs",
+    "db:seed-demo": "node scripts/seed-demo.mjs",
+    "db:seed-demo:purge": "node scripts/seed-demo.mjs --purge"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
