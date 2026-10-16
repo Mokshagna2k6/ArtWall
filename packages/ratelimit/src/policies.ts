@@ -47,6 +47,13 @@ export const POLICIES = {
   cart: { limit: 60, windowMs: MIN, failOpen: false },
   /** Checkout start/verify (creates a Razorpay order, reserves stock), per buyer. */
   checkout: { limit: 10, windowMs: 10 * MIN, failOpen: false },
+  /**
+   * Artwork inquiries and thread replies, per signed-in sender. Each one
+   * notifies a real artist, so this fails CLOSED: if the store is down we
+   * cannot prove the sender is under the limit, and the cost of guessing wrong
+   * is somebody's inbox.
+   */
+  inquiry: { limit: 10, windowMs: HOUR, failOpen: false },
   /** Default for any other API route/action with no specific policy. */
   api: { limit: 120, windowMs: MIN, failOpen: false },
 } as const satisfies Record<string, PolicyRule>;
