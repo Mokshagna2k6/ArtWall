@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { Fraunces, Inter } from "next/font/google";
+import { Inter, Newsreader } from "next/font/google";
 
 import { MotionProvider } from "@/components/layout/motion-provider";
 import { SiteFooter } from "@/components/layout/site-footer";
@@ -22,9 +22,11 @@ import { JsonLd } from "@/components/seo/json-ld";
  * can carry real mass without a second request. next/font rejects an explicit
  * weight list whenever `axes` is set, which is why this is not `["400","700"]`.
  */
-const fraunces = Fraunces({
+const newsreader = Newsreader({
   variable: "--font-fraunces",
   subsets: ["latin"],
+  // Optical sizing keeps the display sizes from looking thin; the variable
+  // file ships the whole weight range in one request.
   axes: ["opsz"],
   weight: "variable",
   display: "swap",
@@ -189,7 +191,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="en"
       data-scroll-behavior="smooth"
-      className={`${fraunces.variable} ${inter.variable} h-full antialiased`}
+      className={`${newsreader.variable} ${inter.variable} h-full antialiased`}
     >
       <body className="bg-background text-foreground flex min-h-full flex-col">
         <JsonLd data={organisationJsonLd} />

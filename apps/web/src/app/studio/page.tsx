@@ -82,6 +82,9 @@ export default async function StudioOverviewPage() {
     ),
   ];
 
+  // The one action the dashboard leads with: the first step still undone.
+  const nextStep = checklist.steps.find((step) => !step.done) ?? null;
+
   return (
     <div className="flex flex-col gap-8">
       <StudioPageHeader
@@ -106,6 +109,43 @@ export default async function StudioOverviewPage() {
         }
       />
 
+      {/* "Your next steps" beside the checklist, per the reference dashboard:
+          one decisive action on the left, the whole path on the right, so the
+          first screen answers "what now" rather than "how much have I done". */}
+      <section aria-label="Your next steps" className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+        <div className="studio-card overflow-hidden">
+          <div className="bg-studio-bg flex items-center justify-center gap-10 px-8 py-10">
+            <StepBadge label="COA" filled />
+            <StepBadge label="COA+" />
+          </div>
+          <div className="bg-studio-ink px-8 py-8 text-white">
+            <h2 className="font-heading text-subsection">
+              {nextStep ? nextStep.label : "Your catalogue is set up."}
+            </h2>
+            <p className="mt-2 text-sm text-white/70">
+              {nextStep
+                ? nextStep.description
+                : "Everything on the checklist is done. Keep adding work."}
+            </p>
+            <div className="mt-6 flex flex-wrap items-center gap-5">
+              <Link
+                href={nextStep ? nextStep.href : "/studio/artworks/new"}
+                className="text-studio-ink inline-flex h-11 items-center rounded-xl bg-white px-5 text-sm font-semibold transition-colors hover:bg-white/90"
+              >
+                {nextStep ? nextStep.label : "Add work"}
+              </Link>
+              <Link
+                href="/studio/artworks"
+                className="text-sm text-white/80 underline-offset-4 hover:underline"
+              >
+                See your works <ArrowUpRight aria-hidden className="inline size-3.5" />
+              </Link>
+            </div>
+          </div>
+        </div>
+        <StudioChecklistPanel checklist={checklist} />
+      </section>
+
       <section aria-label="Studio summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StudioMetric
           label="Catalogue"
@@ -126,7 +166,6 @@ export default async function StudioOverviewPage() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-        <StudioChecklistPanel checklist={checklist} />
         <div className="studio-card p-6 md:p-8">
           <p className="studio-eyebrow">Public profile</p>
           <h2 className="text-studio-ink text-subsection mt-2">
@@ -195,6 +234,30 @@ export default async function StudioOverviewPage() {
       </section>
 
       <StudioWorkList rows={rows} />
+    </div>
+  );
+}
+
+/**
+ * The two certificate marks above "Your next steps", as in the reference
+ * dashboard: COA and COA+ side by side. Drawn rather than imported — these
+ * are two rings and a letter, and an image file would be a request for
+ * something CSS already says.
+ */
+function StepBadge({ label, filled = false }: { label: string; filled?: boolean }) {
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <span
+        aria-hidden
+        className={`flex size-20 items-center justify-center rounded-full border-2 text-lg font-semibold ${
+          filled
+            ? "bg-studio-ink border-studio-ink text-white"
+            : "border-studio-border text-studio-ink bg-white"
+        }`}
+      >
+        {label === "COA+" ? "V+" : "V"}
+      </span>
+      <span className="studio-eyebrow">{label}</span>
     </div>
   );
 }
