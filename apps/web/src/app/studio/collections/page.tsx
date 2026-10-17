@@ -30,24 +30,26 @@ export default async function CollectionsPage() {
     );
   }
 
-  const [hasArtistProfile, isCurator, myCollections] = await Promise.all([
+  const [hasArtistProfile, curatorStatus, myCollections] = await Promise.all([
     db
       .select({ userId: artistProfiles.userId })
       .from(artistProfiles)
       .where(eq(artistProfiles.userId, userId))
       .then((r) => r.length > 0),
+    // Read the status, not just "is active": an application under review must
+    // say so instead of inviting the artist to apply a second time.
     db
-      .select({ id: curators.id })
+      .select({ status: curators.status })
       .from(curators)
-      .where(and(eq(curators.userId, userId), eq(curators.status, "active")))
-      .then((r) => r.length > 0),
+      .where(eq(curators.userId, userId))
+      .then((r) => r[0]?.status ?? null),
     getMyCollections(),
   ]);
 
   const availableTypes: CollectionType[] = [
     "BUYER",
     ...(hasArtistProfile ? (["ARTIST"] as const) : []),
-    ...(isCurator ? (["CURATOR"] as const) : []),
+    ...(curatorStatus === "active" ? (["CURATOR"] as const) : []),
   ];
 
   return (
@@ -58,11 +60,26 @@ export default async function CollectionsPage() {
         description="Group artworks you want to organize, showcase as a series, or curate — without owning them."
         action={<CollectionCreateForm availableTypes={availableTypes} />}
       />
-      {!isCurator && (
+      {curatorStatus === null && (
         <p className="text-studio-muted text-sm">
           Want to build a curator collection?{" "}
           <Link href="/curator/apply" className="text-studio-ink underline underline-offset-4">
             Apply to become a curator
+          </Link>
+          .
+        </p>
+      )}
+      {curatorStatus === "pending" && (
+        <p className="text-studio-muted text-sm">
+          Your curator application is under review. Curator collections unlock once
+          it is approved.
+        </p>
+      )}
+      {curatorStatus === "rejected" && (
+        <p className="text-studio-muted text-sm">
+          Your curator application was not approved.{" "}
+          <Link href="/curator/apply" className="text-studio-ink underline underline-offset-4">
+            Apply again
           </Link>
           .
         </p>

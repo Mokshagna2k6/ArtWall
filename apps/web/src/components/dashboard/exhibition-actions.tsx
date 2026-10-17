@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -117,6 +118,17 @@ export function ExhibitionControls({
             ))}
           </ul>
         </div>
+      )}
+      {/* With nothing addable the picker used to vanish with no explanation,
+          which reads as a missing feature rather than an empty library. */}
+      {artworks.length === 0 && (
+        <p className="text-studio-muted text-xs">
+          No works available to add.{" "}
+          <Link href="/studio/artworks/new" className="text-studio-ink underline underline-offset-4">
+            Add an artwork
+          </Link>{" "}
+          first, or every work you have is already in this exhibition.
+        </p>
       )}
       {artworks.length > 0 && (
         <div className="flex flex-wrap gap-2">

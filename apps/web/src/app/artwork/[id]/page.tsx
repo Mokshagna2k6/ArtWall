@@ -123,11 +123,16 @@ export default async function ArtworkDetailPage({
   const PRIVATE = "Private";
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
-      <div className="grid gap-10 lg:grid-cols-2">
-        <ArtworkViewer images={images} title={artwork.title} />
+    // Split view (ref: verisart.com artwork page): the image is pinned to the
+    // viewport and only the detail column scrolls, so the work stays visible
+    // while reading provenance. Below lg it collapses to one normal column.
+    <main className="lg:h-[calc(100dvh-var(--header-h,4rem))] lg:overflow-hidden">
+      <div className="mx-auto grid max-w-7xl gap-10 px-6 py-12 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,34rem)] lg:gap-0 lg:px-0 lg:py-0">
+        <div className="bg-band/40 lg:flex lg:h-full lg:items-center lg:justify-center lg:p-10">
+          <ArtworkViewer images={images} title={artwork.title} />
+        </div>
 
-        <div>
+        <div className="lg:h-full lg:overflow-y-auto lg:px-10 lg:py-12">
           <div className="flex items-start justify-between gap-4">
             <p className="text-ink-muted flex items-center gap-1.5 text-sm">
               <Link href={`/artist/${artwork.artistHandle}`} className="hover:underline">

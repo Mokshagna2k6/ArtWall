@@ -30,8 +30,10 @@ export function ArtworkViewer({
   const go = (delta: number) => setIndex((i) => (i + delta + count) % count);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="bg-band relative aspect-square overflow-hidden rounded-lg">
+    <div className="flex w-full flex-col gap-3 lg:max-h-full lg:min-h-0">
+      {/* min-h-0 + a capped square: in the pinned column on the artwork page the
+          parent sets the height, so an uncapped aspect-square would overflow it. */}
+      <div className="bg-band relative aspect-square max-h-[min(70vh,100%)] min-h-0 overflow-hidden rounded-lg">
         {current ? (
           <Image
             src={current}
