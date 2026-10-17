@@ -7,6 +7,7 @@ import { createArtwork } from "@/app/actions/artworks";
 import { FieldError, fieldProps } from "@/components/dashboard/field-error";
 import {
   ARTWORK_CATEGORIES,
+  ARTWORK_MEDIUMS,
   categoryLabel,
 } from "@/features/marketplace/categories";
 import { ImageDrop } from "@/features/upload/image-drop";
@@ -20,6 +21,9 @@ export function ArtworkForm() {
   const [image, setImage] = useState<{ url: string; publicId: string } | null>(
     null
   );
+  // Width/height are two inputs but one stored `dimensions` string.
+  const [width, setWidth] = useState("");
+  const [height, setHeight] = useState("");
 
   async function submit(formData: FormData) {
     setPending(true);
@@ -91,32 +95,77 @@ export function ArtworkForm() {
       </label>
       <div className="grid gap-5 md:grid-cols-2">
         <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
-          Year
+          Year *
+          {/* number, not free text: the action already coerces to int 1000-3000,
+              so a typed word was only ever rejected after a round trip. */}
           <input
             className="studio-input"
             {...fieldProps(fieldErrors, "year")}
-            inputMode="numeric"
+            type="number"
+            min={1000}
+            max={3000}
+            step={1}
+            required
             placeholder="2026"
           />
           <FieldError errors={fieldErrors} name="year" />
         </label>
         <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
-          Medium
+          Medium *
+          {/* datalist, not <select>: the medium list is a strong suggestion, and
+              a practice we have not listed must still be typeable. */}
           <input
             className="studio-input"
             {...fieldProps(fieldErrors, "medium")}
+            list="artwork-medium-options"
+            required
             placeholder="Oil on canvas"
           />
+          <datalist id="artwork-medium-options">
+            {ARTWORK_MEDIUMS.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
           <FieldError errors={fieldErrors} name="medium" />
         </label>
       </div>
       <div className="grid gap-5 md:grid-cols-2">
         <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
-          Dimensions
+          Dimensions (cm) *
+          {/* Two numbers, one stored string: the action still receives the
+              `dimensions` text it has always parsed, so nothing server-side
+              or in the DB changes. */}
+          <span className="flex items-center gap-2">
+            <input
+              className="studio-input w-full"
+              name="widthCm"
+              type="number"
+              min={1}
+              step={1}
+              required
+              value={width}
+              aria-label="Width in centimetres"
+              placeholder="91"
+              onChange={(e) => setWidth(e.target.value)}
+            />
+            <span aria-hidden className="text-studio-muted">×</span>
+            <input
+              className="studio-input w-full"
+              name="heightCm"
+              type="number"
+              min={1}
+              step={1}
+              required
+              value={height}
+              aria-label="Height in centimetres"
+              placeholder="122"
+              onChange={(e) => setHeight(e.target.value)}
+            />
+          </span>
           <input
-            className="studio-input"
-            {...fieldProps(fieldErrors, "dimensions")}
-            placeholder="91 × 122 cm"
+            type="hidden"
+            name="dimensions"
+            value={width && height ? `${width} x ${height} cm` : ""}
           />
           <FieldError errors={fieldErrors} name="dimensions" />
         </label>
@@ -145,12 +194,16 @@ export function ArtworkForm() {
         </select>
       </label>
       <label className="text-studio-ink flex flex-col gap-2 text-sm font-medium">
-        Price (₹)
+        Price (₹) *
         <input
           className="studio-input"
           {...fieldProps(fieldErrors, "price")}
-          inputMode="decimal"
-          placeholder="Leave blank for price on request"
+          type="number"
+          min={0}
+          max={20000000}
+          step="any"
+          required
+          placeholder="10000"
         />
         <FieldError errors={fieldErrors} name="price" />
       </label>

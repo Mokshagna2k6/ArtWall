@@ -78,6 +78,7 @@ export async function MarketplaceHome({ signedIn }: { signedIn: boolean }) {
       cachedFavorited(8, 14),
       cachedTodaysPick(),
       cachedFirstPage({ sort: "recent", limit: 24 }),
+
     ]);
 
   // Today's Pick needs exactly one work. With no signal today it falls back to
@@ -85,9 +86,25 @@ export async function MarketplaceHome({ signedIn }: { signedIn: boolean }) {
   // inventory at all — a labelled empty box is worse than one fewer section.
   const todaysPick = pick ?? trending[0] ?? newlyListed[0] ?? null;
 
+  // Backdrops for the hero, newest first and de-duplicated, so two slides in a
+  // row never show the same picture.
+  const heroImages = [...newlyListed, ...trending]
+    .map((item) => item.imageUrl)
+    .filter((url): url is string => Boolean(url))
+    .filter((url, i, all) => all.indexOf(url) === i);
+
   return (
     <div className="bg-background">
-      <MarketplaceHero slides={HERO_SLIDES} />
+      {/* Real work behind the copy: the slides carry the editorial text, the
+          backdrops come from whatever is actually listed, so the hero is never
+          a stock photograph of someone else's art. Falls back to the dark
+          panel when the catalogue has no images yet. */}
+      <MarketplaceHero
+        slides={HERO_SLIDES.map((slide, i) => ({
+          ...slide,
+          imageUrl: heroImages[i % Math.max(heroImages.length, 1)] ?? null,
+        }))}
+      />
 
       <Band>
         <Wide
