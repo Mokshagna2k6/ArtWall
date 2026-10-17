@@ -8,12 +8,20 @@ import {
   RevokeCertificateButton,
 } from "@/components/dashboard/certificate-actions";
 import { getCertificates } from "@/features/coa/actions";
+import { getStudioArtistProfile } from "@/app/actions/artist-profile";
+import {
+  ConnectWalletButton,
+  MintButton,
+  chainName,
+} from "@/features/blockchain/mint-controls";
 
 export default async function CertificatesPage() {
-  const [items, artworks] = await Promise.all([
+  const [items, artworks, profile] = await Promise.all([
     getCertificates(),
     getArtworks(),
+    getStudioArtistProfile(),
   ]);
+  const wallet = profile.walletAddress ?? null;
   return (
     <div className="flex flex-col gap-8">
       <StudioPageHeader
@@ -21,6 +29,16 @@ export default async function CertificatesPage() {
         title="Certificates"
         description="Issue and verify certificates of authenticity for works in your catalogue."
       />
+      <section className="studio-card flex flex-col gap-3 p-5">
+        <div>
+          <p className="studio-eyebrow">Blockchain provenance</p>
+          <p className="text-studio-muted mt-1 text-sm">
+            Anchoring a certificate on-chain is what makes a work eligible to
+            exhibit. Currently on {chainName(Number(process.env.NEXT_PUBLIC_DEFAULT_CHAIN_ID ?? 84532))}.
+          </p>
+        </div>
+        <ConnectWalletButton walletAddress={wallet} />
+      </section>
       <IssueCertificateForm
         artworks={artworks.map((a) => ({ id: a.id, title: a.title }))}
       />
@@ -76,6 +94,23 @@ export default async function CertificatesPage() {
                     <RevokeCertificateButton certId={item.id} />
                   )}
                 </div>
+                {item.status === "minted" ? (
+                  <p className="text-studio-muted mt-3 text-xs">
+                    Anchored on {chainName(item.chainId)}
+                    {item.tokenId ? ` · token #${item.tokenId}` : ""}
+                  </p>
+                ) : item.status !== "revoked" ? (
+                  <div className="mt-3">
+                    <MintButton
+                      certificateId={item.id}
+                      status={item.status}
+                      hasWallet={Boolean(wallet)}
+                    />
+                    {item.mintError && (
+                      <p className="mt-1 text-xs text-red-600">{item.mintError}</p>
+                    )}
+                  </div>
+                ) : null}
               </article>
             ))}
           </div>
