@@ -158,6 +158,14 @@ export async function getCertificates() {
         createdAt: coaCertificates.createdAt,
         artworkTitle: artworks.title,
         artworkImage: artworks.imageUrl,
+        // Mint state (0014). Needed so the studio can show where a certificate
+        // is in the chain — issued, minting, or anchored on-chain — instead of
+        // the flow being invisible.
+        tokenId: coaCertificates.tokenId,
+        txHash: coaCertificates.txHash,
+        chainId: coaCertificates.chainId,
+        mintedAt: coaCertificates.mintedAt,
+        mintError: coaCertificates.mintError,
       })
       .from(coaCertificates)
       .innerJoin(artworks, eq(coaCertificates.artworkId, artworks.id))
