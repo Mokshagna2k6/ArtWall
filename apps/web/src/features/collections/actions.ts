@@ -406,8 +406,38 @@ export async function searchArtworksForCollection(collectionId: string, query: s
       return filtered.map((r) => ({ ...r, artistName: r.artistName ?? "", artistHandle: r.artistHandle ?? "" }));
     }
 
-    const page = await discoverArtworks({ q: data.query || undefined, limit: 24 });
-    return page.items;
+    // BUYER/CURATOR search the public marketplace — but your own work has to be
+    // reachable too. discoverArtworks requires isPublic + available + a
+    // published artist profile, so an artist with a private profile could not
+    // add their own artwork to their own collection and the picker just
+    // returned nothing. Own works are merged in and de-duplicated.
+    const [page, mine] = await Promise.all([
+      discoverArtworks({ q: data.query || undefined, limit: 24 }),
+      db
+        .select({
+          id: artworks.id,
+          title: artworks.title,
+          imageUrl: artworks.imageUrl,
+          medium: artworks.medium,
+          dimensions: artworks.dimensions,
+          year: artworks.year,
+          pricePaise: artworks.pricePaise,
+          category: artworks.category,
+          artistName: artistProfiles.displayName,
+          artistHandle: artistProfiles.handle,
+          exhibitionStatus: artworks.exhibitionStatus,
+        })
+        .from(artworks)
+        .leftJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
+        .where(eq(artworks.userId, userId)),
+    ]);
+
+    const q = data.query.toLowerCase();
+    const ownMatches = (q ? mine.filter((r) => r.title.toLowerCase().includes(q)) : mine).map(
+      (r) => ({ ...r, artistName: r.artistName ?? "", artistHandle: r.artistHandle ?? "" })
+    );
+    const seen = new Set(ownMatches.map((r) => r.id));
+    return [...ownMatches, ...page.items.filter((item) => !seen.has(item.id))];
   });
 }
 

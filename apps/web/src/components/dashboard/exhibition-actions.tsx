@@ -66,8 +66,16 @@ export function CreateExhibitionForm() {
         aria-label="Venue"
         className="studio-input min-w-40 flex-1"
       />
-      <input name="startDate" type="date" aria-label="Start date" className="studio-input" />
-      <input name="endDate" type="date" aria-label="End date" className="studio-input" />
+      {/* Visible labels: two bare date fields side by side gave no clue which
+          was which, and the aria-label only reached screen readers. */}
+      <label className="text-studio-muted flex flex-col gap-1 text-xs">
+        Opens
+        <input name="startDate" type="date" className="studio-input" />
+      </label>
+      <label className="text-studio-muted flex flex-col gap-1 text-xs">
+        Closes
+        <input name="endDate" type="date" className="studio-input" />
+      </label>
       <button className="studio-button" disabled={pending}>
         {pending ? "Creating…" : "Create exhibition"}
       </button>

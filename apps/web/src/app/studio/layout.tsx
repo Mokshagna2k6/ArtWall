@@ -34,13 +34,18 @@ export default async function StudioLayout({
   // Once answered, personas aren't mutually exclusive lifetime labels - a
   // buyer or curator who later deliberately visits /studio to become an
   // artist too is let straight through, same as today.
-  const [row] = await db
-    .select({ onboardingPersona: userTable.onboardingPersona })
-    .from(userTable)
-    .where(eq(userTable.id, session.user.id));
+  // Both run on every studio page load. They were sequential, which cost an
+  // extra Neon round trip per navigation for no reason: the persona check does
+  // not feed ensureArtistProfile, so they overlap. The redirect still happens
+  // before anything renders.
+  const [[row], profile] = await Promise.all([
+    db
+      .select({ onboardingPersona: userTable.onboardingPersona })
+      .from(userTable)
+      .where(eq(userTable.id, session.user.id)),
+    ensureArtistProfile(session.user),
+  ]);
   if (!row?.onboardingPersona) redirect("/welcome");
-
-  const profile = await ensureArtistProfile(session.user);
   return (
     <StudioShell artistName={profile.displayName} avatarUrl={profile.avatarUrl} showOrders={features.marketplaceCheckout}>
       {children}
