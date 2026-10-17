@@ -45,6 +45,7 @@ const CARD = {
   category: artworks.category,
   artistName: artistProfiles.displayName,
   artistHandle: artistProfiles.handle,
+      exhibitionStatus: artworks.exhibitionStatus,
 } as const;
 
 /**
@@ -178,5 +179,41 @@ async function demandIds(
   } catch (error) {
     console.error(`[home] ${scope} unavailable`, error);
     return [];
+  }
+}
+
+/**
+ * Which of these artworks have crossed their demand threshold.
+ *
+ * Bible §14/§42: an exhibited work becomes purchasable only once accumulated
+ * demand crosses the threshold, so a listing card needs this to choose between
+ * Buy and Inquire. One query for the whole page rather than one per card.
+ *
+ * Returns a Set of ids — the BOOLEAN fact only. §44 forbids putting the score
+ * or the threshold on a public surface, and a Set cannot leak either.
+ *
+ * Degrades to empty on any failure: "nothing has crossed" shows Inquire, which
+ * is the safe direction. Never advertise a purchase that checkout would refuse.
+ */
+export async function loadThresholdCrossed(
+  artworkIds: string[]
+): Promise<Set<string>> {
+  if (artworkIds.length === 0) return new Set();
+  try {
+    const sqlClient = getSql();
+    const rows = (await sqlClient`
+      select artwork_id
+        from demand_aggregates
+       where threshold_crossed_at is not null
+         and artwork_id = any(${artworkIds})
+    `) as { artwork_id?: unknown }[];
+    return new Set(
+      rows
+        .map((r) => r.artwork_id)
+        .filter((id): id is string => typeof id === "string")
+    );
+  } catch (error) {
+    console.error("[home] threshold lookup unavailable", error);
+    return new Set();
   }
 }

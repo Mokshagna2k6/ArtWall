@@ -8,6 +8,7 @@ import {
   countListedToday,
   loadNewlyListed,
   loadRecentlyFavorited,
+  loadThresholdCrossed,
   loadTodaysPick,
   loadTrending,
 } from "@/features/home/marketplace-data";
@@ -93,6 +94,18 @@ export async function MarketplaceHome({ signedIn }: { signedIn: boolean }) {
     .filter((url): url is string => Boolean(url))
     .filter((url, i, all) => all.indexOf(url) === i);
 
+  // One lookup for every card on the page. Bible §14: only a work whose demand
+  // has crossed the threshold may show Buy; §44: the boolean only, never the
+  // score. Not cached with the sections — a stale "not yet" is harmless, a
+  // stale "yes" would advertise a purchase checkout refuses.
+  const crossed = await loadThresholdCrossed([
+    ...trending,
+    ...newlyListed,
+    ...favorited,
+    ...(todaysPick ? [todaysPick] : []),
+    ...firstPage.items,
+  ].map((item) => item.id));
+
   return (
     <div className="bg-background">
       {/* Real work behind the copy: the slides carry the editorial text, the
@@ -118,6 +131,7 @@ export async function MarketplaceHome({ signedIn }: { signedIn: boolean }) {
               : undefined
           }
           signedIn={signedIn}
+          crossed={crossed}
           priority
         />
         <Rail
@@ -138,6 +152,7 @@ export async function MarketplaceHome({ signedIn }: { signedIn: boolean }) {
           title="Most saved this fortnight"
           href="/discover"
           items={favorited}
+          crossed={crossed}
           empty="Nothing saved recently yet. Works appear here as collectors start following them."
           signedIn={signedIn}
         />
@@ -146,7 +161,11 @@ export async function MarketplaceHome({ signedIn }: { signedIn: boolean }) {
           {todaysPick ? (
             <div className="mt-6">
               <ArtworkTile item={todaysPick} sizes="(min-width:1024px) 33vw, 100vw" />
-              <ListingActions item={todaysPick} signedIn={signedIn} />
+              <ListingActions
+                item={todaysPick}
+                signedIn={signedIn}
+                thresholdCrossed={crossed.has(todaysPick.id)}
+              />
             </div>
           ) : (
             <p className="text-muted-foreground mt-6 text-sm">
@@ -183,6 +202,7 @@ function Wide({
   empty,
   fallbackNote,
   signedIn,
+  crossed,
   priority = false,
 }: {
   eyebrow: string;
@@ -192,6 +212,8 @@ function Wide({
   empty?: string;
   fallbackNote?: string;
   signedIn: boolean;
+  /** Ids whose demand threshold has crossed — the boolean fact only (§44). */
+  crossed: Set<string>;
   priority?: boolean;
 }) {
   return (
@@ -221,7 +243,11 @@ function Wide({
                 sizes="(min-width:1280px) 25vw, (min-width:640px) 33vw, 100vw"
                 priority={priority && i === 0}
               />
-              <ListingActions item={item} signedIn={signedIn} />
+              <ListingActions
+                item={item}
+                signedIn={signedIn}
+                thresholdCrossed={crossed.has(item.id)}
+              />
             </div>
           ))}
         </div>
