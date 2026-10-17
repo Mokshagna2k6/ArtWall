@@ -112,9 +112,10 @@ export default async function StudioOverviewPage() {
       {/* "Your next steps" beside the checklist, per the reference dashboard:
           one decisive action on the left, the whole path on the right, so the
           first screen answers "what now" rather than "how much have I done". */}
-      <section aria-label="Your next steps" className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+      {nextStep && (
+      <section aria-label="Your next steps" className="grid items-start gap-6 xl:grid-cols-[1.4fr_1fr]">
         <div className="studio-card overflow-hidden">
-          <div className="bg-studio-bg flex items-center justify-center gap-10 px-8 py-10">
+          <div className="bg-studio-bg flex items-center justify-center gap-12 px-8 py-8">
             <StepBadge label="COA" filled />
             <StepBadge label="COA+" />
           </div>
@@ -145,6 +146,7 @@ export default async function StudioOverviewPage() {
         </div>
         <StudioChecklistPanel checklist={checklist} />
       </section>
+      )}
 
       <section aria-label="Studio summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StudioMetric
@@ -249,7 +251,7 @@ function StepBadge({ label, filled = false }: { label: string; filled?: boolean 
     <div className="flex flex-col items-center gap-3">
       <span
         aria-hidden
-        className={`flex size-20 items-center justify-center rounded-full border-2 text-lg font-semibold ${
+        className={`flex size-16 items-center justify-center rounded-full border text-base font-semibold ${
           filled
             ? "bg-studio-ink border-studio-ink text-white"
             : "border-studio-border text-studio-ink bg-white"
