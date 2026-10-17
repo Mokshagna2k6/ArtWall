@@ -1412,3 +1412,20 @@ export const inquiryMessages = pgTable("inquiry_messages", {
   body: text("body").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ── Virtual Wall (0073) ─────────────────────────────────────────────────────
+ * The artwork-to-slot mapping for the navigable 3D building. Rule 23: the
+ * relationship is a record, never a column on the slot; Rule 21: an empty slot
+ * is simply a slot with no live row here. "Currently placed" is
+ * `removedAt is null` (§18: no status field), and 0073's partial unique index
+ * is what actually enforces Invariant 1 (one active per slot). */
+export const virtualWallPlacements = pgTable("virtual_wall_placements", {
+  id: text("id").primaryKey(),
+  /** FK to the WallOS hierarchy leaf (`slots`, i.e. `wallosSlots` above). */
+  slotId: text("slot_id").notNull(),
+  artworkId: text("artwork_id").notNull(),
+  placedBy: text("placed_by"),
+  placedAt: timestamp("placed_at", { withTimezone: true }).notNull().defaultNow(),
+  removedBy: text("removed_by"),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+});
