@@ -396,6 +396,7 @@ export async function searchArtworksForCollection(collectionId: string, query: s
           category: artworks.category,
           artistName: artistProfiles.displayName,
           artistHandle: artistProfiles.handle,
+          exhibitionStatus: artworks.exhibitionStatus,
         })
         .from(artworks)
         .leftJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))

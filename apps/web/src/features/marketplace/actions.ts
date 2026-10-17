@@ -46,6 +46,12 @@ export interface MarketplaceItem {
   category: string | null;
   artistName: string;
   artistHandle: string;
+  /**
+   * Bible §14/§42: an exhibited work is not for sale until the demand-triggered
+   * sale fires, so a listing card cannot decide between Buy and Inquire without
+   * it. Carried on the list row for exactly that reason.
+   */
+  exhibitionStatus: string;
 }
 
 export interface MarketplacePage {
@@ -180,6 +186,7 @@ async function discover(filters: MarketplaceFilters): Promise<MarketplacePage> {
       category: artworks.category,
       artistName: artistProfiles.displayName,
       artistHandle: artistProfiles.handle,
+      exhibitionStatus: artworks.exhibitionStatus,
       sortValue: sql<string | null>`${key}::text`,
     })
     .from(artworks)
