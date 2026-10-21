@@ -92,9 +92,13 @@ on-failure restart policy.
    sensible `nextRun`.
 2. Trigger one safe job manually to prove auth works end to end:
    `curl -X POST -H "Authorization: Bearer $CRON_SECRET" <railway-url>/trigger/demand-aggregate`
-3. Only then remove the `crons` array from `apps/web/vercel.json` — already done
-   on this branch, so **if you deploy the web app before this service, nothing
-   is scheduled at all.** Deploy this service first.
+3. Only then remove the `crons` array from `apps/web/vercel.json`.
+
+> **Status 2026-10-21: the crons are still on Vercel.** Railway had paused new
+> deploys platform-side when this shipped, so the array was deliberately left
+> in `vercel.json` rather than leaving the seven jobs unscheduled. Nothing runs
+> twice today because this service is not deployed. Remove the array in the
+> same change that brings this service up, not before.
 
 ## Local
 
