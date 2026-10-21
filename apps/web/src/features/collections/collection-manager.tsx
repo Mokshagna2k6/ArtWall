@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import {
   addArtworkToCollection,
@@ -48,6 +48,17 @@ export function CollectionManager({ collection }: { collection: Collection }) {
   const [pending, start] = useTransition();
 
   const memberIds = new Set(members.map((m) => m.artworkId));
+
+  // Load the catalogue once on mount, so the picker opens with something to
+  // choose from. The action already returns everything for an empty query, so
+  // this needs no new endpoint — previously the list stayed empty until the
+  // artist guessed a title, which reads as "I have no artworks".
+  useEffect(() => {
+    runSearch("");
+    // Intentionally once per collection: re-running on every render would
+    // refetch the whole catalogue on each keystroke-driven re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collection.id]);
 
   function runSearch(q: string) {
     setQuery(q);

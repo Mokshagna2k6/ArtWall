@@ -73,7 +73,10 @@ export function ConnectWalletButton({ walletAddress }: { walletAddress: string |
     const provider = injectedProvider();
     if (!provider) {
       setError(
-        "No browser wallet found. Install MetaMask (or another EIP-1193 wallet) and reload."
+        "No browser wallet found. This needs a wallet extension in the browser " +
+          "you are using — install MetaMask (or another EIP-1193 wallet), then " +
+          "reload this page. On a phone, open the site inside your wallet app's " +
+          "own browser instead."
       );
       return;
     }

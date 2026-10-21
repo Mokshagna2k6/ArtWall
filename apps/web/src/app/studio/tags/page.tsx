@@ -1,5 +1,8 @@
 import Link from "next/link";
 
+import { QrCode } from "@/features/physical-wall/components/qr-code";
+import { siteConfig } from "@/config/site";
+
 import { getStudioArtistProfile } from "@/app/actions/artist-profile";
 import { getArtworks } from "@/app/actions/artworks";
 import {
@@ -13,6 +16,8 @@ import {
 import { getArtTags } from "@/features/art-tags/actions";
 
 export default async function TagsPage() {
+  // Same source of truth as the COA PDF and the uptime check.
+  const scanBaseUrl = process.env.NEXT_PUBLIC_APP_URL ?? siteConfig.url;
   const [tags, works, profile] = await Promise.all([
     getArtTags(),
     getArtworks(),
@@ -72,6 +77,23 @@ export default async function TagsPage() {
                 >
                   Scan page →
                 </a>
+              </div>
+
+              {/* The scannable code itself. Without this the page described a
+                  QR tag but never showed one, leaving no way to print a label:
+                  "Scan page" opens what a VISITOR sees after scanning, which
+                  is the opposite end of the journey. Rendered server-side as
+                  inline SVG so it prints sharp at any label size. */}
+              <div className="flex items-start gap-4">
+                <QrCode
+                  value={`${scanBaseUrl}/tag/${encodeURIComponent(tag.tagUid)}`}
+                  size={120}
+                  label={`QR code for tag ${tag.tagUid}`}
+                />
+                <p className="text-studio-muted text-xs leading-5">
+                  Print this beside the work. A scan opens its page
+                  {tag.artworkTitle ? "" : " once you bind the tag to an artwork"}.
+                </p>
               </div>
               <TagRowControls
                 // Remount on server changes so local (optimistic) state resets.
