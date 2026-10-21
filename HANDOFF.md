@@ -1,57 +1,61 @@
 # ArtWall — Handoff
 
-> ## 2026-10-21: Supabase + Railway migration — VERIFIED LOCALLY
+> ## 2026-10-21: Supabase migration — DEPLOYED TO PRODUCTION
 >
-> The stack changed. Anything below describing Neon, better-auth or Vercel Cron
-> is **out of date**; see `README.md`, `AGENTS.md` and
-> `docs/plans/PRODUCTION_DECISIONS.md`.
+> Live at https://artwall-production.vercel.app
 >
-> - **Database:** Neon → **Supabase** (`nibhjciuatdfljwicykm`, ap-southeast-1).
->   All 74 migrations applied.
-> - **Auth:** better-auth → **Supabase Auth** (migration `0074`).
-> - **Crons:** Vercel Cron → **Railway** (`apps/api`). `crons` removed from
->   `apps/web/vercel.json`.
+> - **Database + Auth:** Supabase (`nibhjciuatdfljwicykm`, ap-southeast-1).
+>   74 migrations applied. better-auth is gone (migration `0074`).
+> - **Showcase catalogue:** 100 artists, 448 artworks, live on production.
+>   Super Admin can remove it at `/physical-wall/admin/showcase`.
+> - **Crons: still on Vercel.** Railway had paused new deploys platform-side,
+>   so the `crons` array stays in `vercel.json`. `apps/api` is written, tested
+>   and committed but NOT deployed — see below.
 >
-> **Verified against the real project**, not just statically:
-> typecheck 0 errors · lint 0 errors · **694/694 tests** · `pnpm build` OK ·
-> all 74 migrations applied · sign-up and sign-in work through the public anon
-> endpoint · the `handle_new_user` / `handle_user_updated` triggers populate
-> and sync `public."user"` · **all 7 cron jobs return 200** driven by the
-> Railway scheduler against a live dev server · scheduler rejects an
-> unauthenticated trigger with 401.
+> **Verified on production:** `/`, `/discover`, `/artists`, `/sign-in` all 200 ·
+> 48 artworks + 99 images render on `/discover` · 36 artists on `/artists` ·
+> sign-in works · admin showcase page redirects an anonymous visitor to
+> sign-in rather than exposing the delete control · cron endpoints return 401
+> without the secret.
 >
-> **Five real bugs were found and fixed by running it** (none were visible
-> statically — all four `0074` fixes are in the migration file, so a fresh
-> project reproduces them):
-> 1. `0074` retyped `user.id` to uuid — impossible, **55 FKs** across 10
->    migrations reference it as `text`. It stays `text` and holds the uuid.
-> 2. `0074` dropped `session`/`account`/`verification` — that breaks the DPDP
->    erasure path (`data-rights.ts` deletes from all three). Now kept, emptied.
-> 3. RLS policies compared `auth.uid()` (uuid) to `id` (text) — migration
->    failed outright. Cast added.
-> 4. Sign-up returned "Database error creating new user": the trigger inserts
->    as `supabase_auth_admin`, which does **not** own the table, so RLS applied
->    and `auth.uid()` is null during sign-up. Added `user_auth_admin_write`
->    scoped to that role, plus schema grants. `security definer` alone is not
->    enough.
-> 5. **`src/lib/db.ts` used the Neon HTTP driver**, which cannot speak to
->    Supabase — all **61** `getSql()` call sites failed with "fetch failed".
->    Rewritten over the shared `pg` Pool, keeping the identical tagged-template
->    and `.query()` API, so no call site changed.
+> **Verified locally:** typecheck 0 · lint 0 errors · **700 tests** · build OK.
 >
-> **Still open**
-> 1. **No FK from `public."user"` to `auth.users`**, so deleting an auth user
->    orphans the profile row (verified: 3 deleted, 2 orphans left). Intentional
->    — an FK needs uuid, which needs all 55 dependents retyped. App-level
->    erasure (`data-rights.ts`) handles deletion. Flagged `shortcut:` in `0074`.
-> 2. **`pnpm db:check` reports 6 schema drifts** (`escrow_holds.booking_id`
->    nullability, 4 columns in DB missing from Drizzle). **Pre-existing** —
->    identical on Neon before the migration.
-> 3. **Email confirmation is on and no SMTP is configured**, so a public
->    sign-up cannot sign in locally until confirmed. Configure SMTP in Supabase
->    or disable confirmation for local work.
-> 4. **Nothing is committed and nothing is deployed.** CI has not run.
-> 5. `audit-high.mjs` reports 10 high/critical advisories (pre-existing).
+> ### The one outstanding deploy
+>
+> **Railway (`apps/api`).** Railway returned "Deploys have been paused
+> temporarily" for both the API and the CLI. When it is available:
+>
+> 1. Create a service from this repo. Root Directory = **repo root** (pnpm
+>    workspace), Dockerfile = `apps/api/Dockerfile`.
+> 2. Set `WEB_APP_URL` and `CRON_SECRET` (identical to Vercel's).
+> 3. Confirm `GET /status` lists seven jobs.
+> 4. **Only then** remove the `crons` array from `apps/web/vercel.json` and
+>    redeploy Vercel. Doing it in the other order leaves nothing scheduled.
+>
+> ### Google OAuth
+>
+> The redirect URI registered in Google Cloud is **Supabase's**, not the app's —
+> the same single value for local and production:
+>
+> ```
+> https://nibhjciuatdfljwicykm.supabase.co/auth/v1/callback
+> ```
+>
+> Add `http://localhost:3000` and the production URL to Supabase →
+> Authentication → URL Configuration → Redirect URLs.
+>
+> ### Still open
+>
+> 1. **No FK from `public."user"` to `auth.users`** — deleting an auth user
+>    orphans the profile row. App-level erasure handles it. `shortcut:` in `0074`.
+> 2. **Seed guard protects nothing** — it blocks only the dead Neon host, so
+>    `seed-demo.mjs --purge` would wipe Supabase. Add the production ref once
+>    prod and dev are separate projects.
+> 3. **Email confirmation is on with no SMTP configured**, so a public sign-up
+>    cannot sign in until confirmed. Configure SMTP in Supabase.
+> 4. **`pnpm db:check` reports 6 schema drifts** — pre-existing, identical on Neon.
+> 5. Demo content carries placeholder commercial values (refund policy 50%,
+>    discount tiers) that need real numbers before launch.
 
 
 ## 1. Project overview
