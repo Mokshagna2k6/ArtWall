@@ -8,7 +8,7 @@ import { configDefaults, defineConfig } from "vitest/config";
  * copies of src/, and without this every test was collected two or three times
  * over, which is where the old "212 tests" figure came from. Also excludes the
  * *.db.test.ts integration suite, which runs against a real database via
- * `pnpm test:db` (vitest.db.config.ts). True counts: docs/testing.md.
+ * `pnpm test:db` (vitest.db.config.ts). True counts: docs/runbooks/testing.md.
  */
 export const shared = {
   resolve: {

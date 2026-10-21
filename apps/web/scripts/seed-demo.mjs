@@ -26,7 +26,49 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import pg from "pg";
-import { hashPassword } from "better-auth/crypto";
+/**
+ * Demo accounts are created through Supabase Auth's Admin API, not by writing
+ * a password hash into `account` as this script used to. Supabase Auth owns
+ * credentials now (migration 0074), and its scrypt-incompatible hashes mean a
+ * locally written hash would simply never authenticate.
+ *
+ * The uuid must come FROM auth.users: `public."user"` is keyed by it, and the
+ * `handle_new_user` trigger creates that profile row on insert. This script
+ * then updates the row with the role/persona columns the trigger never touches.
+ */
+async function createAuthUser({ email, password, name }) {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!base || !key) {
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required to seed accounts."
+    );
+  }
+  const headers = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+
+  const res = await fetch(`${base}/auth/v1/admin/users`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { name } }),
+  });
+  if (res.ok) return (await res.json()).id;
+
+  // Re-running the seed must be idempotent, so an existing email is looked up
+  // and its password reset rather than treated as a failure.
+  const body = await res.text();
+  if (!/already|exists|registered/i.test(body)) {
+    throw new Error(`Could not create ${email}: ${res.status} ${body.slice(0, 200)}`);
+  }
+  const list = await fetch(`${base}/auth/v1/admin/users?per_page=1000`, { headers });
+  const found = (await list.json()).users?.find((u) => u.email === email);
+  if (!found) throw new Error(`${email} reported as existing but was not found.`);
+  await fetch(`${base}/auth/v1/admin/users/${found.id}`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ password, email_confirm: true, user_metadata: { name } }),
+  });
+  return found.id;
+}
 
 import { resolveSeedTarget } from "./seed-guard.mjs";
 
@@ -327,7 +369,7 @@ const ACCOUNTS = [
     wallos: "Venue Owner — WaaS Basic",
     purpose:
       "Venue Owner on WaaS Basic (free + 2.5% revenue share). Owns the seeded organization and venue",
-    screens: "/venue, /venue/walls, /venue/calendar (route tree not built yet — see docs/SEED-DATA.md)",
+    screens: "/venue, /venue/walls, /venue/calendar (route tree not built yet — see docs/runbooks/SEED-DATA.md)",
   },
   {
     key: "venue_pro",
@@ -457,9 +499,12 @@ async function seedAccounts() {
   const credentials = [];
 
   for (const acct of ACCOUNTS) {
-    const userId = id("u", acct.key);
     const password = newPassword();
-    const hash = await hashPassword(password);
+    const userId = await createAuthUser({
+      email: acct.email,
+      password,
+      name: acct.name,
+    });
 
     // An account holding any admin role must also carry role = 'admin': the
     // admin area's page-level gate checks that column as well as the role
@@ -484,13 +529,9 @@ async function seedAccounts() {
         "updatedAt" = now()
     `;
 
-    // The credential row better-auth checks on email+password sign-in. These
-    // accounts sign in through the normal /sign-in form, no special-casing.
-    await sql`
-      insert into account (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
-      values (${id("acc", acct.key)}, ${userId}, 'credential', ${userId}, ${hash}, now(), now())
-      on conflict (id) do update set password = excluded.password, "updatedAt" = now()
-    `;
+    // No `account` row: Supabase Auth holds the credential, and `account` is a
+    // kept-but-empty better-auth leftover (migration 0074). These accounts sign
+    // in through the normal /sign-in form, no special-casing.
 
     if (acct.persona === "artist") {
       await sql`
@@ -974,7 +1015,7 @@ async function seedWallOS() {
  * Requires pw_qr_tokens.subject_type to accept 'slot'. If this database has
  * not had that migration applied, the slot QRs are skipped with a warning
  * rather than failing the whole seed: the constraint is the application's, and
- * it is not this script's business to bypass it. See docs/SEED-DATA.md.
+ * it is not this script's business to bypass it. See docs/runbooks/SEED-DATA.md.
  */
 async function seedSlotQrTokens() {
   let written = 0;
@@ -1047,9 +1088,10 @@ const EXHIBITIONS = [
   },
 ];
 
-async function seedExhibitions() {
+async function seedExhibitions(users) {
+  const byKey = Object.fromEntries(users.map((u) => [u.key, u]));
   for (const ex of EXHIBITIONS) {
-    const ownerId = id("u", ex.owner);
+    const ownerId = byKey[ex.owner].userId;
     await sql`
       insert into exhibitions (
         id, user_id, title, description, venue, start_date, end_date, status, created_at, updated_at
@@ -1363,7 +1405,7 @@ try {
     console.log(`  slot-bound QRs      ${qrCount} (one on an EMPTY slot — Rule 21)`);
     await seedArtworks(users);
     console.log(`  artworks            ${ARTWORKS.length} (6 valid paths + 1 blocked control)`);
-    await seedExhibitions();
+    await seedExhibitions(users);
     console.log(`  exhibitions         ${EXHIBITIONS.length} (1 active on A1, 1 past on A2 — Invariant 1 holds)`);
     await seedDemand();
     console.log(`  demand signals      ${Object.keys(DEMAND_LEVELS).length} artworks scored`);

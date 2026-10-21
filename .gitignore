@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but the template carries no values, and the README tells you to copy it.
+!.env.example
+!**/.env.example
 
 # vercel
 .vercel
@@ -56,7 +59,19 @@ playwright-report/
 blob-report/
 .pnpm-store/
 
+# Personal local scratch notes — not part of the repo.
+COMMANDS.md
+
+# Session transcript. Contains pasted connection strings and keys.
+chat-history.txt
+
+# Project-scoped MCP config. Holds personal project refs and token env-var
+# wiring, so it stays local; .mcp.json.example is the committed template.
+.mcp.json
+
 # Seed/dummy account credentials — NEVER commit (AGENTS.md: never echo credentials)
 SEED-CREDENTIALS.md
 SEED-CREDENTIALS*.md
+SHOWCASE-CREDENTIALS.md
+SHOWCASE-CREDENTIALS*.md
 *.credentials.json

@@ -290,7 +290,7 @@ export async function hasAdminRole(
  * requires the specific granted role. New/stricter admin actions that map
  * cleanly onto one of the 8 Bible roles should call this; the broad
  * `requireRole("admin")` remains the catch-all for everything else — see
- * docs/policy-engine.md's "Admin roles" section for the scope reasoning.
+ * docs/architecture/policy-engine.md's "Admin roles" section for the scope reasoning.
  */
 export async function requireAdminRole(required: AdminRoleName): Promise<Actor> {
   const actor = await requireRole("admin");

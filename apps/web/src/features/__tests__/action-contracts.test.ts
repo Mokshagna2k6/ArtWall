@@ -125,7 +125,10 @@ const form = (fields: Record<string, string>) => {
 const idle = { status: "idle" } as never;
 
 describe("server action contract, runtime (BE-2.15)", () => {
-  it("a database failure comes back as a flat message, never SQL text", async () => {
+  // 20s, not the 5s default: this one really connects, and the database moved
+  // from Neon (us-east) to Supabase (ap-southeast-1), where three connection
+  // attempts no longer fit in 5s from every machine.
+  it("a database failure comes back as a flat message, never SQL text", { timeout: 20_000 }, async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { attachArtwork } = await import("@/features/physical-wall/actions/booking");
     const { closeGrievance } = await import("@/features/physical-wall/actions/admin-ops");

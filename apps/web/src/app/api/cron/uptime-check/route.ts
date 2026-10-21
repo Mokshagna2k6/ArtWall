@@ -8,7 +8,7 @@ export const maxDuration = 30;
 /**
  * Uptime checks, with alerting (PERF-3.02).
  *
- * The four surfaces docs/incident-runbook.md's "Uptime checks" section asks
+ * The four surfaces docs/runbooks/incident-runbook.md's "Uptime checks" section asks
  * an external monitor to poll. This cron is a genuine, self-contained second
  * layer this project can actually run with zero external account: it polls
  * the same four endpoints and pages admins (via the existing `alertAdmins`
@@ -21,7 +21,7 @@ export const maxDuration = 30;
  * Better Stack, polling every 1-5 min) is still genuinely necessary for fast
  * detection and is NOT replaced by this cron - this is a free daily backstop
  * that pages admins even if nobody ever configures that external monitor,
- * not a substitute for one. docs/incident-runbook.md documents both layers.
+ * not a substitute for one. docs/runbooks/incident-runbook.md documents both layers.
  */
 
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL ?? siteConfig.url;

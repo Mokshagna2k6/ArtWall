@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
   },
   /**
-   * CHANGES-PLAN.md §5. Permanent (308) rather than temporary: both old URLs
+   * docs/archive/plans/CHANGES-PLAN.md §5. Permanent (308) rather than temporary: both old URLs
    * carried a canonical tag and a nav link, so the redirect is what passes
    * their ranking to the new location instead of stranding it.
    *

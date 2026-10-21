@@ -6,7 +6,7 @@
  * preview, and its own JavaScript bundle - a visitor who only wants to hang
  * their work on a virtual wall never downloads the quiz.
  *
- * Marketplace-first (CHANGES-PLAN.md §3). The bar leads with the inventory -
+ * Marketplace-first (docs/archive/plans/CHANGES-PLAN.md §3). The bar leads with the inventory -
  * Discover, Artists, Exhibitions - because "/" is the marketplace now, and a
  * visitor who landed on a wall of art should be able to keep looking at art.
  * The company's argument pages (Services, How It Works, the narrative, the
@@ -115,7 +115,7 @@ export const navItems: readonly NavItem[] = [
         description: "Tell us what is broken. Two minutes.",
       },
       {
-        // /team redirects here permanently (CHANGES-PLAN.md §5); the nav and
+        // /team redirects here permanently (docs/archive/plans/CHANGES-PLAN.md §5); the nav and
         // the sitemap point at the new URL so neither keeps feeding the hop.
         label: "Team",
         href: "/about/team",
@@ -135,7 +135,7 @@ export const navItems: readonly NavItem[] = [
 /**
  * The signed-in-adjacent CTA, still used by the footer, the mobile menu and
  * the sitemap. The desktop header's logged-out right side is Login + Sign up
- * instead (CHANGES-PLAN.md §3) - a marketplace asks a visitor to make an
+ * instead (docs/archive/plans/CHANGES-PLAN.md §3) - a marketplace asks a visitor to make an
  * account, not to join a programme, and "Join the Wall" now also sits inside
  * the The Wall dropdown where an artist looking for it will expect it.
  */

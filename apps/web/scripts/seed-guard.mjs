@@ -19,9 +19,23 @@
  * all covered by one entry.
  */
 const FORBIDDEN_HOST_FRAGMENTS = [
-  // Production, per HANDOFF.md section 2.
+  // The old Neon production host. Stale since the Supabase migration
+  // (2026-10-21): nothing connects here any more, so this entry guards nothing.
   "ep-royal-wildflower",
+
+  // TODO before launch: add the PRODUCTION Supabase project ref here.
+  //
+  // Right now this list protects NOTHING. The current Supabase project
+  // (nibhjciuatdfljwicykm) is deliberately left out because it is the active
+  // dev/staging database and is seeded regularly — adding it would break
+  // `seed-demo.mjs` and `seed-accounts.mjs` against the only database there is.
+  //
+  // The moment a separate production project exists, its ref goes here, or
+  // `seed-demo.mjs --purge` will wipe production without complaining.
 ];
+
+// shortcut: seed guard currently blocks only a dead Neon host. Add the real
+// production project ref as soon as prod and dev are separate projects.
 
 export class SeedGuardError extends Error {}
 
@@ -65,7 +79,7 @@ export function assertSafeSeedTarget(url) {
   if (isForbiddenHost(host)) {
     throw new SeedGuardError(
       `Refusing to run: ${host} is the PRODUCTION database. ` +
-        "Point SEED_DATABASE_URL at a Neon branch (see docs/SEED-DATA.md) and run again."
+        "Point SEED_DATABASE_URL at a Neon branch (see docs/runbooks/SEED-DATA.md) and run again."
     );
   }
   return host;
@@ -89,7 +103,7 @@ export function resolveSeedTarget(opts = {}) {
       "SEED_DATABASE_URL is not set.\n" +
         "Seeding never defaults to apps/web/.env, because that file points at production.\n" +
         "Run with:  SEED_DATABASE_URL='postgres://...branch-host/neondb' node scripts/seed-demo.mjs\n" +
-        "See docs/SEED-DATA.md."
+        "See docs/runbooks/SEED-DATA.md."
     );
     process.exit(1);
   }

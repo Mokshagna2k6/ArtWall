@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 /**
  * The marketing narrative that used to be the homepage.
  *
- * CHANGES-PLAN.md §1 moves the marketplace onto "/" and keeps this page
+ * docs/archive/plans/CHANGES-PLAN.md §1 moves the marketplace onto "/" and keeps this page
  * reachable rather than deleting it — the six-systems argument, the living map
  * and the stats bar are what investors and press are sent to.
  *

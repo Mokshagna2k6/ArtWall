@@ -22,7 +22,7 @@ const socials = [
  *
  * Every nav item, with no slice. This used to be `navItems.slice(1)`, which
  * existed only to drop the old "Home" entry; the marketplace-first nav
- * (CHANGES-PLAN.md §3) has no Home item - the wordmark is the way home - so
+ * (docs/archive/plans/CHANGES-PLAN.md §3) has no Home item - the wordmark is the way home - so
  * slicing would now quietly drop Discover out of the footer instead.
  */
 const exploreLinks = navItems.flatMap((item) => {

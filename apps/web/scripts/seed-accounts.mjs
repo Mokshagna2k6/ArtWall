@@ -27,8 +27,47 @@
  */
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { neon } from "@neondatabase/serverless";
-import { hashPassword } from "better-auth/crypto";
+import pg from "pg";
+/**
+ * Accounts are created through Supabase Auth's Admin API (migration 0074).
+ * Writing a password hash into `account` no longer authenticates anything:
+ * Supabase Auth owns credentials, and `account` is a kept-but-empty
+ * better-auth leftover. The uuid must come FROM auth.users, because
+ * `public."user"` is keyed by it and the handle_new_user trigger creates that
+ * profile row.
+ */
+async function createAuthUser({ email, password, name }) {
+  const base = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!base || !key) {
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required to seed accounts."
+    );
+  }
+  const headers = { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
+
+  const res = await fetch(`${base}/auth/v1/admin/users`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ email, password, email_confirm: true, user_metadata: { name } }),
+  });
+  if (res.ok) return (await res.json()).id;
+
+  // Re-seeding must rotate the password, not fail on an existing account.
+  const body = await res.text();
+  if (!/already|exists|registered/i.test(body)) {
+    throw new Error(`Could not create ${email}: ${res.status} ${body.slice(0, 200)}`);
+  }
+  const list = await fetch(`${base}/auth/v1/admin/users?per_page=1000`, { headers });
+  const found = (await list.json()).users?.find((u) => u.email === email);
+  if (!found) throw new Error(`${email} reported as existing but was not found.`);
+  await fetch(`${base}/auth/v1/admin/users/${found.id}`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ password, email_confirm: true, user_metadata: { name } }),
+  });
+  return found.id;
+}
 
 import { assertSafeSeedTarget } from "./seed-guard.mjs";
 
@@ -56,7 +95,22 @@ try {
   process.exit(1);
 }
 
-const sql = neon(process.env.DATABASE_URL);
+// `pg`, not the Neon HTTP driver: that driver speaks Neon's own protocol and
+// rewrites a Supabase host into api.pooler.supabase.com, which does not exist.
+// Same root cause as the rewrite of src/lib/db.ts for migration 0074.
+const pool = new pg.Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
+
+/** Tagged template over `pg`, matching the shape the rest of this file uses. */
+const sql = (strings, ...values) =>
+  pool
+    .query(
+      strings.reduce((acc, part, i) => acc + part + (i < values.length ? `$${i + 1}` : ""), ""),
+      values
+    )
+    .then((r) => r.rows);
 
 /** One password for all three, so a tester has one thing to remember. */
 const password =
@@ -80,14 +134,12 @@ const ACCOUNTS = [
   },
 ];
 
-const hash = await hashPassword(password);
-
 for (const { email, name, role } of ACCOUNTS) {
-  const [existing] = await sql`
-    select id from "user" where lower(email) = ${email.toLowerCase()} limit 1
-  `;
+  const userId = await createAuthUser({ email, password, name });
 
-  const userId = existing?.id ?? randomUUID();
+  const [existing] = await sql`
+    select id from "user" where id = ${userId} limit 1
+  `;
 
   if (existing) {
     await sql`
@@ -102,28 +154,7 @@ for (const { email, name, role } of ACCOUNTS) {
     `;
   }
 
-  // The credential row Better Auth checks on email+password sign-in. One per
-  // user; updated rather than duplicated so re-seeding rotates the password.
-  const [credential] = await sql`
-    select id from "account"
-    where "userId" = ${userId} and "providerId" = 'credential'
-    limit 1
-  `;
-
-  if (credential) {
-    await sql`
-      update "account"
-      set password = ${hash}, "updatedAt" = now()
-      where id = ${credential.id}
-    `;
-  } else {
-    await sql`
-      insert into "account"
-        (id, "accountId", "providerId", "userId", password, "createdAt", "updatedAt")
-      values
-        (${randomUUID()}, ${userId}, 'credential', ${userId}, ${hash}, now(), now())
-    `;
-  }
+  // No `account` row: Supabase Auth holds the credential (migration 0074).
 
   // SEC-3.03: give the master admin the super_admin named role too, so there
   // is a real super-admin able to grant the other 7 roles via grantAdminRole

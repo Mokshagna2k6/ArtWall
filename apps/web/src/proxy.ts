@@ -1,4 +1,5 @@
 import { buildCsp, buildCspReportOnly } from "@artwall/security";
+import { createServerClient } from "@supabase/ssr";
 import { NextRequest, NextResponse } from "next/server";
 
 // SEC-2.03: the CSP in next.config.ts used to allow 'unsafe-inline' for
@@ -10,7 +11,13 @@ import { NextRequest, NextResponse } from "next/server";
 // Every page here is already dynamically rendered (`ƒ` in `pnpm build`'s
 // route list, not `○`/`●`), so the "nonces require dynamic rendering"
 // trade-off the Next.js docs describe costs nothing extra on this app.
-export function proxy(request: NextRequest) {
+//
+// This is also the only place a refreshed Supabase auth cookie can be written:
+// a Server Component cannot set headers, so `setAll` in
+// src/lib/supabase/server.ts deliberately swallows its throw and relies on
+// this running first. Without it, access tokens would silently expire and
+// users would be logged out at random.
+export async function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
 
@@ -29,7 +36,48 @@ export function proxy(request: NextRequest) {
   // was ruled out).
   requestHeaders.set("x-pathname", request.nextUrl.pathname);
 
-  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  let response = NextResponse.next({ request: { headers: requestHeaders } });
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  // Unset locally or in a build with no Supabase project: serve the request
+  // with headers applied and no session, rather than throwing on every route.
+  // getSessionUser() independently returns null, so the app reads as signed
+  // out — the safe direction.
+  if (supabaseUrl && supabaseKey) {
+    const supabase = createServerClient(supabaseUrl, supabaseKey, {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        // A refreshed token must land on BOTH the request (so this render sees
+        // it) and the response (so the browser keeps it). Rebuilding the
+        // response here preserves the request headers set above.
+        setAll(cookiesToSet) {
+          for (const { name, value } of cookiesToSet) {
+            request.cookies.set(name, value);
+          }
+          response = NextResponse.next({ request: { headers: requestHeaders } });
+          for (const { name, value, options } of cookiesToSet) {
+            response.cookies.set(name, value, options);
+          }
+        },
+      },
+    });
+
+    // Verifies the JWT and refreshes it when near expiry. `getClaims()`, not
+    // `getSession()`: the cookie is forgeable, so its embedded user object is
+    // not trustworthy for anything. A failure here is deliberately not fatal —
+    // the per-route gates in features/physical-wall/authorize.ts are what
+    // actually deny access, and they re-resolve the actor themselves.
+    try {
+      await supabase.auth.getClaims();
+    } catch (error) {
+      console.error("[auth] Session refresh failed", error);
+    }
+  }
+
   response.headers.set("Content-Security-Policy", cspHeader);
   response.headers.set("Content-Security-Policy-Report-Only", cspReportOnly);
   return response;

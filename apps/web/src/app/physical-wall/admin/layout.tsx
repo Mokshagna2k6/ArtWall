@@ -38,7 +38,7 @@ const BELL_RECENT_LIMIT = 10;
  * FE-3.17: which of the 8 named admin roles may see each section's nav link.
  *
  * `undefined` means the section stays on the broad `requireRole("admin")`
- * catch-all (docs/policy-engine.md's documented scope decision) — any admin
+ * catch-all (docs/architecture/policy-engine.md's documented scope decision) — any admin
  * sees it, same as today. A section listed here has a real, server-enforced
  * role requirement behind it (its page and/or its write actions call
  * `requireAdminRole`/`requireAnyAdminRolePage`), so hiding its link for a

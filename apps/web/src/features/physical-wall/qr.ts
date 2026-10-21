@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { serverSecret } from "@/lib/server-secret";
 
 /**
  * QR tokens (C06, F15).
@@ -34,12 +35,7 @@ const SIGNATURE_BYTES = 12;
  * session cookie or vice versa, even though both trace back to one env var.
  */
 function signingKey(): Buffer {
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret) {
-    throw new Error(
-      "BETTER_AUTH_SECRET is required to mint physical-wall QR tokens."
-    );
-  }
+  const secret = serverSecret("physical-wall QR tokens");
   return createHash("sha256").update(`${secret}:physical-wall:qr:v1`).digest();
 }
 

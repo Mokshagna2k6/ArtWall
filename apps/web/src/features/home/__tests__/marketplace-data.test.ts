@@ -2,7 +2,7 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 /**
  * The two things the homepage's demand-derived reads have to get right
- * (CHANGES-PLAN.md §4(A)):
+ * (docs/archive/plans/CHANGES-PLAN.md §4(A)):
  *
  * 1. Rank order survives the second query. The demand tables give ids in
  *    score order; the card data comes from a separate `in (...)` join whose

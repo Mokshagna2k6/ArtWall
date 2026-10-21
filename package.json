@@ -16,11 +16,13 @@
     "format:check": "prettier --check .",
     "db:migrate": "pnpm --filter @artwall/db db:migrate",
     "db:check": "pnpm --filter @artwall/web db:check",
-    "db:seed-accounts": "pnpm --filter @artwall/web db:seed-accounts"
+    "db:seed-accounts": "pnpm --filter @artwall/web db:seed-accounts",
+    "supabase": "supabase"
   },
   "devDependencies": {
     "prettier": "^3.9.6",
-    "prettier-plugin-tailwindcss": "^0.8.1"
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "supabase": "^2.121.0"
   },
   "packageManager": "pnpm@10.32.1",
   "engines": {

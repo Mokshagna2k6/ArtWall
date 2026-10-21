@@ -1,6 +1,24 @@
 {
   "name": "@artwall/api",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
-  "description": "Railway backend: webhooks, crons, workers, PDF and mint jobs."
+  "description": "Railway scheduler: triggers the cron jobs that used to run on Vercel Cron.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "node --env-file=../web/.env src/index.js",
+    "start": "node src/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"src/**/*.test.js\""
+  },
+  "dependencies": {
+    "croner": "9.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=22"
+  }
 }

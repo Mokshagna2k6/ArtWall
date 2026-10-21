@@ -3,7 +3,7 @@ import type { Transition, Variants } from "framer-motion";
 /**
  * Shared motion vocabulary.
  *
- * Source of truth: docs/ArtWall_Experience_Design_System.md §12 and §17.
+ * Source of truth: docs/product/ArtWall_Experience_Design_System.md §12 and §17.
  * Values mirror the CSS custom properties in globals.css - if you change one,
  * change both, so a ceremony feels identical whether it is driven by CSS or JS.
  *

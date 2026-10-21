@@ -1,7 +1,7 @@
 # Seed / dummy data
 
 How to put a full demo dataset on a **non-production** database, and how to take
-it off again. Decided in `CHANGES-PLAN.md` §23; the data obeys `BIBLE.md`.
+it off again. Decided in `docs/archive/plans/CHANGES-PLAN.md` §23; the data obeys `BIBLE.md`.
 
 - Seed + purge script: `apps/web/scripts/seed-demo.mjs`
 - Production-host guard: `apps/web/scripts/seed-guard.mjs` (+ its test,

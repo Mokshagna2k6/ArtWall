@@ -8,7 +8,7 @@ import { cachedCatalog } from "@/lib/catalog-cache";
  * The public exhibitions index.
  *
  * Only /exhibitions/[id] existed before this; the marketplace-first header
- * (CHANGES-PLAN.md §3) puts Exhibitions in the primary nav, and a primary nav
+ * (docs/archive/plans/CHANGES-PLAN.md §3) puts Exhibitions in the primary nav, and a primary nav
  * item that 404s is the one thing config/nav.ts's own comment says not to
  * ship. Deliberately a plain list rather than a second gallery grid: an
  * exhibition's own page is where the work is shown.

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 
 /**
- * The marketplace hero, per CHANGES-PLAN.md §2.1: rotating editorial slides
+ * The marketplace hero, per docs/archive/plans/CHANGES-PLAN.md §2.1: rotating editorial slides
  * with one CTA each, on the existing display type scale (`font-heading`,
  * `text-display`).
  *

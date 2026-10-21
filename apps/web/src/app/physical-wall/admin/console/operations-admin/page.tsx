@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
  * requireRole("admin") catch-all. This landing page surfaces the real
  * existing operational pages (bookings, install queue, calendar, wall map)
  * rather than re-implementing any of them; those pages themselves are not
- * tightened to require operations_admin in this round (docs/policy-engine.md's
+ * tightened to require operations_admin in this round (docs/architecture/policy-engine.md's
  * documented "broad catch-all for most sections" scope decision stands —
  * narrowing them is a separate, larger change this round doesn't make).
  *

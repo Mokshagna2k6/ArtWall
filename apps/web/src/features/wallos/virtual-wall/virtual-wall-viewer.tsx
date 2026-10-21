@@ -32,7 +32,7 @@ export interface SelectedSlot {
  *
  * Navigation is WASD + pointer-lock mouselook (Bible §15); the reference
  * site's own scheme could not be determined, see
- * docs/VIRTUAL-WALL-RESEARCH.md. Pointer lock does not exist on touch, and
+ * docs/product/VIRTUAL-WALL-RESEARCH.md. Pointer lock does not exist on touch, and
  * some devices cannot render 3D at all, so there are two other paths:
  * "Look around" (orbit, no lock — the existing viewer's control) and the 2D
  * list, which is also what a non-WebGL device gets automatically (§15's
