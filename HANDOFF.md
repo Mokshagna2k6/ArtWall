@@ -22,15 +22,33 @@
 >
 > ### The one outstanding deploy
 >
-> **Railway (`apps/api`).** Railway returned "Deploys have been paused
-> temporarily" for both the API and the CLI. When it is available:
+> **Railway (`apps/api`).** Two blockers, both outside the code:
 >
-> 1. Create a service from this repo. Root Directory = **repo root** (pnpm
->    workspace), Dockerfile = `apps/api/Dockerfile`.
+> - Railway returned "Deploys have been paused temporarily" for the API and
+>   the CLI alike.
+> - **The CLI is logged in as the wrong account.** It holds
+>   `mokshu709331@gmail.com` (personal), but this project deploys under
+>   **stackfox**, which is what Vercel uses (`stackfoxtech-8156`). Run
+>   `railway logout && railway login` as the stackfox account before creating
+>   anything, or the service lands in the wrong workspace.
+>
+> When both are cleared:
+>
+> 1. Create a service from this repo **in the stackfox workspace**. Root
+>    Directory = **repo root** (pnpm workspace), Dockerfile =
+>    `apps/api/Dockerfile`.
 > 2. Set `WEB_APP_URL` and `CRON_SECRET` (identical to Vercel's).
 > 3. Confirm `GET /status` lists seven jobs.
 > 4. **Only then** remove the `crons` array from `apps/web/vercel.json` and
 >    redeploy Vercel. Doing it in the other order leaves nothing scheduled.
+>
+> ### Admin logins
+>
+> `ADMIN-CREDENTIALS.md` (gitignored) holds the working Super Admin password,
+> verified against Supabase. **`SEED-CREDENTIALS.md`'s admin passwords are
+> stale** — written by a `seed-demo.mjs` run that predates the Supabase fix, so
+> they are better-auth values that no longer authenticate. `ADMIN-CREDENTIALS.md`
+> supersedes them; `SHOWCASE-CREDENTIALS.md` is artists only, by design.
 >
 > ### Google OAuth
 >
