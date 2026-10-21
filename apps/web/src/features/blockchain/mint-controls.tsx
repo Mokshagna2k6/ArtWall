@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+
+import { chainName } from "@/features/blockchain/chains";
 import { useRouter } from "next/navigation";
 import { encodeFunctionData } from "viem";
 
@@ -49,21 +51,6 @@ interface Eip1193Provider {
 function injectedProvider(): Eip1193Provider | null {
   const w = window as unknown as { ethereum?: Eip1193Provider };
   return w.ethereum ?? null;
-}
-
-/** Hex chain id -> readable name, for the few we actually target. */
-const CHAIN_NAMES: Record<number, string> = {
-  1: "Ethereum mainnet",
-  137: "Polygon",
-  8453: "Base",
-  84532: "Base Sepolia (testnet)",
-  11155111: "Sepolia (testnet)",
-  2442: "Polygon zkEVM Cardona (testnet)",
-};
-
-export function chainName(id: number | null | undefined): string {
-  if (id == null) return "unknown network";
-  return CHAIN_NAMES[id] ?? `chain ${id}`;
 }
 
 async function readError(res: Response): Promise<string> {
@@ -296,3 +283,8 @@ export function MintButton({
     </div>
   );
 }
+
+// Re-exported so the pre-existing `from "@/features/blockchain/mint-controls"`
+// imports keep working. Server Components must import it from
+// "@/features/blockchain/chains" directly — see that file.
+export { chainName };
