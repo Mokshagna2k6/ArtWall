@@ -75,3 +75,6 @@ SEED-CREDENTIALS*.md
 SHOWCASE-CREDENTIALS.md
 SHOWCASE-CREDENTIALS*.md
 *.credentials.json
+
+# Admin logins, rewritten whenever passwords are reset.
+ADMIN-CREDENTIALS.md
