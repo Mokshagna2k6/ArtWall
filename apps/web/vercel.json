@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
+  "_regions_note": "sin1 would put functions beside the Supabase project (ap-southeast-1). Vercel IGNORES this key on Hobby — X-Vercel-Id still reports bom1::iad1 after deploying it. Set it in the dashboard instead: Project Settings -> Functions -> Function Region -> Singapore. Needs Pro.",
   "regions": [
     "sin1"
   ],

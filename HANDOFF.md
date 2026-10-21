@@ -83,6 +83,41 @@
 > Also add to **Supabase → Authentication → URL Configuration → Redirect URLs**:
 > `http://localhost:3000/**` and `https://artwall-production.vercel.app/**`.
 >
+> ### Performance — measured 2026-10-21
+>
+> Production page times (second, warm request):
+>
+> | Page | Warm |
+> | --- | --- |
+> | `/discover` | ~0.6s |
+> | `/artists` | ~0.8s |
+> | `/studio/artworks` | ~1.4s |
+> | `/studio/certificates` | ~1.5s |
+>
+> **The dominant cost is geography.** `X-Vercel-Id` reports `bom1::iad1`:
+> requests enter in Mumbai but the function executes in Washington DC, while
+> Supabase is in **ap-southeast-1 (Singapore)**. Every query crosses the
+> Pacific twice — measured ~85ms per query and ~1.1s per new connection.
+>
+> Fixed: pool `idleTimeoutMillis` 10s → 60s. Connections were being dropped
+> after 10s and re-established at 1.1s each, so any page load after a short
+> pause paid it. Verified on production: 1.5s after a 20s idle, versus a
+> ~600ms penalty before.
+>
+> **Still to do — needs the dashboard, not code.** `"regions": ["sin1"]` is in
+> `vercel.json` but **Vercel ignores it on Hobby** (confirmed: `iad1` after
+> deploying it). Set **Project Settings → Functions → Function Region →
+> Singapore (sin1)**. Requires Pro. That should take studio pages from ~1.4s
+> to roughly 300-400ms, since the Pacific round trip disappears.
+>
+> Note that `pnpm dev` is far slower than production (9.7s vs 1.4s for
+> `/studio/certificates`) because it recompiles per request. Judge speed on
+> production, not locally.
+>
+> The "Something went wrong loading this page" screen could not be reproduced
+> in 12 consecutive production requests across 6 pages, all 200. Most likely a
+> timeout under the latency above; worth re-checking after the region move.
+>
 > ### Still open
 >
 > 1. **No FK from `public."user"` to `auth.users`** — deleting an auth user
