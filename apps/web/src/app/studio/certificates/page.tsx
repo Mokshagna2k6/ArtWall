@@ -7,12 +7,12 @@ import {
   IssueCertificateForm,
   RevokeCertificateButton,
 } from "@/components/dashboard/certificate-actions";
+import { chainName } from "@/features/blockchain/chains";
 import { getCertificates } from "@/features/coa/actions";
 import { getStudioArtistProfile } from "@/app/actions/artist-profile";
 import {
   ConnectWalletButton,
   MintButton,
-  chainName,
 } from "@/features/blockchain/mint-controls";
 
 export default async function CertificatesPage() {
