@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+import { AdminSignOut } from "@/features/physical-wall/components/admin-sign-out";
 import {
   BadgeCheck,
   CalendarDays,
@@ -174,6 +176,14 @@ export default async function PhysicalWallAdminLayout({
             <ExternalLink className="size-3.5 shrink-0" aria-hidden />
             View site
           </Link>
+
+          {/* The admin shell replaces SiteHeader outright, so the account
+              dropdown that normally carries sign-out never renders here —
+              without this there is no way out short of clearing cookies.
+              It sits beside "View site" rather than in the "Signed in as"
+              box below, because that box is `hidden lg:block` and sign-out
+              has to work on a phone too. */}
+          <AdminSignOut />
 
           <p className="text-label text-ink-muted tracking-wider uppercase">
             Wall management
