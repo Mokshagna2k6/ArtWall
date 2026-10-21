@@ -27,7 +27,7 @@ import { PreconditionError } from "@/features/physical-wall/actions/shared";
  * column, no on-chain registration anywhere in Phase 1/2/3's work), and
  * every other on-chain surface in this codebase (ArtwallCOA, mint_commitments)
  * is scoped to the *artwork*, never to a physical wall slot — consistent
- * with BE-3.14's own scope interpretation (docs/policy-engine.md), on-chain
+ * with BE-3.14's own scope interpretation (docs/architecture/policy-engine.md), on-chain
  * slot IDs are treated as Growth-phase / N/A for MVP; only the revenue-share
  * rate itself is implemented here.
  */

@@ -155,7 +155,7 @@ function isAdminAccount(role: string | undefined): boolean {
 /**
  * Routes the takeover must never hijack even for an un-opted-out admin:
  * the unrelated, password-gated virtual-wall-tiles tool — now at /admin/tiles
- * (CHANGES-PLAN.md §5) rather than /admin — and anything under /api, which
+ * (docs/archive/plans/CHANGES-PLAN.md §5) rather than /admin — and anything under /api, which
  * route handlers hit directly and never renders this layout's children as a
  * page the admin is "looking at" in the first place.
  *

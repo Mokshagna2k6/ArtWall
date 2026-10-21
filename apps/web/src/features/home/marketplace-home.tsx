@@ -16,7 +16,7 @@ import { discoverArtworks, type MarketplaceItem } from "@/features/marketplace/a
 import { cachedCatalog } from "@/lib/catalog-cache";
 
 /**
- * The marketplace homepage, per CHANGES-PLAN.md §2.
+ * The marketplace homepage, per docs/archive/plans/CHANGES-PLAN.md §2.
  *
  * Order, top to bottom: Hero → Trending (wide) + Newly listed (rail) →
  * Recently favorited (wide) + Today's Pick (rail) → Discover (tabbed,

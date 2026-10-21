@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * The homepage is the marketplace (CHANGES-PLAN.md §1). The marketing
+ * The homepage is the marketplace (docs/archive/plans/CHANGES-PLAN.md §1). The marketing
  * narrative it replaced still exists, at /about/platform.
  *
  * The session is read here, once, and handed down: the buy/save controls need

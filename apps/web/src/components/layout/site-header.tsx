@@ -348,7 +348,7 @@ export function SiteHeader({
           {user ? (
             <UserMenu user={user} />
           ) : (
-            // CHANGES-PLAN.md §3: Login + Sign up for a logged-out visitor,
+            // docs/archive/plans/CHANGES-PLAN.md §3: Login + Sign up for a logged-out visitor,
             // replacing the single "Join the Wall" CTA. "/" is a marketplace
             // now, so the ask is an account, not a programme. Join the Wall
             // is still one click away, in the The Wall dropdown and the

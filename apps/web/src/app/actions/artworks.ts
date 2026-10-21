@@ -22,7 +22,7 @@ import { formFail, formInvalid, type FormResult } from "@/lib/form-result";
  * BE-3.03: gate every path that sets an artwork public. `canPublishArtwork`
  * only needs the two facts it was built for (title, image) — no DB read
  * inside the gate itself, per the PolicyEngine's calling convention
- * (docs/policy-engine.md). Unpublishing (isPublic -> false) is never gated;
+ * (docs/architecture/policy-engine.md). Unpublishing (isPublic -> false) is never gated;
  * there is no reason to block an artist from taking their own work down.
  */
 async function assertCanPublish(

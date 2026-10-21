@@ -12,7 +12,7 @@ import { computeBindingLevel, computeProvenanceLevel } from "@/features/policy/l
 // stays issued, only the on-chain attempt failed, so it counts the same as
 // "issued" here. Confirmed against 0052's coa_level trigger, which
 // deliberately carries the level forward into "revoked"/"failed" rather than
-// resetting it (docs/policy-engine.md's "coa_level drift fix").
+// resetting it (docs/architecture/policy-engine.md's "coa_level drift fix").
 const COA_ISSUED_STATUSES = ["issued", "metadata_pinned", "minting", "minted", "failed"] as const;
 
 /**
@@ -20,7 +20,7 @@ const COA_ISSUED_STATUSES = ["issued", "metadata_pinned", "minting", "minted", "
  *
  * The five trust dimensions are not new columns — each one already has a
  * single, unambiguous source of truth in an existing Phase 1/2 table (see
- * docs/policy-engine.md's mapping table, which this function turns into
+ * docs/architecture/policy-engine.md's mapping table, which this function turns into
  * actual code). Storing a sixth, mirrored copy on `artworks` would need to be
  * kept in sync with `art_tags`, `coa_certificates`, `mint_commitments` and
  * `curator_picks` by hand on every write path that touches any of them — a
@@ -38,7 +38,7 @@ const COA_ISSUED_STATUSES = ["issued", "metadata_pinned", "minting", "minted", "
  *                               count
  * - curationApproved        -> exists a curator_picks row for this artwork
  *                               (no separate approval workflow exists yet —
- *                               a pick IS the approval; see docs/policy-engine.md)
+ *                               a pick IS the approval; see docs/architecture/policy-engine.md)
  */
 export async function loadTrustDimensions(artworkId: string): Promise<TrustDimensions> {
   const [artwork] = await db

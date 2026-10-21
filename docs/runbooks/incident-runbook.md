@@ -2,7 +2,7 @@
 
 On-call path and escalation for payment, mint, and data-breach incidents.
 Reuses the alerting and logging already in the codebase — no new paging
-service. See `docs/testing.md` for how to run any suite mentioned here.
+service. See `docs/runbooks/testing.md` for how to run any suite mentioned here.
 
 ## How you get paged
 

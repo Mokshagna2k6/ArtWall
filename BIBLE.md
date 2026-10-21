@@ -29,7 +29,7 @@ the PDF. Section numbers below map to the PDF so anything can be looked up at so
 ## 1. THE 48 LOCKED PRODUCT RULES (§166) — THE CONSTITUTION
 
 These are verbatim. **Any code that contradicts one of these is wrong.**
-(This resolves the gap in `docs/locked-product-rules-traceability.md`, which could only
+(This resolves the gap in `docs/product/locked-product-rules-traceability.md`, which could only
 reconstruct partial groupings and left rules 9–15 and 36–40 unmapped. **Now fully sourced.**)
 
 ### Artwork (1–8)
@@ -183,7 +183,7 @@ BINDING_STATUS, LISTING_STATUS, OWNERSHIP_STATUS, EXHIBITION_POLICY, VENUE_POLIC
 Outputs: `primary_sale_allowed`, `exhibition_allowed`, `secondary_allowed`, `royalty_allowed`,
 `nft_allowed`, `promotion_allowed`.
 
-Repo already has `docs/policy-engine.md` and `src/features/policy/` — reconcile against this.
+Repo already has `docs/architecture/policy-engine.md` and `src/features/policy/` — reconcile against this.
 
 ---
 
@@ -424,7 +424,7 @@ condition photos, private business data.
 
 ## 17. SECURITY & COMPLIANCE
 
-- **OWASP ASVS 5.0** is the verification baseline (Rule 48, §102). Repo has `docs/asvs-baseline.md`.
+- **OWASP ASVS 5.0** is the verification baseline (Rule 48, §102). Repo has `docs/security/asvs-baseline.md`.
 - **22 security domains** (§103). **Highest risk** (§104): payment/fund flow, admin privileges,
   smart contracts = Critical.
 - **BOLA (§105):** every API call validates user → organization → venue → building → floor →
@@ -435,7 +435,7 @@ condition photos, private business data.
   idempotency, amount match, order match, currency match, state transition.
   "Never: webhook says success → blindly release money."
 - **DPDP Rules 2025** (§120) — not just the Act. Granular consent, never blanket (§121).
-  Repo has `docs/dpdp-data-processing-inventory.md`.
+  Repo has `docs/security/dpdp-data-processing-inventory.md`.
 - **CERT-In (§123):** ICT logs 180 rolling days, within Indian jurisdiction.
 - **9-layer anti-fraud (§112):** L1 pHash · L2 CNN · L3 metadata · L4 KYC · L5 behavior ·
   L6 velocity · L7 payment risk · L8 community · L9 curator. **L1+L2 are BLOCKING at listing.**

@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { sniffImageType } from "@/lib/blockchain/file-sniff";
 import { createUploadSignature, IMAGE_UPLOAD_FORMATS, type UploadSignature } from "@/lib/cloudinary";
 import { getSessionUser } from "@/lib/session";
+import { serverSecret } from "@/lib/server-secret";
 
 export const UGC_UPLOAD_FOLDER = "artwall/ugc";
 /** What Cloudinary will accept for a selfie; enforced by the signed upload. */
@@ -25,8 +26,7 @@ export type UgcUploadSignature = UploadSignature;
  * reaches JavaScript).
  */
 export function ugcOwnerFolder(identity: string): string {
-  const secret = process.env.BETTER_AUTH_SECRET;
-  if (!secret) throw new Error("BETTER_AUTH_SECRET is required to sign UGC uploads.");
+  const secret = serverSecret("UGC uploads");
   const tag = createHmac("sha256", secret).update(`ugc-owner:${identity}`).digest("base64url").slice(0, 24);
   return `${UGC_UPLOAD_FOLDER}/${tag}`;
 }

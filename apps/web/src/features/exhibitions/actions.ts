@@ -301,7 +301,7 @@ export async function getExhibitionLifecycleState(
 
 /**
  * Every published exhibition, newest first — the public index at
- * /exhibitions. Added because the marketplace-first header (CHANGES-PLAN.md
+ * /exhibitions. Added because the marketplace-first header (docs/archive/plans/CHANGES-PLAN.md
  * §3) puts Exhibitions in the primary nav, and only /exhibitions/[id] existed,
  * so the nav item would have pointed at a 404.
  *

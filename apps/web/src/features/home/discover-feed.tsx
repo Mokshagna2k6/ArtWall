@@ -8,7 +8,7 @@ import { discoverArtworks, type MarketplaceItem } from "@/features/marketplace/a
 import { ARTWORK_CATEGORIES, categoryLabel } from "@/features/marketplace/categories";
 
 /**
- * The homepage Discover section, per CHANGES-PLAN.md §2.4: category tabs over
+ * The homepage Discover section, per docs/archive/plans/CHANGES-PLAN.md §2.4: category tabs over
  * an infinitely scrolling grid.
  *
  * Data comes from `discoverArtworks` — the same server action /discover uses,

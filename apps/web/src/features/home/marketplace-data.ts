@@ -12,7 +12,7 @@ import { artistProfiles, artworks } from "@/lib/db/schema";
  *
  * Trending / Recently favorited / Today's Pick all come out of the Demand
  * Engine's existing tables (`demand_signals`, `demand_aggregates` — migration
- * 0045), per CHANGES-PLAN.md §4 decision (A). There is no favorites table and
+ * 0045), per docs/archive/plans/CHANGES-PLAN.md §4 decision (A). There is no favorites table and
  * this adds no migration: "favorited" is a presentation label over a real
  * engagement score, which is how the brief described it.
  *

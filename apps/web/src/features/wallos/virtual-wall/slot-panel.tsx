@@ -14,7 +14,7 @@ import type { SelectedSlot } from "@/features/wallos/virtual-wall/virtual-wall-v
  * What clicking a slot does: an in-app details panel.
  *
  * The reference site's artwork-click behaviour could not be determined
- * (docs/VIRTUAL-WALL-RESEARCH.md §3), so this shows what the Bible allows and
+ * (docs/product/VIRTUAL-WALL-RESEARCH.md §3), so this shows what the Bible allows and
  * nothing more — title and a link to the artwork page. §A13: no owner, no
  * price, no price history, no wallet. §44: no demand score or band.
  *

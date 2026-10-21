@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, Trash2 } from "lucide-react";
 
 import { BIBLE_ROLES, requireAnyAdminRolePage } from "@/features/physical-wall/authorize";
 import { roleConsolePath } from "@/features/physical-wall/admin-console";
@@ -36,6 +36,20 @@ export default async function SuperAdminConsolePage() {
           shipped.
         </p>
       </div>
+
+      <Link
+        href="/physical-wall/admin/showcase"
+        className="border-hairline hover:bg-band flex items-center gap-3 rounded-md border p-5 transition-colors"
+      >
+        <Trash2 className="size-5 shrink-0" aria-hidden />
+        <div>
+          <p className="text-sm font-medium">Showcase data</p>
+          <p className="text-ink-muted mt-1 text-xs">
+            Remove the demonstration artists and artworks once there are enough
+            real ones.
+          </p>
+        </div>
+      </Link>
 
       <Link
         href="/physical-wall/admin/roles"

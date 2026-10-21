@@ -9,7 +9,7 @@ import { EYE_HEIGHT, FLOOR_HEIGHT, ROOM_HALF } from "@/features/wallos/virtual-w
 /**
  * WASD + pointer-lock mouselook, per Bible §15 (the reference site's own
  * control scheme could not be determined — see
- * docs/VIRTUAL-WALL-RESEARCH.md §3).
+ * docs/product/VIRTUAL-WALL-RESEARCH.md §3).
  *
  * Deliberately not a physics engine: movement is a clamped position integration
  * on one floor's plane. The visitor cannot fall, cannot leave the room, and

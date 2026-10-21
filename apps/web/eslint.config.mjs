@@ -22,7 +22,7 @@ const eslintConfig = defineConfig([
     // Specs and reference prototypes handed to us, kept verbatim so they can be
     // compared against what we built. Not source, never bundled, and linting
     // someone else's single-file prototype to our rules produces only noise.
-    "docs/wms-spec/**",
+    "docs/product/wms-spec/**",
     // Foundry's Solidity dependency libraries (forge-std, OpenZeppelin) —
     // vendored third-party source (including their own JS test suites),
     // never our code, not bundled into the app.

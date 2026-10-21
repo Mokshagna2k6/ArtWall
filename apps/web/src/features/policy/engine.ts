@@ -17,7 +17,7 @@
  * Phase 3 track) is expected to land the canonical loader that reads these
  * five dimensions out of Postgres; until then, callers assemble
  * `TrustDimensions` from whatever columns already exist (see
- * docs/policy-engine.md for today's best-effort mapping). The shape of
+ * docs/architecture/policy-engine.md for today's best-effort mapping). The shape of
  * `TrustDimensions` is the contract — populating it correctly is a separate,
  * follow-on concern from gating on it correctly.
  */

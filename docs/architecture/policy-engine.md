@@ -407,7 +407,7 @@ error; `listAdminRoleAssignments` is itself `super_admin`-gated.
 ## BE-3.14 and BE-3.18 scope interpretation
 
 Both tasks carry a tracker-native `(confirm scope: ...)` caveat, quoted
-verbatim in `BE-3-TASKS.md`. Neither was started in this session (time went
+verbatim in `docs/archive/trackers/BE-3-TASKS.md`. Neither was started in this session (time went
 to the PolicyEngine contract first, per the priority instruction), so this is
 an interpretation for whoever picks them up next, not a report of work done:
 

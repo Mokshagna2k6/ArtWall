@@ -52,8 +52,11 @@ jobs:
         run: pnpm build
         env:
           DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/postgres"
-          BETTER_AUTH_SECRET: "ci-placeholder-secret"
-          BETTER_AUTH_URL: "http://localhost:3000"
+          # Supabase Auth (migration 0074). Placeholders: the build never calls
+          # the auth API, and proxy.ts/session.ts both degrade to "signed out"
+          # when the project is unreachable, which is the safe direction.
+          NEXT_PUBLIC_SUPABASE_URL: "https://ci-placeholder.supabase.co"
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: "ci-placeholder-anon-key"
 
   # SEC-2.09: no secret (API key, password, token) is committed to the repo.
   # gitleaks scans the full history on every run so a secret buried in an old
@@ -103,6 +106,24 @@ jobs:
       - name: forge test
         run: forge test -vvv
         working-directory: contracts
+
+  # The Railway scheduler (apps/api). Plain Node, no database and no network
+  # access needed — run-job.test.js stubs global fetch — so this is the
+  # cheapest job in the workflow.
+  scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm --filter @artwall/api exec tsc --noEmit
+      - name: Test
+        run: pnpm --filter @artwall/api test
 
   # DB-2.13: every migration applies to an empty database, twice, without error
   # and without changing the schema on the second pass.
@@ -221,8 +242,10 @@ jobs:
     timeout-minutes: 30
     env:
       DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
-      BETTER_AUTH_SECRET: ${{ secrets.E2E_BETTER_AUTH_SECRET }}
-      BETTER_AUTH_URL: http://localhost:3217
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_APP_URL: http://localhost:3217
       PHYSICAL_WALL_ENABLED: "true"
       RAZORPAY_KEY_ID: ${{ secrets.E2E_RAZORPAY_KEY_ID }}
       RAZORPAY_KEY_SECRET: ${{ secrets.E2E_RAZORPAY_KEY_SECRET }}

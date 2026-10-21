@@ -51,8 +51,8 @@ used as a transactional outbox:
   `deliverPendingNotifications(50, undefined, until)` under a 30s
   `maxDuration`. It is scheduled `0 1 * * *` in `vercel.json` — **once per
   day**, because the project is on Vercel's Hobby plan, which only permits
-  daily cron schedules (confirmed constraint; see `docs/incident-runbook.md`
-  and `PERF-3-REMAINING-TASKS.md`). There is also a manual "send pending now"
+  daily cron schedules (confirmed constraint; see `docs/runbooks/incident-runbook.md`
+  and `docs/archive/trackers/PERF-3-REMAINING-TASKS.md`). There is also a manual "send pending now"
   admin action that invokes the same delivery function outside the cron tick.
 - Covered by `src/features/physical-wall/__tests__/notifications.db.test.ts`:
   `"a Resend failure goes to 'retrying' with backoff, then dead-letters after

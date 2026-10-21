@@ -72,7 +72,7 @@ Accounts: deploys run under the stackfox Gmail's Vercel; PRs/pushes go to `Moksh
 - Checkout: Shiprocket, disputes, invoices, GST/TCS/TDS, digital goods, clawback after release all deferred; commission rates in `commission_policy_versions` are placeholders.
 - No "change artwork after booking" UI for slots.
 - Run migrations 0064, 0066, 0067 against a Neon branch before production.
-- `docs/WORK_PLAN.md` still claims AWS SES and Privy; code uses Resend and wagmi/RainbowKit.
+- `docs/archive/plans/WORK_PLAN.md` still claims AWS SES and Privy; code uses Resend and wagmi/RainbowKit.
 
 ## 2d. Monorepo skeleton and the NEW Vercel project (step 1, done on `production-v2`)
 

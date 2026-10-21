@@ -23,7 +23,7 @@ import { verifyMessage, type Address } from "viem";
 const NONCE_TTL_MS = 10 * 60 * 1000; // 10 minutes to connect a wallet and sign
 
 function secret(): string {
-  return process.env.BETTER_AUTH_SECRET ?? "artwall-wallet-link";
+  return process.env.SERVER_SECRET ?? process.env.BETTER_AUTH_SECRET ?? "artwall-wallet-link";
 }
 
 function sign(payload: string): string {

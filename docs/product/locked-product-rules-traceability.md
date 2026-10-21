@@ -3,8 +3,8 @@
 - Tasks: BE-3.25, SEC-3.06 (rules 41–48 subset)
 - Source of the rule groupings: every `section 166` citation found in the
   Notion tracker (`https://app.notion.com/p/3e92da5aa27e8176bf9cf764996dab7b`),
-  cross-checked against the local mirrors `BE-3-TASKS.md`, `FE-3-TASKS.md`,
-  `FE-3-REMAINING-TASKS.md`. The tracker does not contain the Locked Product
+  cross-checked against the local mirrors `docs/archive/trackers/BE-3-TASKS.md`, `docs/archive/trackers/FE-3-TASKS.md`,
+  `docs/archive/trackers/FE-3-REMAINING-TASKS.md`. The tracker does not contain the Locked Product
   Rules document itself (rule-by-rule text) — only task-level citations that
   say which rule range a given task maps to. This table is built **only**
   from those real citations plus direct reading of the current codebase; no
@@ -52,7 +52,7 @@ Cited by: BE-3.07 ("artwork state machine...orthogonal domains"), BE-3.23
 
 | Rule(s) | Status | Enforcing check |
 |---|---|---|
-| 1–8 | **Partially met** | `canPublishArtwork` (`src/features/policy/engine.ts`) is a real, wired gate — called from `src/app/actions/artworks.ts` (BE-3.03 wiring confirmed for this one call site). The artwork **state machine as orthogonal domains** (BE-3.07 — lifecycle/commerce/exhibition/custody as separate tracked dimensions) is **not built**: `docs/policy-engine.md` states BE-3.07 "not started" and there is no dedicated state-machine module beyond `src/features/artworks/` basic status transitions (see `src/features/artworks/__tests__/state-machine.test.ts`, which tests a simpler illegal-transition guard, not the four-domain model the rule describes). Edition numbering/size cap (BE-3.23) has **no code**: no `editions` cap-enforcement logic found outside the `editions` table existing in migrations. |
+| 1–8 | **Partially met** | `canPublishArtwork` (`src/features/policy/engine.ts`) is a real, wired gate — called from `src/app/actions/artworks.ts` (BE-3.03 wiring confirmed for this one call site). The artwork **state machine as orthogonal domains** (BE-3.07 — lifecycle/commerce/exhibition/custody as separate tracked dimensions) is **not built**: `docs/architecture/policy-engine.md` states BE-3.07 "not started" and there is no dedicated state-machine module beyond `src/features/artworks/` basic status transitions (see `src/features/artworks/__tests__/state-machine.test.ts`, which tests a simpler illegal-transition guard, not the four-domain model the rule describes). Edition numbering/size cap (BE-3.23) has **no code**: no `editions` cap-enforcement logic found outside the `editions` table existing in migrations. |
 | — | **Not met (sub-items)** | BE-3.07's orthogonal-domain state machine and BE-3.23's edition cap enforcement are genuinely absent — not "N/A for MVP" (they are not on the MVP-deferred list), just not yet built. |
 
 ### Rules 9–15 — ungrouped, no tracker citation exists for this rule number
@@ -68,7 +68,7 @@ provenance anchored), BE-3.08 (15-stage exhibition lifecycle).
 
 | Rule(s) | Status | Enforcing check |
 |---|---|---|
-| 16–24 | **Partially met** | `canExhibit` (`src/features/policy/engine.ts:141`) is real and wired — called from `src/features/exhibitions/actions.ts` (both the gating call at line ~178 and the per-artwork eligibility list at ~272). BE-3.08's full 15-stage exhibition lifecycle with server-enforced transitions and an audit entry per transition is **not built**: `docs/policy-engine.md` states "BE-3.07/3.08...not started." There is no `exhibition_transitions`-driving state-machine module in `src/features/exhibitions/` beyond the basic actions file — the migration table `exhibition_transitions` (0051/0053) exists in the DB schema but is not populated by application code outside the DPDP-erasure delete path (`src/features/physical-wall/data-rights.ts`, which only deletes rows, does not create lifecycle transitions). |
+| 16–24 | **Partially met** | `canExhibit` (`src/features/policy/engine.ts:141`) is real and wired — called from `src/features/exhibitions/actions.ts` (both the gating call at line ~178 and the per-artwork eligibility list at ~272). BE-3.08's full 15-stage exhibition lifecycle with server-enforced transitions and an audit entry per transition is **not built**: `docs/architecture/policy-engine.md` states "BE-3.07/3.08...not started." There is no `exhibition_transitions`-driving state-machine module in `src/features/exhibitions/` beyond the basic actions file — the migration table `exhibition_transitions` (0051/0053) exists in the DB schema but is not populated by application code outside the DPDP-erasure delete path (`src/features/physical-wall/data-rights.ts`, which only deletes rows, does not create lifecycle transitions). |
 
 ### Rules 25–30 — Escrow rules (dual-channel escrow, release/refund ledger)
 

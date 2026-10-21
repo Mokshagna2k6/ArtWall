@@ -1,3 +1,15 @@
+> **SUPERSEDED 2026-10-21.** The three-stage rollout this runbook describes
+> (Stage 1 Supabase Postgres keeping better-auth, Stage 2 Supabase Auth +
+> Railway, Stage 3 data cutover) was abandoned by user decision: Supabase and
+> Railway were adopted in one step, accepting data loss. Supabase Auth is
+> already implemented (migration `0074`) and the Railway scheduler already
+> exists (`apps/api`).
+>
+> **Do not follow the staging below.** Its env-var tables and Vercel project
+> settings are still broadly accurate and useful; its `BETTER_AUTH_*` rows are
+> not — those variables no longer exist. Current state:
+> `docs/plans/PRODUCTION_DECISIONS.md` and `README.md`.
+
 # New production project — go-live runbook (Stage 1)
 
 Branch: `production-v2` (never pushed to `stackfoxtech-maker/ArtWall` until step 4). The existing project `artwall-production` is untouched.

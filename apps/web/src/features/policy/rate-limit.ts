@@ -12,7 +12,7 @@ import { limitRequest, retryIn, type RateLimitResult } from "@/lib/rate-limit";
  * (`src/app/api/blockchain/certificates/[id]/mint-voucher/route.ts`).
  * `list`/`secondarySell` are still NOT wired into any call site — no
  * marketplace listing or secondary-sale action exists anywhere in this
- * codebase yet (see "What's not done" in docs/policy-engine.md, BE-3.03), so
+ * codebase yet (see "What's not done" in docs/architecture/policy-engine.md, BE-3.03), so
  * there is nothing real to rate-limit for those two operations.
  * `limitPolicyOperation` is what that wiring should call once those actions
  * exist — same shape as every other rate-limited action in this codebase

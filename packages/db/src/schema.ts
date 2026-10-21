@@ -11,6 +11,17 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const user = pgTable("user", {
+  /**
+   * The `auth.users.id` uuid, stored as text (migration 0074). Text, not
+   * uuid, because 55 foreign keys across 10 migrations reference this column
+   * as text — retyping would mean retyping all of them. `claims.sub` is the
+   * uuid as a string, so joins are unaffected.
+   *
+   * This table is the PROFILE row: it carries `role`, `onboardingPersona` and
+   * the verification columns, which Supabase Auth knows nothing about. The
+   * `handle_new_user` trigger keeps id/email/emailVerified in step;
+   * everything else is ours to write.
+   */
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
@@ -42,6 +53,15 @@ export const user = pgTable("user", {
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
+// Supabase Auth owns identity: `auth.users`, `auth.sessions` and
+// `auth.identities` live in the `auth` schema and are deliberately NOT
+// modelled here — this app reads identity through the verified JWT
+// (src/lib/session.ts), never by querying those tables.
+//
+// The three tables below are better-auth leftovers, kept empty by migration
+// 0074 rather than dropped: the DPDP erasure path (data-rights.ts) deletes
+// from them by name, so dropping them would break a compliance flow. Nothing
+// writes them any more.
 export const session = pgTable("session", {
   id: text("id").primaryKey(),
   expiresAt: timestamp("expiresAt").notNull(),
@@ -1210,7 +1230,7 @@ export const walls = pgTable("walls", {
 });
 
 /** The hierarchy's leaf. `onChainSlotId` (BE-3.14) is nullable and unused for
- *  MVP — on-chain WallOS slot registration is Growth-phase (docs/policy-engine.md). */
+ *  MVP — on-chain WallOS slot registration is Growth-phase (docs/architecture/policy-engine.md). */
 export const wallosSlots = pgTable("slots", {
   id: text("id").primaryKey(),
   wallId: text("wall_id").notNull(),
