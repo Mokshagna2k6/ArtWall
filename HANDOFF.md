@@ -22,25 +22,30 @@
 >
 > ### The one outstanding deploy
 >
-> **Railway (`apps/api`).** Two blockers, both outside the code:
+> **Railway (`apps/api`).** The account is now correct — the CLI is
+> authenticated as `stackfox.tech@gmail.com` and resolves
+> "stackfoxtech-maker's Projects". The only blocker left is Railway itself:
+> every write returns **"Deploys have been paused temporarily"**, and
+> `railway.instatus.com` reports the platform as `HASISSUES`. Reads work
+> (`railway list` shows the existing projects), so this is platform-side, not
+> an account or permission problem.
 >
-> - Railway returned "Deploys have been paused temporarily" for the API and
->   the CLI alike.
-> - **The CLI is logged in as the wrong account.** It holds
->   `mokshu709331@gmail.com` (personal), but this project deploys under
->   **stackfox**, which is what Vercel uses (`stackfoxtech-8156`). Run
->   `railway logout && railway login` as the stackfox account before creating
->   anything, or the service lands in the wrong workspace.
+> When Railway lifts the pause, one command does the whole deploy:
 >
-> When both are cleared:
+> ```bash
+> bash apps/api/deploy-railway.sh
+> ```
 >
-> 1. Create a service from this repo **in the stackfox workspace**. Root
->    Directory = **repo root** (pnpm workspace), Dockerfile =
->    `apps/api/Dockerfile`.
-> 2. Set `WEB_APP_URL` and `CRON_SECRET` (identical to Vercel's).
-> 3. Confirm `GET /status` lists seven jobs.
-> 4. **Only then** remove the `crons` array from `apps/web/vercel.json` and
->    redeploy Vercel. Doing it in the other order leaves nothing scheduled.
+> It creates the project in the stackfox workspace, adds the service, sets
+> `WEB_APP_URL` / `CRON_SECRET` / `CRON_TZ` from `apps/web/.env`, and deploys.
+> Then:
+>
+> 1. `railway status`, and open `/status` on the generated domain — it must
+>    list seven jobs with sensible `nextRun` times.
+> 2. Trigger one job to prove auth end to end:
+>    `curl -X POST -H "Authorization: Bearer $CRON_SECRET" <url>/trigger/demand-aggregate`
+> 3. **Only then** remove the `crons` array from `apps/web/vercel.json` and
+>    redeploy Vercel. In the other order, nothing is scheduled at all.
 >
 > ### Admin logins
 >
@@ -50,17 +55,33 @@
 > they are better-auth values that no longer authenticate. `ADMIN-CREDENTIALS.md`
 > supersedes them; `SHOWCASE-CREDENTIALS.md` is artists only, by design.
 >
-> ### Google OAuth
+> ### Google OAuth — NOT working yet
 >
-> The redirect URI registered in Google Cloud is **Supabase's**, not the app's —
-> the same single value for local and production:
+> The Google Cloud side is correct. The **Supabase side is not configured**, so
+> the button fails today:
+>
+> ```
+> $ curl .../auth/v1/authorize?provider=google
+> {"code":400,"msg":"Unsupported provider: provider is not enabled"}
+> ```
+>
+> To fix, in **Supabase → Authentication → Providers → Google**: enable it and
+> paste the Client ID and Client Secret from Google Cloud. Those values already
+> exist in Vercel (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) but Vercel no
+> longer owns the OAuth flow — Supabase does.
+>
+> The only redirect URI Google needs is Supabase's, the same for local and
+> production:
 >
 > ```
 > https://nibhjciuatdfljwicykm.supabase.co/auth/v1/callback
 > ```
 >
-> Add `http://localhost:3000` and the production URL to Supabase →
-> Authentication → URL Configuration → Redirect URLs.
+> The older `https://artwall-production.vercel.app/api/auth/callback/google`
+> entry is a better-auth leftover. Harmless, but nothing sends traffic there.
+>
+> Also add to **Supabase → Authentication → URL Configuration → Redirect URLs**:
+> `http://localhost:3000/**` and `https://artwall-production.vercel.app/**`.
 >
 > ### Still open
 >
