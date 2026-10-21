@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, ne, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { auth } from "@/lib/auth";
@@ -186,6 +186,25 @@ export async function issueCertificate(
       .from(artworks)
       .where(and(eq(artworks.id, input.artworkId), eq(artworks.userId, userId)));
     if (!artwork) throw new PreconditionError("Artwork not found");
+
+    // One live certificate per work. The form hides already-certified works,
+    // but that is cosmetic — a second issue would mint a competing hash for
+    // the same piece, so it is refused here too. A revoked certificate does
+    // not block reissuing; that is what revoking is for.
+    const [existing] = await db
+      .select({ id: coaCertificates.id })
+      .from(coaCertificates)
+      .where(
+        and(
+          eq(coaCertificates.artworkId, input.artworkId),
+          ne(coaCertificates.status, "revoked")
+        )
+      );
+    if (existing) {
+      throw new PreconditionError(
+        "This work already has a certificate. Revoke it first to issue a new one."
+      );
+    }
 
     const [profile] = await db
       .select({ displayName: artistProfiles.displayName })

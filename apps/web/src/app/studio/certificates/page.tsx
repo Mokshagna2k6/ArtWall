@@ -22,6 +22,9 @@ export default async function CertificatesPage() {
     getStudioArtistProfile(),
   ]);
   const wallet = profile.walletAddress ?? null;
+  const certifiedArtworkIds = new Set(
+    items.filter((c) => c.status !== "revoked").map((c) => c.artworkId)
+  );
   return (
     <div className="flex flex-col gap-8">
       <StudioPageHeader
@@ -39,8 +42,14 @@ export default async function CertificatesPage() {
         </div>
         <ConnectWalletButton walletAddress={wallet} />
       </section>
+      {/* A work with a live certificate must not be offered for issuing again:
+          issuing a second one would mint a competing hash for the same piece.
+          A REVOKED certificate does not count — revoking is precisely how an
+          artist reissues after, say, a corrected medium or dimension. */}
       <IssueCertificateForm
-        artworks={artworks.map((a) => ({ id: a.id, title: a.title }))}
+        artworks={artworks
+          .filter((a) => !certifiedArtworkIds.has(a.id))
+          .map((a) => ({ id: a.id, title: a.title }))}
       />
       {items.length === 0 ? (
         <div className="studio-card">
