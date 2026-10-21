@@ -29,8 +29,14 @@ export const pool = new Pool({
   connectionTimeoutMillis: 10_000,
   idleTimeoutMillis: 60_000,
 });
-if (process.env.VERCEL && !process.env.DATABASE_URL?.includes("-pooler")) {
-  console.warn("[db] DATABASE_URL is not a Neon -pooler endpoint; serverless traffic can exhaust connections.");
+// Supabase names its pooler host `*.pooler.supabase.com` (Neon used a
+// `-pooler` suffix), so match both: a direct connection from a serverless
+// function can exhaust the database's connection limit either way.
+if (
+  process.env.VERCEL &&
+  !/-pooler|pooler\.supabase\.com/.test(process.env.DATABASE_URL ?? "")
+) {
+  console.warn("[db] DATABASE_URL is not a pooled endpoint; serverless traffic can exhaust connections.");
 }
 // Neon drops connections server-side (idle timeout, compute suspend). pg reports
 // that as an 'error' event on the pool (idle client) or on the client itself
