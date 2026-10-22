@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { chainName } from "@/features/blockchain/mint-controls";
+import { chainName } from "@/features/blockchain/chains";
 
 /**
- * The mint flow's two pieces of pure logic. Everything else in mint-controls
- * is a wallet round trip or a fetch, which belongs in an integration test, not
+ * The mint flow's two pieces of pure logic. Everything else in the mint UI is
+ * a wallet round trip or a fetch, which belongs in an integration test, not
  * here — but these two decide what the artist is told about *which chain* they
  * are signing on, and that is exactly the thing nobody notices until a token
  * lands somewhere unexpected.

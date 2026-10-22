@@ -91,6 +91,18 @@ export async function purgeShowcaseData(): Promise<Result<ShowcaseCounts>> {
       where artwork_id like ${like} or collection_id like ${like}
     `;
     await sql`delete from collections where id like ${like}`;
+
+    // The showcase virtual building (scripts/seed-virtual-wall.mjs): its
+    // placements must go before the artworks they point at, and 0050's
+    // hierarchy foreign keys are `on delete restrict`, so this unwinds
+    // child-to-parent.
+    await sql`delete from virtual_wall_placements where id like ${like}`;
+    await sql`delete from slots where id like ${like}`;
+    await sql`delete from walls where id like ${like}`;
+    await sql`delete from rooms_zones where id like ${like}`;
+    await sql`delete from floors where id like ${like}`;
+    await sql`delete from buildings where id like ${like}`;
+
     await sql`delete from artworks where id like ${like}`;
     await sql`delete from artist_profiles where handle like ${handleLike}`;
 

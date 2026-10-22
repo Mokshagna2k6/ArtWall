@@ -14,7 +14,17 @@ import { describe, expect, it } from "vitest";
  */
 
 const ROOT = resolve(__dirname, "../../../..");
-const script = readFileSync(resolve(ROOT, "scripts/seed-showcase.mjs"), "utf8");
+/**
+ * The terminal purge is `seed-showcase.mjs --purge`, which runs its own
+ * statements plus `VIRTUAL_WALL_PURGE_SQL` imported from seed-virtual-wall.mjs
+ * (the showcase virtual building). Both files make up that one path, so both
+ * are read here — otherwise adding a table to the virtual-wall purge would
+ * look like a drift from the admin action.
+ */
+const script = [
+  readFileSync(resolve(ROOT, "scripts/seed-showcase.mjs"), "utf8"),
+  readFileSync(resolve(ROOT, "scripts/seed-virtual-wall.mjs"), "utf8"),
+].join("\n");
 const action = readFileSync(resolve(ROOT, "src/features/admin/showcase.ts"), "utf8");
 
 /** Tables named in a `delete from <table>` in either file. */
@@ -32,7 +42,18 @@ describe("showcase purge paths", () => {
 
   it("deletes the tables the seed writes to", () => {
     const tables = deletedTables(script);
-    for (const table of ["artworks", "artist_profiles", "user"]) {
+    for (const table of [
+      "artworks",
+      "artist_profiles",
+      "user",
+      // The showcase virtual building — hierarchy plus what hangs on it.
+      "virtual_wall_placements",
+      "slots",
+      "walls",
+      "rooms_zones",
+      "floors",
+      "buildings",
+    ]) {
       expect(tables).toContain(table);
     }
   });
