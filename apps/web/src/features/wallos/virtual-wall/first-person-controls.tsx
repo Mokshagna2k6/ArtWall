@@ -15,6 +15,9 @@ import { EYE_HEIGHT, FLOOR_HEIGHT, ROOM_HALF } from "@/features/wallos/virtual-w
  * on one floor's plane. The visitor cannot fall, cannot leave the room, and
  * changes floor through the HUD rather than by finding stairs — which is also
  * what keeps this usable on a phone, where there is no pointer lock at all.
+ *
+ * Shift runs. There is deliberately no jump: a jump is only meaningful with
+ * gravity and collision, i.e. the physics engine this file exists to avoid.
  */
 export function FirstPersonControls({
   floorLevel,
@@ -61,7 +64,8 @@ export function FirstPersonControls({
     const held = keys.current;
     // Cap delta: a backgrounded tab resumes with a huge delta and would
     // otherwise teleport the visitor through a wall on the first frame.
-    const step = Math.min(delta, 0.1) * 4;
+    const running = held.has("ShiftLeft") || held.has("ShiftRight");
+    const step = Math.min(delta, 0.1) * (running ? 7 : 4);
 
     const f =
       (held.has("KeyW") || held.has("ArrowUp") ? 1 : 0) -

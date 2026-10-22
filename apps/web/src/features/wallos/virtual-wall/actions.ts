@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { db } from "@/lib/db/index";
 import {
+  artistProfiles,
   artworks,
   buildings,
   floors,
@@ -70,7 +71,16 @@ export interface VirtualSlot {
   id: string;
   label: string;
   /** Null for an empty slot — valid, and common (Rule 21). */
-  artwork: { id: string; title: string; imageUrl: string | null } | null;
+  artwork: {
+    id: string;
+    title: string;
+    imageUrl: string | null;
+    /** §A13 permits the artist *handle*; it is not owner identity. */
+    artistHandle: string | null;
+    artistName: string | null;
+    medium: string | null;
+    year: number | null;
+  } | null;
 }
 export interface VirtualWall {
   id: string;
@@ -123,6 +133,12 @@ export async function getVirtualBuilding(buildingId: string): Promise<VirtualBui
         artworkId: artworks.id,
         artworkTitle: artworks.title,
         artworkImageUrl: artworks.imageUrl,
+        artworkMedium: artworks.medium,
+        artworkYear: artworks.year,
+        // §A13 lists the artist handle as public on this surface. Joined from
+        // the published profile only, so an unpublished artist stays unnamed.
+        artistHandle: artistProfiles.handle,
+        artistName: artistProfiles.displayName,
       })
       .from(floors)
       .innerJoin(roomsZones, eq(roomsZones.floorId, floors.id))
@@ -143,6 +159,10 @@ export async function getVirtualBuilding(buildingId: string): Promise<VirtualBui
           eq(artworks.id, virtualWallPlacements.artworkId),
           eq(artworks.isPublic, true)
         )
+      )
+      .leftJoin(
+        artistProfiles,
+        and(eq(artistProfiles.userId, artworks.userId), eq(artistProfiles.published, true))
       )
       .where(eq(floors.buildingId, id))
       .orderBy(asc(floors.level), asc(walls.name), asc(wallosSlots.label));
@@ -184,6 +204,10 @@ export async function getVirtualBuilding(buildingId: string): Promise<VirtualBui
               id: row.artworkId,
               title: row.artworkTitle ?? "Untitled",
               imageUrl: row.artworkImageUrl,
+              artistHandle: row.artistHandle,
+              artistName: row.artistName,
+              medium: row.artworkMedium,
+              year: row.artworkYear,
             }
           : null,
       });

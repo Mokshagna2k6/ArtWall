@@ -15,8 +15,11 @@ import type { SelectedSlot } from "@/features/wallos/virtual-wall/virtual-wall-v
  *
  * The reference site's artwork-click behaviour could not be determined
  * (docs/product/VIRTUAL-WALL-RESEARCH.md §3), so this shows what the Bible allows and
- * nothing more — title and a link to the artwork page. §A13: no owner, no
- * price, no price history, no wallet. §44: no demand score or band.
+ * nothing more — title, the artist handle §A13 explicitly permits, medium/year,
+ * and a link to the artwork page where the commercial detail lives. §A13: no
+ * owner, **no price**, no price history, no wallet. §44: no demand score or
+ * band. "Show the price in the gallery" has to change §A13 first; it is not a
+ * UI decision.
  *
  * For Super Admin only, the same panel is where art is hung and taken down.
  * The buttons are a convenience: `placeArtworkOnSlot`/`removeArtworkFromSlot`
@@ -60,7 +63,25 @@ export function SlotPanel({
             Slot {label ?? slot.slotId}
           </p>
           {current ? (
-            <h2 className="font-heading mt-1 text-lg">{current.title}</h2>
+            <>
+              <h2 className="font-heading mt-1 text-lg">{current.title}</h2>
+              {(current.artistName ?? current.artistHandle) && (
+                <p className="text-small mt-0.5">
+                  {current.artistHandle ? (
+                    <Link href={`/artist/${current.artistHandle}`} className="hover:underline">
+                      {current.artistName ?? `@${current.artistHandle}`}
+                    </Link>
+                  ) : (
+                    current.artistName
+                  )}
+                </p>
+              )}
+              {(current.medium ?? current.year) && (
+                <p className="text-ink-muted mt-0.5 text-xs">
+                  {[current.medium, current.year].filter(Boolean).join(" · ")}
+                </p>
+              )}
+            </>
           ) : (
             <h2 className="font-heading text-ink-muted mt-1 text-lg">Empty slot</h2>
           )}

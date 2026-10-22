@@ -3,6 +3,7 @@
 import nextDynamic from "next/dynamic";
 
 import type { VirtualBuilding } from "@/features/wallos/virtual-wall/actions";
+import { TunnelLoaderFallback } from "@/features/wallos/virtual-wall/tunnel-loader";
 
 /**
  * Client entry point for the 3D building.
@@ -24,11 +25,9 @@ const VirtualWallViewer = nextDynamic(
     ),
   {
     ssr: false,
-    loading: () => (
-      <div className="bg-band flex h-[70vh] min-h-[420px] w-full items-center justify-center rounded-lg">
-        <p className="text-ink-muted text-small">Loading the building…</p>
-      </div>
-    ),
+    // The entry sequence covers this chunk fetch too — it is the slowest part
+    // on a phone, and it is the one phase `useProgress` cannot see.
+    loading: () => <TunnelLoaderFallback />,
   }
 );
 

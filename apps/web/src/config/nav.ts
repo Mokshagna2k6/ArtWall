@@ -69,6 +69,14 @@ export const navItems: readonly NavItem[] = [
         description: "The living collection of India's artists, online",
       },
       {
+        // The walkable 3D building (/virtual). Distinct from "Virtual Wall"
+        // above, which is the 2D collection at /wall — two different features
+        // whose names collide, so this one is named for what you do in it.
+        label: "3D Gallery",
+        href: "/virtual",
+        description: "Walk through the collection in a 3D museum",
+      },
+      {
         label: "Physical Wall",
         href: "/physical-wall",
         description: "Real work, hanging at Ric Platter",
