@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
+import { AdaptiveDpr, OrbitControls, Sky, useProgress } from "@react-three/drei";
+
+import { TunnelLoader } from "@/features/wallos/virtual-wall/tunnel-loader";
 
 import { FloorScene } from "@/features/wallos/virtual-wall/building-scene";
 import { FirstPersonControls } from "@/features/wallos/virtual-wall/first-person-controls";
@@ -57,6 +59,7 @@ export function VirtualWallViewer({
   const [locked, setLocked] = useState(false);
   const [selected, setSelected] = useState<SelectedSlot | null>(null);
   const webglOk = useMemo(() => supportsWebGL(), []);
+  const { entering, percent, skip } = useEntrySequence();
 
   const floor = building.floors[floorIndex];
 
@@ -83,8 +86,20 @@ export function VirtualWallViewer({
             // Cap the pixel ratio: a 3x phone screen renders 9x the pixels for
             // no visible gain and misses the 30fps target (Bible §15).
             dpr={[1, 1.75]}
+            // Soft shadows from the one directional key light in FloorScene.
+            // PCFSoft at a 1024 map is the quality/cost point that still hits
+            // the 30fps mid-range-Android target (Bible §15).
+            shadows="soft"
           >
-            <ambientLight intensity={0.65} />
+            {/* Procedural atmosphere, visible through the ceiling skylight.
+                Deliberately `Sky` and not `Environment preset=…`: a preset
+                downloads an HDR from a third-party CDN, which is a network
+                dependency this page does not need and cannot control. */}
+            <Sky sunPosition={[6, 18, 4]} turbidity={6} rayleigh={1.2} />
+            {/* Drops the resolution if the device cannot keep up, rather than
+                dropping frames. */}
+            <AdaptiveDpr pixelated />
+            <ambientLight intensity={0.35} />
             <FloorScene
               floor={floor}
               selectableEmptySlots={canPlace}
@@ -107,6 +122,13 @@ export function VirtualWallViewer({
             )}
           </Canvas>
         </div>
+
+        {/* The entry sequence sits over the live canvas rather than replacing
+            it: the scene must be mounted for its textures to start loading at
+            all, which is exactly what this is waiting on. */}
+        {entering && (
+          <TunnelLoader percent={percent} onSkip={skip} label="Entering the gallery" />
+        )}
 
         {/* HUD. Mirrors the one overlay pattern actually observed on the
             reference: a title plus a details affordance, nothing else. */}
@@ -139,11 +161,7 @@ export function VirtualWallViewer({
           </nav>
         </div>
 
-        {mode === "walk" && !locked && (
-          <p className="pointer-events-none absolute inset-x-0 bottom-4 text-center text-xs text-white [text-shadow:0_1px_3px_rgb(0_0_0/0.9)]">
-            Click the view to look around · W A S D or arrow keys to walk · Esc to release
-          </p>
-        )}
+        {mode === "walk" && <ControlsLegend locked={locked} />}
       </div>
 
       {selected && (
@@ -154,6 +172,88 @@ export function VirtualWallViewer({
           onClose={() => setSelected(null)}
         />
       )}
+    </div>
+  );
+}
+
+/** Hard ceiling on the entry sequence, ms. A stalled CDN must not trap anyone. */
+const ENTRY_TIMEOUT_MS = 12_000;
+
+/**
+ * Drives the entry sequence off drei's real asset progress.
+ *
+ * `useProgress` reports the textures three.js is actually fetching, so this is
+ * not a timer pretending to be a loader. Two things it cannot do on its own,
+ * handled here:
+ *
+ * - `active` is also false *before* the first texture has been requested, so
+ *   dismissing on `!active` alone would flash the overlay away on frame one.
+ *   The sequence only ends once loading has started and then finished.
+ * - a texture that never resolves would hold the overlay forever, so there is
+ *   both a hard timeout and a visible "Enter now".
+ */
+function useEntrySequence() {
+  const { active, progress, errors, total } = useProgress();
+  const [entering, setEntering] = useState(true);
+  // Derived, not an effect-set flag: `total` is the store's own count of
+  // requested items, so it is non-zero exactly once loading has begun and
+  // stays non-zero afterwards.
+  const started = total > 0;
+
+  useEffect(() => {
+    if (!entering) return;
+    // Done, or giving up on a failed asset: either way the gallery is usable,
+    // a missing texture only costs that one picture.
+    if ((started && !active) || errors.length > 0) {
+      const id = setTimeout(() => setEntering(false), 350);
+      return () => clearTimeout(id);
+    }
+    const id = setTimeout(() => setEntering(false), ENTRY_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [entering, started, active, errors.length]);
+
+  return {
+    entering,
+    // Before loading has begun there is no real number to show, so the bar
+    // holds at a small value rather than jumping to 100 and back to 0.
+    percent: started ? progress : 5,
+    skip: () => setEntering(false),
+  };
+}
+
+/**
+ * The standing on-screen control legend.
+ *
+ * Floors are a HUD control, not stairs (see first-person-controls' header), so
+ * the legend says so rather than leaving a visitor hunting for a staircase.
+ * It stays visible while walking; the "click to look around" prompt is the one
+ * line that disappears once the pointer is actually locked.
+ */
+function ControlsLegend({ locked }: { locked: boolean }) {
+  const rows: [string, string][] = [
+    ["Walk", "W A S D"],
+    ["Run", "SHIFT"],
+    ["Look", "MOUSE"],
+    ["Change floor", "BUTTONS, TOP RIGHT"],
+    ["Release cursor", "ESC"],
+  ];
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-3 flex flex-col items-center gap-2 px-3">
+      {!locked && (
+        <p className="rounded bg-black/70 px-3 py-1.5 text-xs text-white">
+          Click the view to look around
+        </p>
+      )}
+      <dl className="flex flex-wrap justify-center gap-x-4 gap-y-1 rounded-md bg-black/60 px-3 py-2 text-white">
+        {rows.map(([action, key]) => (
+          <div key={action} className="flex items-center gap-1.5">
+            <dt className="text-[11px] opacity-75">{action}</dt>
+            <dd className="rounded border border-white/30 px-1.5 text-[11px] font-medium tracking-wide">
+              {key}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }

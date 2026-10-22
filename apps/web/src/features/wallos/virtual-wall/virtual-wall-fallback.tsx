@@ -64,6 +64,11 @@ export function VirtualWallFallback({
                           <p className="mt-2 text-sm group-hover:underline">
                             {slot.artwork.title}
                           </p>
+                          {(slot.artwork.artistName ?? slot.artwork.artistHandle) && (
+                            <p className="text-ink-muted text-xs">
+                              {slot.artwork.artistName ?? `@${slot.artwork.artistHandle}`}
+                            </p>
+                          )}
                           <p className="text-ink-muted text-xs">{slot.label}</p>
                         </Link>
                       ) : (

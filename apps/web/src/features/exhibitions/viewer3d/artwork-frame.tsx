@@ -39,13 +39,25 @@ export function ArtworkFrame({
 
   return (
     <group position={placement.position} rotation={[0, placement.rotationY, 0]}>
-      {/* Frame border */}
-      <mesh position={[0, 0, -0.02]}>
-        <planeGeometry args={[1.7, 1.3]} />
-        <meshStandardMaterial color={hovered ? "#d4a574" : "#2a2a2a"} />
+      {/* Frame moulding: a real box with depth, so it catches the light and
+          throws a shadow onto the wall behind it instead of reading as a
+          coloured rectangle. */}
+      <mesh position={[0, 0, -0.03]} castShadow>
+        <boxGeometry args={[1.78, 1.38, 0.08]} />
+        <meshStandardMaterial
+          color={hovered ? "#d4a574" : "#2a2a2a"}
+          roughness={0.45}
+          metalness={0.25}
+        />
+      </mesh>
+      {/* Mount board, recessed inside the moulding. */}
+      <mesh position={[0, 0, 0.005]}>
+        <planeGeometry args={[1.64, 1.24]} />
+        <meshStandardMaterial color="#faf8f4" roughness={0.95} />
       </mesh>
       {/* Canvas */}
       <mesh
+        position={[0, 0, 0.012]}
         onClick={onSelect}
         onPointerOver={() => setHovered(true)}
         onPointerOut={() => setHovered(false)}
