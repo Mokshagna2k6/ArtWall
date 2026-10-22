@@ -57,9 +57,12 @@ type ConfirmJson = { status?: string; error?: string };
 export function CertificateMintPanel({
   certificateId,
   initialStatus,
+  showConnect = true,
 }: {
   certificateId: string;
   initialStatus?: string;
+  /** False on a list page, where one connect button is shared above the cards. */
+  showConnect?: boolean;
 }) {
   const router = useRouter();
   const { address, isConnected, chainId } = useAccount();
@@ -195,7 +198,7 @@ export function CertificateMintPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <WalletConnectButton />
+      {showConnect && <WalletConnectButton />}
 
       <label className="flex max-w-xs flex-col gap-1.5 text-sm">
         Secondary-sale royalty (basis points)

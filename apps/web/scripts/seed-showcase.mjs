@@ -57,6 +57,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 import { assertSafeSeedTarget } from "./seed-guard.mjs";
+import { VIRTUAL_WALL_PURGE_SQL } from "./seed-virtual-wall.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, "../../..");
@@ -102,6 +103,10 @@ export const SHOWCASE_PURGE_SQL = [
   `delete from demand_aggregates where artwork_id like '${SHOWCASE_PREFIX}%'`,
   `delete from collection_artworks where artwork_id like '${SHOWCASE_PREFIX}%' or collection_id like '${SHOWCASE_PREFIX}%'`,
   `delete from collections where id like '${SHOWCASE_PREFIX}%'`,
+  // The showcase virtual building (scripts/seed-virtual-wall.mjs). Its
+  // placements reference artworks, so they must go first; 0050's hierarchy
+  // foreign keys are `on delete restrict`, hence child-to-parent order.
+  ...VIRTUAL_WALL_PURGE_SQL,
   `delete from artworks where id like '${SHOWCASE_PREFIX}%'`,
   `delete from artist_profiles where handle like '${SHOWCASE_HANDLE_PREFIX}%'`,
   // Profile rows are keyed by the auth uuid, so they are matched by the handle
