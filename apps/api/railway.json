@@ -1,15 +1,6 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "apps/api/Dockerfile"
-  },
-  "deploy": {
-    "startCommand": "node apps/api/src/index.js",
-    "healthcheckPath": "/health",
-    "healthcheckTimeout": 30,
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10,
-    "numReplicas": 1
-  }
+  "_moved": "Railway only reads railway.json from the REPOSITORY ROOT. This copy was ignored and Railway auto-detected the repo as a Next.js app, building apps/web instead of this scheduler. The live config is /railway.json at the root; this file is kept only so someone looking here finds that note.",
+  "build": { "builder": "DOCKERFILE", "dockerfilePath": "apps/api/Dockerfile" },
+  "deploy": { "startCommand": "node apps/api/src/index.js", "healthcheckPath": "/health" }
 }
