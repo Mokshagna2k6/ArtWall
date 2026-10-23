@@ -69,6 +69,9 @@ export default async function ExhibitionPage({
             id: w.id,
             title: w.title,
             imageUrl: w.imageUrl,
+            artistName: w.artistName ?? w.artistHandle,
+            medium: w.medium,
+            year: w.year,
           }))}
           gallery={
             <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

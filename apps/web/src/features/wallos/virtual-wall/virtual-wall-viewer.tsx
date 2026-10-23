@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { AdaptiveDpr, OrbitControls, Sky, useProgress } from "@react-three/drei";
 
 import { TunnelLoader } from "@/features/wallos/virtual-wall/tunnel-loader";
@@ -106,11 +106,17 @@ export function VirtualWallViewer({
               onSelectSlot={(slotId, artworkId) => setSelected({ slotId, artworkId })}
             />
             {mode === "walk" ? (
-              <FirstPersonControls
-                floorLevel={floor.level}
-                enabled
-                onLockChange={setLocked}
-              />
+              <>
+                <FirstPersonControls
+                  floorLevel={floor.level}
+                  enabled
+                  onLockChange={setLocked}
+                />
+                <CrosshairPicker
+                  active={locked}
+                  onPick={(slotId, artworkId) => setSelected({ slotId, artworkId })}
+                />
+              </>
             ) : (
               <OrbitControls
                 enablePan={false}
@@ -229,6 +235,57 @@ function useEntrySequence() {
  * It stays visible while walking; the "click to look around" prompt is the one
  * line that disappears once the pointer is actually locked.
  */
+/**
+ * Click what the crosshair is on, while the pointer is locked.
+ *
+ * Under pointer lock the mouse has no position, so r3f keeps raycasting from
+ * the last coordinates it saw before locking — which means clicking a frame
+ * while walking either misses or hits whatever happened to be under the cursor
+ * when you locked. This raycasts from the centre of the screen instead, which
+ * is where the crosshair is and where the visitor is actually looking.
+ *
+ * Only mounted while locked, so the normal pointer-driven picking in
+ * "Look around" mode is untouched.
+ */
+function CrosshairPicker({
+  active,
+  onPick,
+}: {
+  active: boolean;
+  onPick: (slotId: string, artworkId: string | null) => void;
+}) {
+  // `raycaster` comes from the r3f store rather than `new Raycaster()`: this
+  // app has no direct `three` import anywhere and @types/three is only a
+  // transitive dependency, so importing it would mean adding one.
+  const { camera, scene, gl, raycaster, pointer } = useThree();
+
+  useEffect(() => {
+    if (!active) return;
+    function onClick() {
+      // Screen centre in normalised device coordinates, where the crosshair is.
+      const centre = pointer.clone().set(0, 0);
+      raycaster.setFromCamera(centre, camera);
+      for (const hit of raycaster.intersectObjects(scene.children, true)) {
+        // Walk up to the slot group: the hit is a frame or plate mesh, and the
+        // slotId lives on the group wrapping it (building-scene.tsx).
+        for (let node = hit.object as { userData?: Record<string, unknown>; parent?: unknown } | null | undefined; node; node = node.parent as typeof node) {
+          const slotId = node.userData?.slotId;
+          if (typeof slotId === "string") {
+            onPick(slotId, (node.userData?.artworkId as string | null) ?? null);
+            return;
+          }
+        }
+      }
+    }
+
+    const canvas = gl.domElement;
+    canvas.addEventListener("click", onClick);
+    return () => canvas.removeEventListener("click", onClick);
+  }, [active, camera, scene, gl, raycaster, pointer, onPick]);
+
+  return null;
+}
+
 function ControlsLegend({ locked }: { locked: boolean }) {
   const rows: [string, string][] = [
     ["Walk", "W A S D"],

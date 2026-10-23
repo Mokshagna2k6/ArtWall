@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 
@@ -16,6 +17,10 @@ export interface ViewerArtwork {
   id: string;
   title: string;
   imageUrl: string | null;
+  /** Null unless the artist profile is published (§A13). */
+  artistName?: string | null;
+  medium?: string | null;
+  year?: number | null;
 }
 
 /** True once, cheaply: a throwaway canvas either gets a WebGL context or it doesn't. */
@@ -50,6 +55,7 @@ export function Exhibition3DViewer({
   defaultTemplate?: ExhibitionTemplate;
   onSelectArtwork?: (id: string) => void;
 }) {
+  const router = useRouter();
   const [template, setTemplate] = useState<ExhibitionTemplate>(defaultTemplate);
   const webglOk = useMemo(() => supportsWebGL(), []);
 
@@ -95,8 +101,15 @@ export function Exhibition3DViewer({
               key={artwork.id}
               imageUrl={artwork.imageUrl}
               title={artwork.title}
+              artistName={artwork.artistName}
+              medium={artwork.medium}
+              year={artwork.year}
               placement={placements[i]}
-              onSelect={() => onSelectArtwork?.(artwork.id)}
+              onSelect={() =>
+                onSelectArtwork
+                  ? onSelectArtwork(artwork.id)
+                  : router.push(`/artwork/${artwork.id}`)
+              }
             />
           ))}
           <OrbitControls
