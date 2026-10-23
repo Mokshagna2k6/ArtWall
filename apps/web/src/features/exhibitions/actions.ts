@@ -347,9 +347,18 @@ async function loadPublicExhibition(id: string) {
       medium: artworks.medium,
       year: artworks.year,
       displayOrder: exhibitionArtworks.displayOrder,
+      // §A13: named only when the artist's own profile is published, so the
+      // join is narrowed rather than filtered afterwards — same precedent as
+      // the virtual wall's getVirtualBuilding.
+      artistHandle: artistProfiles.handle,
+      artistName: artistProfiles.displayName,
     })
     .from(exhibitionArtworks)
     .innerJoin(artworks, eq(exhibitionArtworks.artworkId, artworks.id))
+    .leftJoin(
+      artistProfiles,
+      and(eq(artistProfiles.userId, artworks.userId), eq(artistProfiles.published, true))
+    )
     .where(and(eq(exhibitionArtworks.exhibitionId, id), eq(artworks.isPublic, true)))
     .orderBy(exhibitionArtworks.displayOrder);
 

@@ -156,7 +156,10 @@ export function FloorScene({
 
               if (!slot.artwork) {
                 return (
-                  <group key={slot.id}>
+                  <group
+                    key={slot.id}
+                    userData={{ slotId: slot.id, artworkId: null }}
+                  >
                     {spot}
                     <mesh
                       position={position}
@@ -183,11 +186,17 @@ export function FloorScene({
               }
 
               return (
-                <group key={slot.id}>
+                <group
+                  key={slot.id}
+                  userData={{ slotId: slot.id, artworkId: slot.artwork.id }}
+                >
                   {spot}
                   <ArtworkFrame
                     imageUrl={slot.artwork.imageUrl}
                     title={slot.artwork.title}
+                    artistName={slot.artwork.artistName ?? slot.artwork.artistHandle}
+                    medium={slot.artwork.medium}
+                    year={slot.artwork.year}
                     placement={{ position, rotationY: slotAt.rotationY }}
                     onSelect={() => onSelectSlot(slot.id, slot.artwork!.id)}
                   />
