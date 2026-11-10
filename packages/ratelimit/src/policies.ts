@@ -65,6 +65,32 @@ export const POLICIES = {
    * it per account (plus the shared-IP multiple in limitRequest).
    */
   assistant: { limit: 15, windowMs: HOUR, failOpen: false },
+  /**
+   * Posting a comment, per signed-in author (Bible rule 38: community actions
+   * must be abuse-controlled). Public, permanent, attached to someone else's
+   * artwork — so this is the spam surface, and it fails CLOSED for the same
+   * reason `inquiry` does: if the store is down we cannot prove the author is
+   * under the limit, and the cost of guessing wrong is a flooded artwork page.
+   *
+   * 20/hour is a very talkative genuine visitor and a poor spam budget.
+   */
+  comment: { limit: 20, windowMs: HOUR, failOpen: false },
+  /**
+   * Likes, saves and follows, per signed-in actor. Far looser than comments:
+   * these are idempotent single-row writes with no public text and no
+   * notification, so the realistic abuse is inflating a count, not spamming a
+   * person. Still capped — a script toggling a like in a loop is pure write
+   * load — and still fails closed, since every one of these is a write.
+   */
+  "social-action": { limit: 120, windowMs: HOUR, failOpen: false },
+  /**
+   * Endorsing an artist, per signed-in endorser. Deliberately the tightest
+   * social rule: an endorsement feeds a VERIFICATION status, so the damage
+   * from automated abuse is reputational, not cosmetic. Only published artists
+   * and active curators can endorse at all, which is the real gate; this caps
+   * a compromised or malicious eligible account.
+   */
+  endorsement: { limit: 30, windowMs: HOUR, failOpen: false },
   /** Default for any other API route/action with no specific policy. */
   api: { limit: 120, windowMs: MIN, failOpen: false },
 } as const satisfies Record<string, PolicyRule>;

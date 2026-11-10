@@ -19,11 +19,14 @@ export function CommentThread({
   comments,
   viewerId,
   signedIn,
+  canModerate = false,
 }: {
   artworkId: string;
   comments: CommentView[];
   viewerId: string | null;
   signedIn: boolean;
+  /** The artist whose work this is may remove comments on their own page. */
+  canModerate?: boolean;
 }) {
   const roots = comments.filter((c) => !c.parentId);
   const repliesByParent = new Map<string, CommentView[]>();
@@ -61,6 +64,7 @@ export function CommentThread({
                 artworkId={artworkId}
                 viewerId={viewerId}
                 signedIn={signedIn}
+                canModerate={canModerate}
               />
               {(repliesByParent.get(comment.id)?.length ?? 0) > 0 && (
                 <ul className="border-border mt-4 flex flex-col gap-4 border-l pl-4">
@@ -71,6 +75,7 @@ export function CommentThread({
                         artworkId={artworkId}
                         viewerId={viewerId}
                         signedIn={signedIn}
+                        canModerate={canModerate}
                         isReply
                       />
                     </li>
@@ -90,12 +95,14 @@ function Comment({
   artworkId,
   viewerId,
   signedIn,
+  canModerate = false,
   isReply = false,
 }: {
   comment: CommentView;
   artworkId: string;
   viewerId: string | null;
   signedIn: boolean;
+  canModerate?: boolean;
   isReply?: boolean;
 }) {
   const router = useRouter();
@@ -135,7 +142,7 @@ function Comment({
             {replying ? "Cancel" : "Reply"}
           </button>
         )}
-        {viewerId === comment.authorId && (
+        {(viewerId === comment.authorId || canModerate) && (
           <button
             type="button"
             className="hover:underline"
@@ -146,7 +153,7 @@ function Comment({
               })
             }
           >
-            Delete
+            {viewerId === comment.authorId ? "Delete" : "Remove"}
           </button>
         )}
       </div>
