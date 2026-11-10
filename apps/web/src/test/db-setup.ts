@@ -6,6 +6,62 @@ import { afterAll, vi } from "vitest";
  * whatever the test says it is (`actAs`), and cache tags are no-ops.
  */
 
+/**
+ * Refuse to run against a hosted database.
+ *
+ * This suite is destructive by design: fixtures write real rows, and several
+ * files mutate shared singletons — `escrow.db.test.ts` closes the open
+ * `commission_policy_versions` row and reopens it in `afterEach`. If the run
+ * is interrupted, or a restore hook fails, that row stays closed and the
+ * platform has no active commission split.
+ *
+ * That is not hypothetical: it happened to this project's production database
+ * on 2026-11-10, because `vitest.db.config.ts` only redirects the suite when
+ * `TEST_DATABASE_URL` is set — passing `DATABASE_URL` on the command line is
+ * silently overridden by `.env`, which points at production.
+ *
+ * So the guard lives here rather than in the config: this file is loaded by
+ * every *.db.test.ts run no matter how vitest was invoked. Localhost and
+ * container hosts only; anything else aborts before a single row is written.
+ */
+function assertDisposableDatabase() {
+  const url = process.env.DATABASE_URL ?? "";
+  if (!url) return; // No URL: the pool itself will fail loudly. Not our call.
+
+  let host: string;
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    return; // Unparseable: let the driver produce the real error.
+  }
+
+  const disposable =
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1" ||
+    host === "postgres" || // docker-compose service name
+    host === "db" ||
+    host.endsWith(".local") ||
+    host.endsWith(".internal");
+
+  if (disposable) return;
+
+  throw new Error(
+    `Refusing to run the destructive DB suite against a non-local database (host: ${host}).\n\n` +
+      `This suite rewrites shared rows (commission policy, catalogs) and has corrupted\n` +
+      `production once already.\n\n` +
+      `Start a throwaway Postgres and point the suite at it with TEST_DATABASE_URL:\n` +
+      `  docker run -d -e POSTGRES_PASSWORD=test -p 55432:5432 postgres:17\n` +
+      `  DATABASE_URL_UNPOOLED=postgresql://postgres:test@localhost:55432/postgres \\\n` +
+      `    node packages/db/scripts/migrate.mjs\n` +
+      `  TEST_DATABASE_URL=postgresql://postgres:test@localhost:55432/postgres pnpm test:db\n\n` +
+      `Note: DATABASE_URL alone is NOT enough — vitest.db.config.ts only honours\n` +
+      `TEST_DATABASE_URL, and .env overrides anything else.`
+  );
+}
+
+assertDisposableDatabase();
+
 export interface TestUser {
   id: string;
   name: string;
