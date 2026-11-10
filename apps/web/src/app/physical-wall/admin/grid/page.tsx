@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { GridEditor } from "@/features/physical-wall/components/grid-editor";
+import { LayoutGenerator } from "@/features/physical-wall/components/layout-generator";
 import { requireRolePage } from "@/features/physical-wall/authorize";
 import { listSizes, listSlotTypes } from "@/features/physical-wall/data/catalogs";
 import { getActiveGrid, listSlots } from "@/features/physical-wall/data/wall";
@@ -40,6 +41,7 @@ export default async function AdminGridPage() {
   return (
     <div className="flex flex-col gap-8">
       <h1 className="font-heading text-display">Wall layout</h1>
+      <LayoutGenerator grid={grid} sizes={sizes} types={types} />
       <GridEditor grid={grid} slots={slots} sizes={sizes} types={types} />
     </div>
   );

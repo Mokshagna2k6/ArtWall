@@ -66,3 +66,25 @@ export function formatINR(paise: number): string {
     maximumFractionDigits: hasPaise ? 2 : 0,
   }).format(rupees);
 }
+
+/**
+ * Basis points as a percentage, for display.
+ *
+ * 1000 -> "10%", 1250 -> "12.5%", 1234 -> "12.34%". Trailing zeroes are
+ * dropped because "10%" is what a commission rate is actually called; a
+ * fixed "10.00%" reads like a precision the number does not have.
+ *
+ * Done with integer division and string assembly rather than `bps / 100`:
+ * this module is a settlement path and `money-integer.test.ts` statically
+ * forbids float math in it. Display-only arithmetic is no exception — the
+ * rule is what keeps the file safe to read at a glance.
+ */
+export function formatBps(bps: number): string {
+  const whole = Math.trunc(bps / 100);
+  const fraction = Math.abs(bps % 100);
+  if (fraction === 0) return `${whole}%`;
+  // 1250 -> "12.5", 1234 -> "12.34": pad to two digits, then drop a
+  // trailing zero so a half-percent does not read as "12.50".
+  const digits = String(fraction).padStart(2, "0").replace(/0$/, "");
+  return `${whole}.${digits}%`;
+}

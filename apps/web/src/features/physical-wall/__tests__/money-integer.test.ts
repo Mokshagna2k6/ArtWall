@@ -25,7 +25,10 @@ const MONEY_PATHS = [
 ];
 
 // Presentation helpers are the one place rupees exist; they are named, not guessed.
-const DISPLAY_ONLY = /export function (toRupees|formatINR)[\s\S]*?\n}\n/g;
+// `formatBps` joined them when curator commission rates became visible to buyers:
+// it converts basis points to a percentage string for display only, and nothing
+// in a settlement path calls it.
+const DISPLAY_ONLY = /export function (toRupees|formatINR|formatBps)[\s\S]*?\n}\n/g;
 
 const FLOAT_PATTERNS: [RegExp, string][] = [
   [/parseFloat\s*\(/, "parseFloat"],

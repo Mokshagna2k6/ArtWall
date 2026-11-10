@@ -110,6 +110,12 @@ export const artistProfiles = pgTable("artist_profiles", {
   publishedAt: timestamp("publishedAt"),
   onboardingCompleted: boolean("onboardingCompleted").notNull().default(false),
   walletAddress: text("wallet_address"),
+  /** 'unverified' | 'peer_verified' | 'curator_verified' (0075). Derived from
+   *  `artist_endorsements` and recomputed on every endorsement write — stored
+   *  rather than aggregated per read so /artists can sort and filter without
+   *  a subquery per row. NOT the same axis as `user.identityVerified`, which
+   *  is an admin document check. */
+  verificationStatus: text("verification_status").notNull().default("unverified"),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 });
@@ -1448,4 +1454,77 @@ export const virtualWallPlacements = pgTable("virtual_wall_placements", {
   placedAt: timestamp("placed_at", { withTimezone: true }).notNull().defaultNow(),
   removedBy: text("removed_by"),
   removedAt: timestamp("removed_at", { withTimezone: true }),
+});
+
+/* ── Social layer (0075) ─────────────────────────────────────────────────────
+ * Likes, comments, follows and saves. Not a polymorphic "reactions" table:
+ * artworks are the only likeable entity today, so every FK below is real and
+ * `on delete cascade` cleans up after an artwork or user delete for free. A
+ * second likeable entity gets its own table rather than widening these. */
+
+/** The (artwork, user) pair is the identity — no surrogate id, so liking is an
+ *  idempotent upsert and a double-tap from two tabs is harmless. */
+export const artworkLikes = pgTable(
+  "artwork_likes",
+  {
+    artworkId: text("artwork_id").notNull(),
+    userId: text("user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.artworkId, t.userId] })]
+);
+
+export const artworkComments = pgTable("artwork_comments", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull(),
+  userId: text("user_id").notNull(),
+  /** One level of replies, same artwork. Enforced on the write path, not by a
+   *  constraint (that needs a composite FK). */
+  parentId: text("parent_id"),
+  /** 1..2000 chars, CHECKed in 0075 as well as in the Zod schema. */
+  body: text("body").notNull(),
+  /** Soft delete: a removed comment still holds its place so surviving
+   *  replies keep their context instead of becoming orphans. */
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** Both sides are users, not artist profiles — a buyer can be followed back,
+ *  and a profile may not exist when the follow happens. */
+export const userFollows = pgTable(
+  "user_follows",
+  {
+    followerId: text("follower_id").notNull(),
+    followeeId: text("followee_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.followerId, t.followeeId] })]
+);
+
+/** A private bookmark. Distinct from a collection, which is titled, ordered
+ *  and often public. */
+export const artworkSaves = pgTable(
+  "artwork_saves",
+  {
+    artworkId: text("artwork_id").notNull(),
+    userId: text("user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.artworkId] })]
+);
+
+/* ── Artist endorsements (0075) ──────────────────────────────────────────────
+ * Peer and curator verification. Deliberately separate from
+ * `user.identityVerified`, which is an admin's document check — this is a
+ * reputation signal, and the two must not be conflated.
+ * `artistProfiles.verificationStatus` is derived from these rows. */
+export const artistEndorsements = pgTable("artist_endorsements", {
+  id: text("id").primaryKey(),
+  /** The artist being vouched for. */
+  artistId: text("artist_id").notNull(),
+  endorserId: text("endorser_id").notNull(),
+  /** 'peer' (a published artist) | 'curator' (an active curator, outranks peer). */
+  kind: text("kind").notNull(),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

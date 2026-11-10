@@ -5,7 +5,9 @@ import { updateTag } from "next/cache";
 import { recordAuditIn } from "@/features/physical-wall/audit";
 import { requireRole } from "@/features/physical-wall/authorize";
 import { isOccupied, type SlotState } from "@/features/physical-wall/state-machine";
+import { planLayout, slotLabel } from "@/features/physical-wall/layout-plan";
 import {
+  gridGenerateSchema,
   gridResizeSchema,
   gridTemplateSchema,
   slotEditSchema,
@@ -397,5 +399,164 @@ export async function saveAsTemplate(
     return ok(`Saved '${name}' as a template.`);
   } catch (error) {
     return toActionError("saveAsTemplate", error);
+  }
+}
+
+/**
+ * Generate a layout from real wall measurements (F01).
+ *
+ * The difference from `resizeGrid` is who does the arithmetic. Resize asks the
+ * admin for rows and columns; this asks for the measurements they actually
+ * took on site — wall width, wall height, the size class going on it — and
+ * works out the grid itself. That is the whole feature: a wall manager with a
+ * tape measure should not have to do division to find out that a 3.2m wall
+ * holds five 50cm frames with a 10cm gap.
+ *
+ * It regenerates the grid rather than appending, so it carries the same
+ * protection resize does: an occupied slot that would be destroyed blocks the
+ * whole operation and is named. The planning arithmetic lives in
+ * `layout-plan.ts` so the preview on screen and the slots written here come
+ * from one function and cannot disagree.
+ */
+export async function generateLayout(
+  _previous: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  try {
+    const actor = await requireRole("admin");
+
+    const parsed = gridGenerateSchema.safeParse({
+      gridId: formData.get("gridId"),
+      wallWidthCm: formData.get("wallWidthCm"),
+      wallHeightCm: formData.get("wallHeightCm"),
+      sizeId: formData.get("sizeId"),
+      typeId: formData.get("typeId"),
+      gapCm: formData.get("gapCm") ?? 10,
+    });
+    if (!parsed.success) return fail(firstIssue(parsed.error));
+
+    const { gridId, wallWidthCm, wallHeightCm, sizeId, typeId, gapCm } = parsed.data;
+
+    const summary = await inTransaction(async (client) => {
+      const grid = await client.query<{ row_count: number; col_count: number }>(
+        `select row_count, col_count from pw_grid_config where id = $1 for update`,
+        [gridId]
+      );
+      if (grid.rowCount === 0) throw new PreconditionError("No such wall layout.");
+      const before = grid.rows[0];
+
+      const size = await client.query<{ w_cm: number; h_cm: number; name: string }>(
+        `select w_cm, h_cm, name from pw_size_catalog where id = $1 and active`,
+        [sizeId]
+      );
+      if (size.rowCount === 0) throw new PreconditionError("No such active size class.");
+
+      const type = await client.query(
+        `select id from pw_slot_types where id = $1 and active`,
+        [typeId]
+      );
+      if (type.rowCount === 0) throw new PreconditionError("No such active slot type.");
+
+      const plan = planLayout({
+        wallWidthCm,
+        wallHeightCm,
+        slotWidthCm: size.rows[0].w_cm,
+        slotHeightCm: size.rows[0].h_cm,
+        gapCm,
+      });
+      if (plan.slotCount === 0) {
+        // problem is always set when nothing fits, but the fallback keeps this
+        // honest rather than asserting non-null.
+        throw new PreconditionError(plan.problem ?? "No slots fit on that wall.");
+      }
+
+      // Anything outside the new bounds must go. Occupied slots block it, for
+      // the same reason resize refuses: a booking is a commitment to a person.
+      const outside = await client.query<{ id: string; label: string; state: SlotState }>(
+        `select id, label, state from pw_slots
+         where grid_id = $1 and (row_index >= $2 or col_index >= $3)
+         for update`,
+        [gridId, plan.rowCount, plan.colCount]
+      );
+
+      const blocking = outside.rows.filter((slot) => isOccupied(slot.state));
+      if (blocking.length > 0) {
+        throw new PreconditionError(
+          `Cannot regenerate this layout: ${blocking
+            .map((slot) => `${slot.label} (${slot.state})`)
+            .join(", ")} ${blocking.length === 1 ? "is" : "are"} occupied and would be ` +
+            "removed. Release or end those bookings first."
+        );
+      }
+
+      const removedIds = outside.rows.map((slot) => slot.id);
+      if (removedIds.length > 0) {
+        await client.query(`delete from pw_slots where id = any($1::text[])`, [removedIds]);
+      }
+
+      // Fill every cell in the new bounds. `on conflict do nothing` leaves an
+      // existing slot — and anything booked on it — exactly as it was; only
+      // genuinely empty cells are created.
+      let added = 0;
+      for (let row = 0; row < plan.rowCount; row += 1) {
+        for (let col = 0; col < plan.colCount; col += 1) {
+          const inserted = await client.query(
+            `insert into pw_slots (id, grid_id, row_index, col_index, label, size_id, type_id, state)
+             values ($1, $2, $3, $4, $5, $6, $7, 'available')
+             on conflict (grid_id, row_index, col_index) do nothing`,
+            [newId("slot"), gridId, row, col, slotLabel(row, col), sizeId, typeId]
+          );
+          added += inserted.rowCount ?? 0;
+        }
+      }
+
+      // An existing, unoccupied slot inside the bounds keeps its row/col but
+      // must take the generated size and type, or the layout would claim a
+      // uniform hang it does not actually have.
+      const retyped = await client.query(
+        `update pw_slots set size_id = $2, type_id = $3, updated_at = now()
+         where grid_id = $1 and state = 'available'`,
+        [gridId, sizeId, typeId]
+      );
+
+      await client.query(
+        `update pw_grid_config
+         set row_count = $2, col_count = $3, version = version + 1, updated_at = now()
+         where id = $1`,
+        [gridId, plan.rowCount, plan.colCount]
+      );
+
+      await recordAuditIn(client, {
+        actor,
+        action: "grid.generated",
+        subjectType: "grid",
+        subjectId: gridId,
+        before: { rowCount: before.row_count, colCount: before.col_count },
+        after: {
+          rowCount: plan.rowCount,
+          colCount: plan.colCount,
+          wallWidthCm,
+          wallHeightCm,
+          gapCm,
+          sizeName: size.rows[0].name,
+          added,
+          removed: removedIds.length,
+          retyped: retyped.rowCount ?? 0,
+        },
+      });
+
+      return { plan, added, removed: removedIds.length, sizeName: size.rows[0].name };
+    });
+
+    updateTag(WALL_TAG);
+    const { plan } = summary;
+    return ok(
+      `Generated ${plan.rowCount}×${plan.colCount} — ${plan.slotCount} ${summary.sizeName} ` +
+        `slots, ${plan.leftoverWidthCm}cm spare width and ${plan.leftoverHeightCm}cm spare height. ` +
+        `${summary.added} added, ${summary.removed} removed.` +
+        (plan.problem ? ` ${plan.problem}` : "")
+    );
+  } catch (error) {
+    return toActionError("generateLayout", error);
   }
 }

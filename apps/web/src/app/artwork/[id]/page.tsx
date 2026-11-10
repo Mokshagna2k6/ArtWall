@@ -19,6 +19,9 @@ import { ArtworkTabs } from "@/features/marketplace/artwork-tabs";
 import { ArtworkViewer } from "@/features/marketplace/artwork-viewer";
 import { purchasability } from "@/features/marketplace/purchasable";
 import { ShareArtworkButton } from "@/features/marketplace/share-button";
+import { getArtworkSocial, listComments } from "@/features/social/actions";
+import { CommentThread } from "@/features/social/comment-thread";
+import { SocialBar } from "@/features/social/social-bar";
 import { AddToCartButtons } from "@/features/orders/components/cart-buttons";
 import { formatINR } from "@/features/physical-wall/money";
 import { loadTrustDimensionLevels } from "@/features/policy/trust";
@@ -87,6 +90,15 @@ export default async function ArtworkDetailPage({
   // the page stays public and indexable (Phase 1 §1 depends on that).
   const session = await auth.api.getSession({ headers: await headers() });
   const viewerId = session?.user.id ?? null;
+
+  // Social state is per-viewer (viewerLiked/viewerSaved) and changes far more
+  // often than the catalogue, so it is deliberately outside the cached loaders
+  // above. Both read-paths swallow their own failures, so a social outage
+  // degrades to zero counts rather than a broken artwork page.
+  const [social, comments] = await Promise.all([
+    getArtworkSocial(artwork.id),
+    listComments(artwork.id),
+  ]);
 
   // §8.7: Buy Now only when the work is genuinely purchasable. This is the
   // same rule the cart and checkout enforce (features/orders/cart-rules.ts),
@@ -183,6 +195,14 @@ export default async function ArtworkDetailPage({
               signInHref={signInHref}
             />
             <AddToCollectionButton artworkId={artwork.id} />
+          </div>
+
+          <div className="border-border mt-6 border-t pt-5">
+            <SocialBar
+              artworkId={artwork.id}
+              initial={social}
+              signedIn={viewerId !== null}
+            />
           </div>
 
           {artwork.description && (
@@ -391,6 +411,25 @@ export default async function ArtworkDetailPage({
           </div>
         }
       />
+
+      <section
+        id="comments"
+        className="border-border border-t px-5 py-12 sm:px-8 lg:px-16"
+      >
+        <div className="max-w-page mx-auto">
+          <h2 className="font-heading text-xl">
+            {social.commentCount === 1 ? "1 comment" : `${social.commentCount} comments`}
+          </h2>
+          <div className="mt-6 max-w-2xl">
+            <CommentThread
+              artworkId={artwork.id}
+              comments={comments}
+              viewerId={viewerId}
+              signedIn={viewerId !== null}
+            />
+          </div>
+        </div>
+      </section>
 
       <JsonLd
         data={{

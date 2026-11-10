@@ -70,6 +70,36 @@ export const gridTemplateSchema = z.object({
   name: z.string().trim().min(1, "Give the layout a name.").max(60),
 });
 
+/**
+ * Generate a layout from real wall measurements (F01).
+ *
+ * The wall manager measures a physical wall and names a size class; the
+ * generator works out how many slots fit, rather than them computing rows and
+ * columns by hand and getting it wrong on site.
+ *
+ * Bounds mirror gridResizeSchema's 20x20 — the generator must not be able to
+ * produce a grid the editor cannot then open.
+ */
+export const gridGenerateSchema = z.object({
+  gridId: id,
+  /** Usable wall width in cm (exclude fixtures, doors, switches). */
+  wallWidthCm: z.coerce
+    .number({ error: "Measure the wall width in centimetres." })
+    .int()
+    .min(30, "A wall under 30cm wide holds nothing.")
+    .max(5000, "Over 50m — split it into separate walls."),
+  wallHeightCm: z.coerce
+    .number({ error: "Measure the wall height in centimetres." })
+    .int()
+    .min(30, "A wall under 30cm tall holds nothing.")
+    .max(1000, "Over 10m — that is not a hangable wall."),
+  /** The size class every generated slot takes. */
+  sizeId: id,
+  typeId: id,
+  /** Gap between adjacent frames, and from the wall's edge. */
+  gapCm: z.coerce.number().int().min(0).max(100).default(10),
+});
+
 /* ── Catalogs (F03, F05, F11, C05) ───────────────────────────────────────── */
 
 export const sizeSchema = z.object({

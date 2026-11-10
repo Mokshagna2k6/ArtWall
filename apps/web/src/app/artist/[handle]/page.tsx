@@ -4,8 +4,15 @@ import Link from "next/link";
 import { AtSign, Globe2, MapPin } from "lucide-react";
 import { notFound } from "next/navigation";
 
+import { JsonLd } from "@/components/seo/json-ld";
+import { siteConfig } from "@/config/site";
+import { getFollowState } from "@/features/social/actions";
+import { getArtistVerification } from "@/features/social/endorsements";
+import { FollowButton } from "@/features/social/follow-button";
+import { VerificationPanel } from "@/features/social/verification-panel";
 import { getPublicArtistProfile } from "@/lib/artist-profiles";
 import { cachedCatalog } from "@/lib/catalog-cache";
+import { getSessionUser } from "@/lib/session";
 
 // Catalogue cache (PERF-2.06): same for every visitor, expired on profile/artwork writes.
 const loadArtist = cachedCatalog(getPublicArtistProfile, "artist", 3600);
@@ -16,11 +23,43 @@ export async function generateMetadata({
   const { handle } = await params;
   const artist = await loadArtist(handle.toLowerCase());
   if (!artist) return { title: "Artist not found" };
+
+  const { profile, artworks } = artist;
+  // A real sentence beats a bare name in a search result: discipline and
+  // location are what someone actually searches for ("ceramic artist Jaipur"),
+  // and the bio is the artist's own words where they wrote one.
+  const descriptor = [profile.discipline, profile.location].filter(Boolean).join(" · ");
+  const description =
+    profile.bio?.slice(0, 160) ??
+    `${profile.displayName}${descriptor ? ` — ${descriptor}` : ""}. ${
+      artworks.length > 0 ? `${artworks.length} works` : "Work"
+    } on ArtWall.`;
+
+  const title = descriptor
+    ? `${profile.displayName} — ${descriptor}`
+    : profile.displayName;
+  const canonical = `/artist/${profile.handle}`;
+  // The artist's own portrait is a far better share card than a generic one.
+  const ogImage = profile.avatarUrl ?? artworks.find((w) => w.imageUrl)?.imageUrl;
+
   return {
-    title: artist.profile.displayName,
-    description:
-      artist.profile.bio ?? `${artist.profile.displayName} on ArtWall`,
-    alternates: { canonical: `/artist/${artist.profile.handle}` },
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      type: "profile",
+      title,
+      description,
+      url: canonical,
+      siteName: siteConfig.name,
+      images: ogImage ? [{ url: ogImage, alt: profile.displayName }] : undefined,
+    },
+    twitter: {
+      card: ogImage ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: ogImage ? [ogImage] : undefined,
+    },
   };
 }
 
@@ -32,6 +71,17 @@ export default async function ArtistProfilePage({
   if (!artist) notFound();
   const { profile, artworks, collections } = artist;
   const websiteLabel = profile.website?.replace(/^https?:\/\/(www\.)?/, "");
+
+  // Per-viewer, so outside the catalogue cache above (same reasoning as the
+  // artwork page). Both readers swallow their own failures, so a social
+  // outage leaves the profile intact rather than 500ing it.
+  const viewer = await getSessionUser();
+  const [follow, verification] = await Promise.all([
+    getFollowState(profile.userId),
+    getArtistVerification(profile.userId),
+  ]);
+
+  const canonicalUrl = `${siteConfig.url}/artist/${profile.handle}`;
 
   return (
     <main className="bg-[#ffffff] pt-20">
@@ -80,6 +130,27 @@ export default async function ArtistProfilePage({
                   <AtSign className="text-ember size-4" />@{profile.instagram}
                 </a>
               )}
+            </div>
+
+            <div className="mt-8">
+              <FollowButton
+                profileUserId={profile.userId}
+                returnTo={`/artist/${profile.handle}`}
+                initialFollowing={follow.viewerFollows}
+                initialFollowers={follow.followers}
+                signedIn={viewer !== null}
+                isSelf={viewer?.id === profile.userId}
+              />
+            </div>
+
+            <div className="mt-8 max-w-2xl">
+              <VerificationPanel
+                artistId={profile.userId}
+                artistName={profile.displayName}
+                verification={verification}
+                signedIn={viewer !== null}
+                returnTo={`/artist/${profile.handle}`}
+              />
             </div>
           </div>
           <div className="bg-muted relative aspect-square overflow-hidden rounded-full">
@@ -174,6 +245,47 @@ export default async function ArtistProfilePage({
           Discover more ArtWall artists
         </Link>
       </section>
+
+      {/* Person + an ItemList of their work. `mainEntityOfPage` ties the two
+          together so a crawler reads one profile rather than two loose nodes.
+          Community endorsement is deliberately NOT emitted as any kind of
+          schema.org verification claim — it is a reputation signal, and
+          dressing it as a credential would misrepresent it. */}
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "Person",
+          "@id": canonicalUrl,
+          name: profile.displayName,
+          url: canonicalUrl,
+          ...(profile.bio ? { description: profile.bio } : {}),
+          ...(profile.discipline ? { jobTitle: profile.discipline } : {}),
+          ...(profile.avatarUrl ? { image: profile.avatarUrl } : {}),
+          ...(profile.location ? { homeLocation: { "@type": "Place", name: profile.location } } : {}),
+          sameAs: [
+            profile.website,
+            profile.instagram ? `https://instagram.com/${profile.instagram}` : null,
+          ].filter(Boolean),
+          worksFor: { "@type": "Organization", name: siteConfig.name, url: siteConfig.url },
+          ...(artworks.length > 0
+            ? {
+                mainEntityOfPage: {
+                  "@type": "CollectionPage",
+                  "@id": canonicalUrl,
+                  hasPart: artworks.slice(0, 20).map((artwork) => ({
+                    "@type": "VisualArtwork",
+                    name: artwork.title,
+                    url: `${siteConfig.url}/artwork/${artwork.id}`,
+                    ...(artwork.imageUrl ? { image: artwork.imageUrl } : {}),
+                    ...(artwork.medium ? { artMedium: artwork.medium } : {}),
+                    ...(artwork.year ? { dateCreated: String(artwork.year) } : {}),
+                    creator: { "@type": "Person", "@id": canonicalUrl, name: profile.displayName },
+                  })),
+                },
+              }
+            : {}),
+        }}
+      />
     </main>
   );
 }
