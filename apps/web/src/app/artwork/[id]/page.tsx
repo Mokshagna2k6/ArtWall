@@ -426,6 +426,7 @@ export default async function ArtworkDetailPage({
               comments={comments}
               viewerId={viewerId}
               signedIn={viewerId !== null}
+              canModerate={viewerId !== null && viewerId === artwork.ownerId}
             />
           </div>
         </div>

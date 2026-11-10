@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/lib/db/index";
 import { artistEndorsements, artistProfiles, curators, user } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/session";
+import { enforcePolicy } from "@/features/orders/rate-limit";
 import {
   attempt,
   newId,
@@ -122,6 +123,9 @@ export async function endorseArtist(input: {
     const actor = await getSessionUser();
     if (!actor) throw new PreconditionError("Sign in first.");
     if (actor.id === artistId) throw new PreconditionError("You cannot endorse yourself.");
+    // Tightest social policy: these feed a verification status, so automated
+    // abuse here is reputational rather than cosmetic.
+    await enforcePolicy("endorsement", actor.id);
 
     const [target] = await db
       .select({ handle: artistProfiles.handle })
@@ -163,6 +167,9 @@ export async function withdrawEndorsement(
 
     const actor = await getSessionUser();
     if (!actor) throw new PreconditionError("Sign in first.");
+    // Withdraw is limited too: endorse/withdraw in a loop would otherwise be
+    // an unmetered way to churn an artist's status.
+    await enforcePolicy("endorsement", actor.id);
 
     await db
       .delete(artistEndorsements)

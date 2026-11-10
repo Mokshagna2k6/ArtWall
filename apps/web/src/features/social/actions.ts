@@ -15,6 +15,7 @@ import {
   userFollows,
 } from "@/lib/db/schema";
 import { getSessionUser } from "@/lib/session";
+import { enforcePolicy } from "@/features/orders/rate-limit";
 import {
   attempt,
   newId,
@@ -63,6 +64,7 @@ export async function likeArtwork(artworkId: string): Promise<Result<{ liked: bo
   return attempt("likeArtwork", async () => {
     const input = parseInput(id, artworkId);
     const userId = await requireActor();
+    await enforcePolicy("social-action", userId);
 
     await db
       .insert(artworkLikes)
@@ -78,6 +80,7 @@ export async function unlikeArtwork(artworkId: string): Promise<Result<{ liked: 
   return attempt("unlikeArtwork", async () => {
     const input = parseInput(id, artworkId);
     const userId = await requireActor();
+    await enforcePolicy("social-action", userId);
 
     await db
       .delete(artworkLikes)
@@ -103,6 +106,9 @@ export async function postComment(input: {
   return attempt("postComment", async () => {
     const { artworkId, body, parentId } = parseInput(commentSchema, input);
     const userId = await requireActor();
+    // Bible rule 38. Checked BEFORE any database read: an unauthenticated or
+    // over-limit caller must not get to probe for which comment ids exist.
+    await enforcePolicy("comment", userId);
 
     if (parentId) {
       const [parent] = await db
@@ -141,15 +147,33 @@ export async function deleteComment(commentId: string): Promise<Result<{ deleted
   return attempt("deleteComment", async () => {
     const input = parseInput(id, commentId);
     const userId = await requireActor();
+    // Limited too, although it only ever deletes the caller's own comment:
+    // the lookup below runs before the ownership check, so without a cap this
+    // is an unmetered oracle for which comment ids exist.
+    await enforcePolicy("social-action", userId);
 
     const [comment] = await db
-      .select({ userId: artworkComments.userId, artworkId: artworkComments.artworkId })
+      .select({
+        userId: artworkComments.userId,
+        artworkId: artworkComments.artworkId,
+        // The artwork's owner, so they can moderate their own page.
+        ownerId: artworks.userId,
+      })
       .from(artworkComments)
+      .innerJoin(artworks, eq(artworks.id, artworkComments.artworkId))
       .where(eq(artworkComments.id, input))
       .limit(1);
     if (!comment) throw new PreconditionError("That comment no longer exists.");
-    if (comment.userId !== userId) {
-      throw new PreconditionError("You can only delete your own comment.");
+
+    // Two people may remove a comment: its author, and the artist whose work
+    // it sits under (Bible rule 38 — community actions must be abuse-
+    // controlled, and an artist cannot be made to host abuse on their own
+    // page while waiting for staff). Both are soft deletes, so nothing a
+    // reply depends on actually disappears.
+    const isAuthor = comment.userId === userId;
+    const isArtworkOwner = comment.ownerId === userId;
+    if (!isAuthor && !isArtworkOwner) {
+      throw new PreconditionError("You can only remove your own comment.");
     }
 
     await db
@@ -167,6 +191,7 @@ export async function followUser(followeeId: string): Promise<Result<{ following
   return attempt("followUser", async () => {
     const input = parseInput(id, followeeId);
     const followerId = await requireActor();
+    await enforcePolicy("social-action", followerId);
     if (input === followerId) throw new PreconditionError("You cannot follow yourself.");
 
     await db
@@ -182,6 +207,7 @@ export async function unfollowUser(followeeId: string): Promise<Result<{ followi
   return attempt("unfollowUser", async () => {
     const input = parseInput(id, followeeId);
     const followerId = await requireActor();
+    await enforcePolicy("social-action", followerId);
 
     await db
       .delete(userFollows)
@@ -196,6 +222,7 @@ export async function saveArtwork(artworkId: string): Promise<Result<{ saved: bo
   return attempt("saveArtwork", async () => {
     const input = parseInput(id, artworkId);
     const userId = await requireActor();
+    await enforcePolicy("social-action", userId);
 
     await db
       .insert(artworkSaves)
@@ -210,6 +237,7 @@ export async function unsaveArtwork(artworkId: string): Promise<Result<{ saved: 
   return attempt("unsaveArtwork", async () => {
     const input = parseInput(id, artworkId);
     const userId = await requireActor();
+    await enforcePolicy("social-action", userId);
 
     await db
       .delete(artworkSaves)
