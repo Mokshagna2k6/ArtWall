@@ -279,3 +279,38 @@ export async function getCuratorsForReview() {
       .orderBy(curators.status, desc(curators.createdAt));
   });
 }
+
+export interface CuratorAttribution {
+  displayName: string;
+  bio: string | null;
+  /** Basis points, e.g. 1000 = 10%. Display with `formatCommission`. */
+  commissionBps: number;
+}
+
+/**
+ * The curator behind a public collection, with their commission rate.
+ *
+ * Public, and deliberately so: a buyer looking at a curated collection is
+ * entitled to know the curator takes a cut and how much, before they buy
+ * rather than after. Only ACTIVE curators are returned — a suspended or
+ * rejected curator's rate is not a fact about a live collection.
+ *
+ * Kept separate from `getPublicCollection` rather than widening it: most
+ * collections are not curated, and this would be a wasted join on every
+ * buyer and artist collection page.
+ */
+export async function getCuratorAttribution(ownerId: string): Promise<CuratorAttribution | null> {
+  return readSafely("getCuratorAttribution", null, async () => {
+    const oid = parseInput(id, ownerId);
+    const [row] = await db
+      .select({
+        displayName: curators.displayName,
+        bio: curators.bio,
+        commissionBps: curators.commissionBps,
+      })
+      .from(curators)
+      .where(and(eq(curators.userId, oid), eq(curators.status, "active")))
+      .limit(1);
+    return row ?? null;
+  });
+}

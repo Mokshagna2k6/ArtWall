@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
-import { formatINR } from "@/features/physical-wall/money";
+import { formatBps, formatINR } from "@/features/physical-wall/money";
 import { getPublicCollection } from "@/features/collections/actions";
+import { getCuratorAttribution } from "@/features/curators/actions";
 import { JsonLd } from "@/components/seo/json-ld";
 import { features } from "@/config/site";
 import { AddCollectionToCartButton } from "@/features/orders/components/cart-buttons";
@@ -28,6 +29,9 @@ export default async function PublicCollectionPage({ params }: { params: Promise
   const isCurator = collection.type === "CURATOR";
   const isArtist = collection.type === "ARTIST";
 
+  // Only curated collections carry a commission; everything else skips the query.
+  const curator = isCurator ? await getCuratorAttribution(collection.ownerId) : null;
+
   return (
     <main className="mx-auto max-w-5xl px-6 py-16">
       <p className="text-ink-muted text-eyebrow">
@@ -44,6 +48,32 @@ export default async function PublicCollectionPage({ params }: { params: Promise
       <p className="text-ink-muted mt-6 text-sm">
         {collection.artworks.length} {collection.artworks.length === 1 ? "artwork" : "artworks"}
       </p>
+
+      {/* Stated before the buy button, not after: a buyer is entitled to know
+          the curator takes a cut, and how much, before they commit.
+
+          The rate shown is the CURATOR'S AGREED RATE (curators.commission_bps),
+          which is what this curator's own agreement says. It is deliberately
+          not described as the share of any given sale: the amount actually
+          paid out at settlement comes from the platform-wide, versioned
+          commission policy's curator_bps (commission_policy_versions, 0044),
+          which is a different number. Wording the two as one would be a false
+          statement about money. The per-sale breakdown lives on the artwork
+          page's escrow split, which reads the policy. */}
+      {curator && (
+        <div className="border-hairline mt-6 max-w-2xl rounded border p-4">
+          <p className="text-sm">
+            Curated by <span className="font-medium">{curator.displayName}</span>
+          </p>
+          <p className="text-ink-muted mt-1 text-sm leading-6">
+            Agreed curator commission: {formatBps(curator.commissionBps)}. The exact
+            split applied to any individual sale is shown on that artwork&rsquo;s page.
+          </p>
+          {curator.bio && (
+            <p className="text-ink-muted mt-2 text-xs leading-5">{curator.bio}</p>
+          )}
+        </div>
+      )}
       {features.marketplaceCheckout && collection.artworks.some((a) => a.pricePaise != null) && (
         <AddCollectionToCartButton collectionId={collection.id} />
       )}
