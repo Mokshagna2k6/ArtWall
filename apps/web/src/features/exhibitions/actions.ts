@@ -49,6 +49,9 @@ const createSchema = z.object({
   venue: z.string().trim().max(160).optional(),
   startDate: isoDate.optional(),
   endDate: isoDate.optional(),
+  /** Which gate this exhibition answers to (0079). Defaults to 'physical' so
+   *  every existing caller keeps its current, gated behaviour. */
+  kind: z.enum(["physical", "virtual"]).default("physical"),
 });
 
 function newId(prefix: string): string {
@@ -86,6 +89,7 @@ export async function createExhibition(raw: z.input<typeof createSchema>): Promi
         startDate: input.startDate ?? null,
         endDate: input.endDate ?? null,
         status: "draft",
+        kind: input.kind,
       });
       // BE-3.08: an audit entry per transition, even the first one into draft.
       await tx.insert(exhibitionTransitions).values({
@@ -173,7 +177,16 @@ export async function publishExhibition(
       // section-14 hard gate — physical binding verified AND blockchain
       // anchored — read from the five real trust dimensions (BE-3.05), never
       // from a collapsed status column.
-      for (const { artworkId } of memberRows) {
+      //
+      // 0079: ONLY for a physical exhibition. A virtual one occupies no wall
+      // slot — nothing ships, nothing is installed, no QR is bound — so Bible
+      // rules 17-18 do not apply to it (§15/§53), and applying them anyway
+      // would make the 3D building unusable for exactly the works it exists
+      // to show. This mirrors the decision already taken on the other virtual
+      // surface (`placeArtworkOnSlot` in features/wallos/virtual-wall), so
+      // both virtual paths agree. Everything else below — dates, at least one
+      // artwork, ownership, the state machine — still applies to both.
+      for (const { artworkId } of exh.kind === "virtual" ? [] : memberRows) {
         const trust = await loadTrustDimensions(artworkId);
         const decision = canExhibit({ trust });
         await logPolicyDecision({
@@ -256,10 +269,16 @@ export async function getExhibitionEligibility(
     const exhId = parseInput(id, exhibitionId);
     const userId = await getUserId();
     const [exh] = await db
-      .select({ id: exhibitions.id })
+      .select({ id: exhibitions.id, kind: exhibitions.kind })
       .from(exhibitions)
       .where(and(eq(exhibitions.id, exhId), eq(exhibitions.userId, userId)));
     if (!exh) return {};
+
+    // 0079: a virtual exhibition is not gated on binding + blockchain, so
+    // reporting per-artwork `canExhibit` verdicts here would show the artist
+    // blockers that `publishExhibition` will not actually enforce. Empty map
+    // = nothing to warn about, which is the truth for a virtual show.
+    if (exh.kind === "virtual") return {};
 
     const memberRows = await db
       .select({ artworkId: exhibitionArtworks.artworkId })

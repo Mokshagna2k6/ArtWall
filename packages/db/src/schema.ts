@@ -974,6 +974,17 @@ export const exhibitions = pgTable("exhibitions", {
   startDate: date("start_date"),
   endDate: date("end_date"),
   status: text("status").notNull().default("draft"),
+  /** 'physical' | 'virtual' (0079). Which gate applies: a PHYSICAL exhibition
+   *  needs active binding + approved blockchain provenance (Bible rules
+   *  17-18, enforced by `canExhibit` in publishExhibition); a VIRTUAL one
+   *  needs neither (§15/§53 — nothing ships, nothing is installed). */
+  kind: text("kind").notNull().default("physical").$type<"physical" | "virtual">(),
+  /** FK to the WallOS hierarchy leaf (`slots`). Nullable by design: a virtual
+   *  exhibition never has one, and a physical one has none until it reaches
+   *  MATCHED. 0079 CHECKs that a virtual row can never hold a slot, and
+   *  `on delete set null` keeps the exhibition's history when a slot is
+   *  decommissioned (Rule 23: the mapping lives on this record). */
+  wallSlotId: text("wall_slot_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -1527,4 +1538,23 @@ export const artistEndorsements = pgTable("artist_endorsements", {
   kind: text("kind").notNull(),
   note: text("note"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── Venue-scoped WallOS roles (0081) ───────────────────────────────────────
+ * Wall Manager and Wall Consultant (Bible §13/§35, Locked Rules 34-35). A
+ * FOURTH identity axis, separate from `adminRoleAssignments`: that one is
+ * global and internal-staff-only, while a Wall Manager has access to specific
+ * assigned venues and a Wall Consultant is an external advisor. One row = one
+ * role on ONE venue; multi-venue access is several rows. Revoked rather than
+ * deleted, so a past grant stays auditable. */
+export const venueRoleAssignments = pgTable("venue_role_assignments", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  venueId: text("venue_id").notNull(),
+  /** 'wall_manager' | 'wall_consultant' — distinct roles, never interchangeable. */
+  role: text("role").notNull(),
+  grantedBy: text("granted_by"),
+  grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+  revokedBy: text("revoked_by"),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
 });

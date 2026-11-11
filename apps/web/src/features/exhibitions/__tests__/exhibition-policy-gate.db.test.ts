@@ -81,3 +81,71 @@ describe("exhibition publish policy gate (BE-3.03/3.04/3.05)", () => {
     ]);
   });
 });
+
+/**
+ * 0079: the physical gate (Bible rules 17-18) applies to a PHYSICAL
+ * exhibition only. A virtual one occupies no wall slot — nothing ships,
+ * nothing is installed, no QR is bound — so requiring a physical binding
+ * would make the 3D building unusable for the works it exists to show
+ * (§15/§53).
+ *
+ * The first test above already proves the physical half: the SAME unbound,
+ * unanchored artwork is refused there. These prove the virtual half lets it
+ * through, and that nothing else was loosened along with it.
+ */
+describe("virtual exhibitions are not gated on binding + blockchain (0079)", () => {
+  it("publishes with an artwork that has neither binding nor blockchain anchor", async () => {
+    const owner = await makeUser();
+    const art = await makeArtwork(owner.id);
+    actAs(owner);
+    const id = data(
+      await createExhibition({ title: `betest ${tid("virt")}`, kind: "virtual", ...complete })
+    );
+    data(await addArtworkToExhibition(id, art));
+
+    const published = data(await publishExhibition(id));
+    expect(published.status).toBe("published");
+
+    // No canExhibit decision is logged, because the gate never ran.
+    const logged = await q<{ n: string }>(
+      `select count(*) as n from policy_decisions where gate = 'canExhibit' and subject_id = $1`,
+      [art]
+    );
+    expect(Number(logged[0].n)).toBe(0);
+  });
+
+  it("still enforces the non-policy preconditions (dates, at least one artwork)", async () => {
+    const owner = await makeUser();
+    actAs(owner);
+    const id = data(
+      await createExhibition({ title: `betest ${tid("virt")}`, kind: "virtual", ...complete })
+    );
+
+    // Skipping the trust gate must not skip "an exhibition needs artworks".
+    expect(errorOf(await publishExhibition(id))).toMatch(/at least one artwork/);
+  });
+
+  it("defaults to physical, so an existing caller that names no kind stays gated", async () => {
+    const owner = await makeUser();
+    const art = await makeArtwork(owner.id);
+    actAs(owner);
+    const id = data(await createExhibition({ title: `betest ${tid("dflt")}`, ...complete }));
+    data(await addArtworkToExhibition(id, art));
+
+    expect(errorOf(await publishExhibition(id))).toMatch(/not eligible to exhibit/);
+  });
+
+  it("refuses to attach a wall slot to a virtual exhibition (DB CHECK)", async () => {
+    const owner = await makeUser();
+    actAs(owner);
+    const id = data(
+      await createExhibition({ title: `betest ${tid("virt")}`, kind: "virtual", ...complete })
+    );
+
+    // A virtual show has no physical slot, ever — enforced in the database,
+    // not only in the write path that happens to exist today.
+    await expect(
+      q(`update exhibitions set wall_slot_id = 'any-slot' where id = $1`, [id])
+    ).rejects.toThrow(/exhibitions_virtual_has_no_slot/);
+  });
+});
