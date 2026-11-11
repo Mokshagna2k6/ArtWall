@@ -3,7 +3,7 @@ import "server-only";
 import { and, desc, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db/index";
-import { artistProfiles, artworks, collections } from "@/lib/db/schema";
+import { artistProfiles, artworks, collections, user } from "@/lib/db/schema";
 
 type AuthUser = { id: string; name: string; email: string };
 
@@ -64,6 +64,18 @@ export async function getPublicArtistProfile(handle: string) {
   const profile = profiles[0];
   if (!profile) return null;
 
+  // The identity axis of the Bible §4 A0-A4 ladder (features/policy/artist-level.ts).
+  // Read here rather than on the page so it shares the catalogue cache — it is
+  // the same for every visitor, like the rest of this payload.
+  const [identityRow] = await db
+    .select({
+      identityVerified: user.identityVerified,
+      artistVerificationStatus: user.artistVerificationStatus,
+    })
+    .from(user)
+    .where(eq(user.id, profile.userId))
+    .limit(1);
+
   const publicArtworks = await db
     .select()
     .from(artworks)
@@ -92,7 +104,15 @@ export async function getPublicArtistProfile(handle: string) {
     )
     .orderBy(desc(collections.isFeatured), desc(collections.createdAt));
 
-  return { profile, artworks: publicArtworks, collections: artistCollections };
+  return {
+    profile,
+    artworks: publicArtworks,
+    collections: artistCollections,
+    identity: {
+      identityVerified: identityRow?.identityVerified ?? false,
+      artistVerificationStatus: identityRow?.artistVerificationStatus ?? null,
+    },
+  };
 }
 
 export async function getPublishedArtistProfiles() {

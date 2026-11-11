@@ -6,6 +6,8 @@ import { notFound } from "next/navigation";
 
 import { JsonLd } from "@/components/seo/json-ld";
 import { siteConfig } from "@/config/site";
+import { deriveArtistLevel } from "@/features/policy/artist-level";
+import { ArtistLevelBadge } from "@/features/policy/artist-level-badge";
 import { getFollowState } from "@/features/social/actions";
 import { getArtistVerification } from "@/features/social/endorsements";
 import { FollowButton } from "@/features/social/follow-button";
@@ -69,7 +71,7 @@ export default async function ArtistProfilePage({
   const { handle } = await params;
   const artist = await loadArtist(handle.toLowerCase());
   if (!artist) notFound();
-  const { profile, artworks, collections } = artist;
+  const { profile, artworks, collections, identity } = artist;
   const websiteLabel = profile.website?.replace(/^https?:\/\/(www\.)?/, "");
 
   // Per-viewer, so outside the catalogue cache above (same reasoning as the
@@ -80,6 +82,16 @@ export default async function ArtistProfilePage({
     getFollowState(profile.userId),
     getArtistVerification(profile.userId),
   ]);
+
+  // Bible §4 A0-A4, derived — no stored column. The peer/curator axis comes
+  // from the verification read above rather than the mirrored
+  // artist_profiles.verification_status column, so the summary and the panel
+  // below it can never disagree on the same render.
+  const artistLevel = deriveArtistLevel({
+    ...identity,
+    portfolioPublished: profile.published,
+    endorsementStatus: verification.status,
+  });
 
   const canonicalUrl = `${siteConfig.url}/artist/${profile.handle}`;
 

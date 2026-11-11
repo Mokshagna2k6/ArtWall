@@ -18,10 +18,65 @@ describe("loadTrustDimensionLevels", () => {
     expect(await loadTrustDimensionLevels(art)).toEqual({
       artistVerificationStatus: "unverified",
       coaLevel: 0,
+      coaTier: 0,
+      certificationPath: "lazy",
       provenanceLevel: 0,
       bindingLevel: 0,
       transactionEligible: false,
     });
+  });
+
+  /**
+   * Bible section 7 rule 7: HOLOGRAPHIC COA != BLOCKCHAIN PROVENANCE. coa_tier
+   * (0076) and coa_level (0046/0052) are separate trust dimensions, so both
+   * directions of "one without the other" must survive a round trip, and the
+   * 0052 status trigger must never write coa_tier.
+   */
+  it("coa_tier is independent of coa_level in both directions (Bible s7 rule 7)", async () => {
+    const artist = await makeUser();
+    const art = await makeArtwork(artist.id);
+    const institutional = tid("coa");
+
+    // COA-3 institutional, never minted: high tier, zero mint progress.
+    await q(
+      `insert into coa_certificates (id, artwork_id, user_id, metadata_hash, status, coa_tier)
+         values ($1, $2, $3, $1, 'draft', 3)`,
+      [institutional, art, artist.id]
+    );
+    let levels = await loadTrustDimensionLevels(art);
+    expect(levels.coaTier).toBe(3);
+    expect(levels.coaLevel).toBe(0);
+
+    // Driving the mint flow moves coa_level and must leave coa_tier alone.
+    await q(`update coa_certificates set status = 'issued', issued_at = now() where id = $1`, [institutional]);
+    levels = await loadTrustDimensionLevels(art);
+    expect(levels.coaTier).toBe(3);
+    expect(levels.coaLevel).toBe(1);
+
+    // The inverse: a minted certificate carrying no holographic COA at all.
+    const art2 = await makeArtwork(artist.id);
+    const noCoa = tid("coa");
+    await q(
+      `insert into coa_certificates (id, artwork_id, user_id, metadata_hash, status)
+         values ($1, $2, $3, $1, 'metadata_pinned')`,
+      [noCoa, art2, artist.id]
+    );
+    levels = await loadTrustDimensionLevels(art2);
+    expect(levels.coaTier).toBe(0);
+    expect(levels.coaLevel).toBe(2);
+  });
+
+  it("certification_path reports the minting path the work was registered through", async () => {
+    const artist = await makeUser();
+    const art = await makeArtwork(artist.id);
+    expect((await loadTrustDimensionLevels(art)).certificationPath).toBe("lazy");
+
+    await q(`update artworks set certification_path = 'base_nft' where id = $1`, [art]);
+    expect((await loadTrustDimensionLevels(art)).certificationPath).toBe("base_nft");
+
+    await expect(
+      q(`update artworks set certification_path = 'ethereum' where id = $1`, [art])
+    ).rejects.toThrow();
   });
 
   it("artist_verification_status follows the same reviewIdentity write path as identity_verified", async () => {

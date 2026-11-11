@@ -9,8 +9,6 @@ import { JsonLd } from "@/components/seo/json-ld";
 import { features } from "@/config/site";
 import { AddToCollectionButton } from "@/features/collections/add-to-collection-button";
 import { getProvenanceTimeline } from "@/features/coa/actions";
-import { loadDemandSignal } from "@/features/demand/aggregate";
-import { DemandMeter } from "@/features/demand/demand-meter";
 import { loadEscrowSplitPreview } from "@/features/escrow/preview";
 import { EscrowSplitBreakdown } from "@/features/escrow/split-breakdown";
 import { InquireButton } from "@/features/inquiries/inquire-button";
@@ -36,9 +34,6 @@ const loadTimeline = cachedCatalog(getProvenanceTimeline, "provenance", 3600);
 // rest of this page's catalogue data — they change only on review/mint
 // events, not per request.
 const loadTrustLevels = cachedCatalog(loadTrustDimensionLevels, "trust-levels", 3600);
-// FE-3.06: the demand meter reads the pre-aggregated table (PERF-3.04), so
-// this is cheap enough to cache on the same window too.
-const loadDemand = cachedCatalog(loadDemandSignal, "demand-signal", 3600);
 
 export async function generateMetadata({
   params,
@@ -77,7 +72,6 @@ export default async function ArtworkDetailPage({
 
   const timeline = await loadTimeline(id);
   const trustLevels = await loadTrustLevels(id);
-  const demand = await loadDemand(id);
   // FE-3.14: not run through cachedCatalog — commission_policy_versions is
   // not in the catalogue cache's invalidation set (expireCatalog only covers
   // artworks/artist_profiles/exhibitions/coa_certificates), and a payment
@@ -103,22 +97,13 @@ export default async function ArtworkDetailPage({
   // §8.7: Buy Now only when the work is genuinely purchasable. This is the
   // same rule the cart and checkout enforce (features/orders/cart-rules.ts),
   // so the page cannot offer a purchase that checkout would then refuse.
-  // `demand.thresholdCrossed` is passed as a BOOLEAN only. Bible §44 forbids a
-  // score, threshold or confidence number reaching a public surface.
-  const buy = purchasability(
-    artwork,
-    viewerId,
-    features.marketplaceCheckout,
-    demand.thresholdCrossed
-  );
+  // The demand-trigger phase is paused, so no work is demand-triggered: the
+  // threshold argument is left at its `false` default.
+  const buy = purchasability(artwork, viewerId, features.marketplaceCheckout);
   // Structured data must describe the work, not the viewer: the owner looking
   // at their own listing must not strip the Offer out of the page's JSON-LD.
-  const publiclyForSale = purchasability(
-    artwork,
-    null,
-    features.marketplaceCheckout,
-    demand.thresholdCrossed
-  ).buyable;
+  const publiclyForSale = purchasability(artwork, null, features.marketplaceCheckout)
+    .buyable;
 
   // `callbackUrl` and not `next`: that is the param /sign-in reads on this
   // branch, and it goes through the existing safeCallback open-redirect check.
@@ -173,8 +158,6 @@ export default async function ArtworkDetailPage({
               {linkedTag.tagType === "nfc" ? "NFC tag linked" : "QR tag linked"}
             </p>
           )}
-
-          <DemandMeter signal={demand} />
 
           {escrowSplit && <EscrowSplitBreakdown split={escrowSplit} />}
 
@@ -311,7 +294,10 @@ export default async function ArtworkDetailPage({
                       {cert.hash.slice(0, 24)}…
                     </Link>
                     <span className="text-ink-muted text-xs capitalize">{cert.status}</span>
-                    <span className="text-ink-muted text-xs">COA level {cert.coaLevel}</span>
+                    {/* Tier and mint progress are separate facts (Bible s7
+                        rule 7) — a holographic COA implies nothing on-chain. */}
+                    <span className="text-ink-muted text-xs">COA-{cert.coaTier}</span>
+                    <span className="text-ink-muted text-xs">mint level {cert.coaLevel}</span>
                     {cert.issuedAt && (
                       <span className="text-ink-muted text-xs">
                         Issued {new Date(cert.issuedAt).toLocaleDateString("en-IN")}

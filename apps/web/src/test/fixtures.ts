@@ -50,6 +50,37 @@ export async function grantTestAdminRole(userId: string, role: string) {
   return id;
 }
 
+/**
+ * A WallOS venue (0050) and the organization it needs, for the venue-scoped
+ * role tests. Only the two levels `venue_role_assignments` actually FKs to —
+ * buildings/floors/walls/slots are irrelevant to an authorization check.
+ */
+export async function makeVenue() {
+  const orgId = tid("org");
+  const venueId = tid("venue");
+  await q(`insert into organizations (id, name) values ($1, $2)`, [orgId, `Org ${orgId.slice(-4)}`]);
+  await q(`insert into venues (id, organization_id, name) values ($1, $2, $3)`, [
+    venueId,
+    orgId,
+    `Venue ${venueId.slice(-4)}`,
+  ]);
+  return venueId;
+}
+
+/** Grant a venue-scoped WallOS role directly (0081). Returns the row id. */
+export async function grantTestVenueRole(
+  userId: string,
+  venueId: string,
+  role: "wall_manager" | "wall_consultant"
+) {
+  const id = tid("vra");
+  await q(
+    `insert into venue_role_assignments (id, user_id, venue_id, role) values ($1, $2, $3, $4)`,
+    [id, userId, venueId, role]
+  );
+  return id;
+}
+
 export async function makeProfile(userId: string, opts: { published?: boolean; wallet?: string | null } = {}) {
   await q(
     `insert into artist_profiles ("userId", handle, "displayName", published, wallet_address)
@@ -261,6 +292,12 @@ export async function purgeTestData() {
       `delete from admin_role_assignments where id like $1 or user_id like $1 or granted_by like $1 or revoked_by like $1`,
       [like]
     );
+    // WallOS venues (0050) made by makeVenue. venue_role_assignments (0081)
+    // cascades from both "user" (deleted above) and venues, so it needs no
+    // delete of its own — except rows granted by a real action with its own
+    // id prefix, which the user cascade still covers.
+    await client.query(`delete from venues where id like $1`, [like]);
+    await client.query(`delete from organizations where id like $1`, [like]);
     for (const t of DELETE_REVOKED) await client.query(`revoke delete on ${t} from current_user`);
     for (const t of GUARDED) await client.query(`alter table ${t} enable trigger user`);
     await client.query("commit");
