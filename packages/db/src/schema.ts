@@ -147,6 +147,20 @@ export const artworks = pgTable("artworks", {
   category: text("category"),
   pricePaise: integer("price_paise"),
   tags: text("tags").array(),
+  /**
+   * Which of the Bible's three minting paths this work took (section 10 Part 1
+   * / section 14), CHECK-constrained to 'lazy' | 'polygon' | 'base_nft' (0076):
+   *   lazy     free, the default — no immediate on-chain write; the commitment
+   *            is anchored in the daily Merkle root and only materialises on a
+   *            trigger (first sale, NFC binding, exhibition placement, artist
+   *            request, secondary listing)
+   *   polygon  Rs.499 Polygon zkEVM certificate — immediate, not tradeable
+   *   base_nft Rs.299 Base L2 ERC-721 — immediate and tradeable
+   *
+   * On the artwork, not the certificate: the path is a property of the work,
+   * which can accumulate several certificate versions along one path.
+   */
+  certificationPath: text("certification_path").notNull().default("lazy"),
   // search_tsv: generated tsvector owned by Postgres (0018), deliberately not
   // modelled so select() on artworks doesn't ship it. Query it in raw SQL.
   createdAt: timestamp("createdAt").notNull().defaultNow(),
@@ -899,8 +913,29 @@ export const coaCertificates = pgTable("coa_certificates", {
    *               metadata_pinned | minting | minted | failed  (NFT mint flow)
    */
   status: text("status").notNull().default("draft"),
-  /** 0-3, DB-3.02. Real stored state, backfilled from status (0046). */
+  /**
+   * 0-3, DB-3.02. Real stored state, backfilled from status (0046).
+   *
+   * Despite the name this is *mint progress*, not the Bible's COA tier: the
+   * 0052 trigger `coa_certificates_sync_level_trg` derives it from `status` on
+   * every write (minted=3, metadata_pinned|minting=2, issued|revoked|failed=1,
+   * else 0) and overwrites anything the app stores. Read it as "how far along
+   * the blockchain mint flow"; for the holographic tier use `coaTier`.
+   */
   coaLevel: integer("coa_level").notNull().default(0),
+  /**
+   * The Bible's COA tier (sections 6-9), CHECK 0-3 (0076):
+   *   0 = NO COA — a *state*, not a tier, and a valid one: primary listing is
+   *       allowed at COA-0, only secondary sale and royalty wait on provenance.
+   *   1 = standard holographic · 2 = premium holographic · 3 = institutional
+   *
+   * Set explicitly, never derived, and deliberately decoupled from `coaLevel`
+   * above. Bible section 7 rule 7: "HOLOGRAPHIC COA != BLOCKCHAIN PROVENANCE" —
+   * these are two of the five separate trust dimensions (section 3) and must
+   * never be collapsed. A COA-3 institutional certificate on a work that was
+   * never minted is expected; so is a minted work with no holographic COA.
+   */
+  coaTier: integer("coa_tier").notNull().default(0),
   issuedAt: timestamp("issued_at", { withTimezone: true }),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
   revokeReason: text("revoke_reason"),

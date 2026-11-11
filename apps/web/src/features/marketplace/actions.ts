@@ -252,6 +252,8 @@ async function artworkDetail(id: string) {
         status: coaCertificates.status,
         issuedAt: coaCertificates.issuedAt,
         coaLevel: coaCertificates.coaLevel,
+        /** Holographic tier (0076). Separate from coaLevel's mint progress. */
+        coaTier: coaCertificates.coaTier,
         pdfUrl: coaCertificates.pdfUrl,
         txHash: coaCertificates.txHash,
         tokenId: coaCertificates.tokenId,

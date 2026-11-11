@@ -350,3 +350,125 @@ export class NotAuthorisedAdminRoleError extends Error {
     this.name = "NotAuthorisedAdminRoleError";
   }
 }
+
+/* ── Venue-scoped WallOS roles (0081, Bible §13/§35) ─────────────────────────
+ *
+ * A FOURTH authorization axis, and the reason it is not folded into
+ * `AdminRoleName` above is the whole point of it: `admin_role_assignments` is
+ * global, so a row there grants a role across every venue on the platform.
+ * Bible §13 gives a Wall Manager access to *specific assigned venues*, and a
+ * Wall Consultant is an **external** advisor — neither should touch the
+ * internal admin axis (granting one of those also sets `user.role = 'admin'`).
+ * So these grants live in `venue_role_assignments`, one row per venue, and
+ * every check below takes a `venueId`. There is deliberately no "does this
+ * user hold this role anywhere" helper: that is exactly the mis-grant this
+ * design exists to prevent.
+ *
+ * Locked Rule 34 (Wall Manager != Venue Owner) and Rule 35 (Wall Consultant
+ * != Wall Manager) are enforced by never treating one role as satisfying a
+ * check for the other — `hasVenueRole` compares the stored role exactly, and
+ * unlike `hasAdminRole` there is no `super_admin` bypass, because a platform
+ * admin is not a party to a venue's own staffing. Admin surfaces keep using
+ * `requireAdminRole("venue_admin")`; these are for the venue-side actors.
+ */
+export const VENUE_ROLES = ["wall_manager", "wall_consultant"] as const;
+export type VenueRoleName = (typeof VENUE_ROLES)[number];
+
+export const VENUE_ROLE_DISPLAY_NAMES: Record<VenueRoleName, string> = {
+  wall_manager: "Wall Manager",
+  wall_consultant: "Wall Consultant",
+};
+
+export class NotAuthorisedVenueRoleError extends Error {
+  readonly status = 403;
+  readonly venueId: string;
+  constructor(required: VenueRoleName, venueId: string) {
+    super(`This action needs the ${VENUE_ROLE_DISPLAY_NAMES[required]} role on this venue.`);
+    this.name = "NotAuthorisedVenueRoleError";
+    this.venueId = venueId;
+  }
+}
+
+/**
+ * Does this actor hold `required` on *this one venue*, right now?
+ *
+ * Read live (same "revocation takes effect on the next action" reasoning as
+ * `hasAdminRole`), and fail-closed on a database error.
+ */
+export async function hasVenueRole(
+  actor: Actor | null,
+  venueId: string,
+  required: VenueRoleName
+): Promise<boolean> {
+  if (!actor || !venueId) return false;
+  try {
+    const sql = getSql();
+    const rows = (await sql`
+      select 1 from venue_role_assignments
+      where user_id = ${actor.id}
+        and venue_id = ${venueId}
+        and role = ${required}
+        and revoked_at is null
+      limit 1
+    `) as unknown[];
+    return rows.length > 0;
+  } catch (error) {
+    console.error("[physical-wall] Could not read venue role assignment", error);
+    return false;
+  }
+}
+
+/**
+ * Every venue this actor holds `role` on (Bible §13's "one or more venues").
+ * Used to scope a list query — `where venue_id = any($1)` — instead of
+ * fetching everything and filtering per row.
+ */
+export async function listOwnVenues(
+  actor: Actor | null,
+  role: VenueRoleName
+): Promise<string[]> {
+  if (!actor) return [];
+  try {
+    const sql = getSql();
+    const rows = (await sql`
+      select venue_id from venue_role_assignments
+      where user_id = ${actor.id} and role = ${role} and revoked_at is null
+    `) as { venue_id: string }[];
+    return rows.map((r) => r.venue_id);
+  } catch (error) {
+    console.error("[physical-wall] Could not read venue role assignments", error);
+    return [];
+  }
+}
+
+/**
+ * Require a venue-scoped role in a **server action**, throwing if the caller
+ * lacks it on that venue. Only `artist` is required generically (i.e. just a
+ * signed-in, real user): the venue grant itself is the authorization, and
+ * requiring `staff`/`admin` on top would make the role unusable by the
+ * venue-side and external people it exists for.
+ */
+export async function requireVenueRole(
+  venueId: string,
+  required: VenueRoleName
+): Promise<Actor> {
+  const actor = await requireRole("artist");
+  if (!(await hasVenueRole(actor, venueId, required))) {
+    throw new NotAuthorisedVenueRoleError(required, venueId);
+  }
+  return actor;
+}
+
+/**
+ * Require a venue-scoped role in a **page**. Same "signed out -> sign in,
+ * signed in but not granted -> public wall" behaviour as `requireRolePage`.
+ */
+export async function requireVenueRolePage(
+  venueId: string,
+  required: VenueRoleName,
+  returnTo: string
+): Promise<Actor> {
+  const actor = await requireRolePage("artist", returnTo);
+  if (!(await hasVenueRole(actor, venueId, required))) redirect("/physical-wall");
+  return actor;
+}

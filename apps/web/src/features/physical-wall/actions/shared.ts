@@ -7,6 +7,7 @@ import type { z } from "zod";
 import {
   NotAuthorisedError,
   NotAuthorisedAdminRoleError,
+  NotAuthorisedVenueRoleError,
   PhysicalWallDisabledError,
 } from "@/features/physical-wall/authorize";
 import {
@@ -82,6 +83,7 @@ export function toActionError(scope: string, error: unknown): ActionState {
   if (error instanceof ForbiddenTransitionError) return fail(error.message);
   if (error instanceof NotAuthorisedError) return fail(error.message);
   if (error instanceof NotAuthorisedAdminRoleError) return fail(error.message);
+  if (error instanceof NotAuthorisedVenueRoleError) return fail(error.message);
   if (error instanceof PhysicalWallDisabledError) return fail(error.message);
   if (error instanceof StaleWriteError) return fail(error.message);
   if (error instanceof PreconditionError) return fail(error.message);

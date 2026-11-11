@@ -105,8 +105,23 @@ export async function loadTrustDimensions(artworkId: string): Promise<TrustDimen
 export interface TrustDimensionLevels {
   /** unverified | pending | approved | rejected. Stored on "user" (0052). */
   artistVerificationStatus: string;
-  /** 0-3. Stored on coa_certificates, backfilled from status (0046, DB-3.02). */
+  /**
+   * 0-3. Stored on coa_certificates, backfilled from status (0046, DB-3.02).
+   * This is mint progress, not the holographic tier — 0052's trigger derives it
+   * from status. See {@link coaTier}.
+   */
   coaLevel: number;
+  /**
+   * The Bible's COA tier (sections 6-9), 0-3: 0 = NO COA (a valid state, not a
+   * tier), 1 = standard holographic, 2 = premium, 3 = institutional (0076).
+   *
+   * Reported separately from {@link coaLevel} and {@link provenanceLevel} on
+   * purpose. Bible section 7 rule 7: a holographic COA does NOT imply
+   * blockchain provenance, so these must never be rendered as one number.
+   */
+  coaTier: number;
+  /** Which minting path the work took: lazy | polygon | base_nft (0076). */
+  certificationPath: string;
   /** 0-4 (P0-P4). Read from the artwork_provenance_levels view (0052). */
   provenanceLevel: number;
   /** 0-3 (B0-B3). Generated column on the artwork's bound art_tags row, 0 if
@@ -120,6 +135,8 @@ export async function loadTrustDimensionLevels(artworkId: string): Promise<Trust
   const { rows } = await pool.query<{
     artist_verification_status: string | null;
     coa_level: number | null;
+    coa_tier: number | null;
+    certification_path: string | null;
     provenance_level: number;
     binding_level: number | null;
     transaction_eligible: boolean | null;
@@ -127,6 +144,12 @@ export async function loadTrustDimensionLevels(artworkId: string): Promise<Trust
     `select
        u.artist_verification_status,
        (select max(c.coa_level) from coa_certificates c where c.artwork_id = a.id) as coa_level,
+       -- Highest tier reached by any live certificate. A revoked one no longer
+       -- counts as a held COA, unlike coa_level above, which deliberately
+       -- records the mint progress a revoked certificate once reached (0046).
+       (select max(c.coa_tier) from coa_certificates c
+          where c.artwork_id = a.id and c.status <> 'revoked') as coa_tier,
+       a.certification_path,
        coalesce(p.provenance_level, 0) as provenance_level,
        (select max(t.binding_level) from art_tags t where t.artwork_id = a.id) as binding_level,
        e.transaction_eligible
@@ -143,6 +166,8 @@ export async function loadTrustDimensionLevels(artworkId: string): Promise<Trust
   return {
     artistVerificationStatus: row?.artist_verification_status ?? "unverified",
     coaLevel: row?.coa_level ?? 0,
+    coaTier: row?.coa_tier ?? 0,
+    certificationPath: row?.certification_path ?? "lazy",
     provenanceLevel: row?.provenance_level ?? 0,
     bindingLevel: row?.binding_level ?? 0,
     transactionEligible: row?.transaction_eligible ?? false,

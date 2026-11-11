@@ -94,6 +94,9 @@ vi.mock("@/features/physical-wall/authorize", () => {
   return {
     NotAuthorisedError: class extends Error {},
     NotAuthorisedAdminRoleError: class extends Error {},
+    // 0081: venue-scoped WallOS roles. toActionError does an `instanceof` on
+    // it, so the mock must export it even though no action here throws one.
+    NotAuthorisedVenueRoleError: class extends Error {},
     PhysicalWallDisabledError: class extends Error {},
     requirePhysicalWallEnabled: vi.fn(),
     getActor: vi.fn(async () => actor),

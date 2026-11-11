@@ -15,12 +15,30 @@ const ARTIST_VERIFICATION_COPY: Record<string, string> = {
   rejected: "Verification rejected",
 };
 
-// FE-3.02: COA-0 shown explicitly as "No certificate", not blank.
+// FE-3.02: COA-0 shown explicitly, not blank. Bible sections 6-9 — these are
+// holographic document tiers and say nothing about blockchain state (rule 7).
+const COA_TIER_COPY: Record<number, string> = {
+  0: "No COA",
+  1: "Standard holographic",
+  2: "Premium holographic",
+  3: "Institutional",
+};
+
+// Mint progress of the certificate record itself (coa_level, 0046/0052). Shown
+// under its own label: it is NOT the COA tier above, and conflating the two is
+// the exact mistake Bible section 7 rule 7 forbids.
 const COA_LEVEL_COPY: Record<number, string> = {
-  0: "No certificate",
+  0: "Not issued",
   1: "Issued",
   2: "Metadata pinned",
   3: "Minted on-chain",
+};
+
+// Bible section 10 Part 1 / 14.
+const CERTIFICATION_PATH_COPY: Record<string, string> = {
+  lazy: "Lazy mint (free, on first trigger)",
+  polygon: "Polygon zkEVM certificate",
+  base_nft: "Base L2 NFT (tradeable)",
 };
 
 // FE-3.03: P0-P4 with an explanation for each level.
@@ -77,9 +95,15 @@ export function TrustPanel({ levels }: { levels: TrustDimensionLevels }) {
           ok={levels.artistVerificationStatus === "approved"}
         />
         <Dimension
-          label={`Certificate of Authenticity — COA-${levels.coaLevel}`}
-          value={COA_LEVEL_COPY[levels.coaLevel] ?? "No certificate"}
-          detail="0 to 3: issuance through on-chain minting."
+          label={`Certificate of Authenticity — COA-${levels.coaTier}`}
+          value={COA_TIER_COPY[levels.coaTier] ?? "No COA"}
+          detail="0 to 3: holographic document tier. Implies nothing on-chain."
+          ok={levels.coaTier >= 1}
+        />
+        <Dimension
+          label="Certificate record"
+          value={COA_LEVEL_COPY[levels.coaLevel] ?? "Not issued"}
+          detail="Where the certificate itself is in the issue-and-mint flow."
           ok={levels.coaLevel >= 1}
         />
         <Dimension
@@ -87,6 +111,13 @@ export function TrustPanel({ levels }: { levels: TrustDimensionLevels }) {
           value={PROVENANCE_LEVEL_COPY[levels.provenanceLevel] ?? "No provenance recorded"}
           detail="0 to 4: COA issuance through confirmed on-chain mint."
           ok={levels.provenanceLevel >= 3}
+        />
+        <Dimension
+          label="Minting path"
+          value={CERTIFICATION_PATH_COPY[levels.certificationPath] ?? "Lazy mint"}
+          detail="Which certification route this work was registered through."
+          // Informational: no path is "better", so no state is a failure.
+          ok={levels.certificationPath !== "lazy"}
         />
         <Dimension
           label={`Physical binding — B${levels.bindingLevel}`}
