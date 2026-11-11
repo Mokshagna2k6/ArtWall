@@ -155,7 +155,13 @@ export default async function ArtistProfilePage({
               />
             </div>
 
+            {/* §3/§4: the A-level summary sits ABOVE the per-dimension panel,
+                never instead of it — both are always rendered. */}
             <div className="mt-8 max-w-2xl">
+              <ArtistLevelBadge summary={artistLevel} artistName={profile.displayName} />
+            </div>
+
+            <div className="mt-4 max-w-2xl">
               <VerificationPanel
                 artistId={profile.userId}
                 artistName={profile.displayName}
