@@ -17,6 +17,10 @@ import { ArtworkTabs } from "@/features/marketplace/artwork-tabs";
 import { ArtworkViewer } from "@/features/marketplace/artwork-viewer";
 import { purchasability } from "@/features/marketplace/purchasable";
 import { ShareArtworkButton } from "@/features/marketplace/share-button";
+import { getDemandSignal } from "@/features/offers/actions";
+import { OfferPanel } from "@/features/offers/offer-panel";
+import { canReview, getArtworkReviews } from "@/features/reviews/actions";
+import { ReviewSection } from "@/features/reviews/review-section";
 import { getArtworkSocial, listComments } from "@/features/social/actions";
 import { CommentThread } from "@/features/social/comment-thread";
 import { SocialBar } from "@/features/social/social-bar";
@@ -89,9 +93,16 @@ export default async function ArtworkDetailPage({
   // often than the catalogue, so it is deliberately outside the cached loaders
   // above. Both read-paths swallow their own failures, so a social outage
   // degrades to zero counts rather than a broken artwork page.
-  const [social, comments] = await Promise.all([
+  // Offers and reviews join the same per-viewer batch. `demand` is aggregate
+  // only (count/range/recency — Bible §44, rule 40: never an individual buyer
+  // or their exact offer); `canWrite` only draws the review form, the rule
+  // itself is enforced in postReview and by the NOT NULL order_item_id FK.
+  const [social, comments, demand, reviews, canWriteReview] = await Promise.all([
     getArtworkSocial(artwork.id),
     listComments(artwork.id),
+    getDemandSignal(artwork.id),
+    getArtworkReviews(artwork.id),
+    canReview(artwork.id),
   ]);
 
   // §8.7: Buy Now only when the work is genuinely purchasable. This is the
@@ -187,6 +198,23 @@ export default async function ArtworkDetailPage({
               signedIn={viewerId !== null}
             />
           </div>
+
+          {/* §17: offers only exist where there is an asking price to discount. */}
+          {artwork.pricePaise != null && artwork.pricePaise > 0 && (
+            <OfferPanel
+              artworkId={artwork.id}
+              askingPricePaise={artwork.pricePaise}
+              demand={demand}
+              signedIn={viewerId !== null}
+              isOwner={viewerId === artwork.ownerId}
+            />
+          )}
+
+          <ReviewSection
+            artworkId={artwork.id}
+            summary={reviews}
+            canWrite={canWriteReview}
+          />
 
           {artwork.description && (
             <div className="text-ink-muted mt-6 text-sm leading-relaxed">

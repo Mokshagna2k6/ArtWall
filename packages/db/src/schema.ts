@@ -1554,6 +1554,10 @@ export const artworkSaves = pgTable(
   {
     artworkId: text("artwork_id").notNull(),
     userId: text("user_id").notNull(),
+    /** Wishlist price watch (0085): the price this saver was last told about.
+     *  Null until the first sweep seeds it, so saves made before this column
+     *  existed do not all fire a notification at once. */
+    lastNotifiedPricePaise: integer("last_notified_price_paise"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.userId, t.artworkId] })]
@@ -1592,4 +1596,58 @@ export const venueRoleAssignments = pgTable("venue_role_assignments", {
   grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
   revokedBy: text("revoked_by"),
   revokedAt: timestamp("revoked_at", { withTimezone: true }),
+});
+
+/* ── Offers (0085, Bible §17 Part 1) ────────────────────────────────────────
+ * One row per MESSAGE in a negotiation, not one per negotiation: the opening
+ * offer, the artist's counter and the buyer's counter are rows sharing a
+ * `threadId`. That is what makes "maximum 2 counter rounds" countable, and it
+ * keeps the history an accepted offer's audit trail needs.
+ *
+ * The head row (round 0) carries the thread's `status`; replies carry
+ * 'superseded' so a stale row can never be read as the live state.
+ *
+ * `askingPricePaise` is snapshotted because the 50%-minimum CHECK cannot
+ * reach into `artworks`, and because the floor must be judged against the
+ * price shown when the offer was made. */
+export const artworkOffers = pgTable("artwork_offers", {
+  id: text("id").primaryKey(),
+  /** The opening offer's id. A thread is never without a head. */
+  threadId: text("thread_id").notNull(),
+  artworkId: text("artwork_id").notNull(),
+  buyerId: text("buyer_id").notNull(),
+  sellerId: text("seller_id").notNull(),
+  /** 'offer' (round 0) | 'counter' (rounds 1-2). */
+  kind: text("kind").notNull(),
+  round: integer("round").notNull(),
+  /** 'buyer' | 'seller' — who wrote this message. */
+  authorSide: text("author_side").notNull(),
+  offerAmountPaise: integer("offer_amount_paise").notNull(),
+  askingPricePaise: integer("asking_price_paise").notNull(),
+  message: text("message"),
+  /** pending | accepted | declined | countered | expired | withdrawn | superseded */
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ── Reviews (0085, Locked Rule 39) ─────────────────────────────────────────
+ * `orderItemId` is NOT NULL and a real FK: a review with no purchase behind it
+ * is unrepresentable, which is rule 39 in the schema rather than only in the
+ * action. Unique on orderItemId — one review per purchase, so buying the same
+ * work twice earns two reviews and reloading the form earns none.
+ *
+ * The artist's reply lives on the row because the Bible allows exactly one. */
+export const artworkReviews = pgTable("artwork_reviews", {
+  id: text("id").primaryKey(),
+  artworkId: text("artwork_id").notNull(),
+  reviewerId: text("reviewer_id").notNull(),
+  orderItemId: text("order_item_id").notNull(),
+  rating: integer("rating").notNull(),
+  body: text("body"),
+  responseBody: text("response_body"),
+  responseAt: timestamp("response_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
