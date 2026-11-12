@@ -174,12 +174,36 @@ export async function getCertificates() {
   });
 }
 
+/**
+ * The Bible's COA tier (sections 6-9), set when the certificate is issued.
+ *
+ * Deliberately NOT derived from, and never written to, `coa_level`: that
+ * column is mint progress, overwritten by 0052's trigger. Bible section 7
+ * rule 7 — "HOLOGRAPHIC COA != BLOCKCHAIN PROVENANCE" — makes the holographic
+ * tier and the chain state two separate trust dimensions, so the artist
+ * states the tier of the physical document they actually have, and issuing a
+ * COA-3 says nothing at all about whether the work was ever minted.
+ *
+ * 0 (no holographic document) is the default, because that is the honest
+ * answer for a certificate issued with no physical document behind it.
+ */
+const coaTierSchema = z
+  .number()
+  .int()
+  .min(0, "A COA tier is 0 to 3.")
+  .max(3, "A COA tier is 0 to 3.")
+  .default(0);
+
 export async function issueCertificate(
   artworkId: string,
-  editionId?: string
+  editionId?: string,
+  coaTier?: number
 ): Promise<Result<{ id: string; hash: string }>> {
   return attempt("issueCertificate", async () => {
-    const input = parseInput(z.object({ artworkId: id, editionId: id.optional() }), { artworkId, editionId });
+    const input = parseInput(
+      z.object({ artworkId: id, editionId: id.optional(), coaTier: coaTierSchema }),
+      { artworkId, editionId, coaTier }
+    );
     const userId = await getUserId();
     const [artwork] = await db
       .select()
@@ -228,6 +252,7 @@ export async function issueCertificate(
       userId,
       metadataHash: hash,
       status: "issued",
+      coaTier: input.coaTier,
       issuedAt: new Date(),
     });
 
@@ -237,7 +262,7 @@ export async function issueCertificate(
       eventType: "certified",
       actorId: userId,
       label: `Certificate of Authenticity issued`,
-      metadata: { certificateId: certId, metadataHash: hash },
+      metadata: { certificateId: certId, metadataHash: hash, coaTier: input.coaTier },
     });
 
     // Archive the PDF after the response; it never throws, so issuance cannot fail on it.
@@ -280,6 +305,48 @@ export async function revokeCertificate(certId: string, reason: string): Promise
     // A revoked certificate must stop verifying as issued immediately (PERF-2.07).
     expireCatalog();
     revalidatePath("/studio/certificates");
+    return null;
+  });
+}
+
+/**
+ * Which of the Bible's three minting paths this work takes (section 10 Part 1
+ * / section 14, column added by 0076). The artist's own choice, on their own
+ * work, and it is a property of the *work* rather than of any one certificate.
+ *
+ * Separate from the COA tier above on purpose: the path is about the chain
+ * (lazy / Polygon / Base NFT), the tier is about the physical holographic
+ * document. Bible rule 7 forbids one implying the other.
+ *
+ * shortcut: no payment is taken here, so this records an *intent* to use a
+ * paid path, not a purchase. Gate it behind a successful payment once the
+ * Rs.499 / Rs.299 checkout exists.
+ */
+const certificationPathSchema = z.object({
+  artworkId: id,
+  path: z.enum(["lazy", "polygon", "base_nft"], { error: "Choose a certification path." }),
+});
+
+export async function setCertificationPath(
+  artworkId: string,
+  path: "lazy" | "polygon" | "base_nft"
+): Promise<Result> {
+  return attempt("setCertificationPath", async () => {
+    const input = parseInput(certificationPathSchema, { artworkId, path });
+    const userId = await getUserId();
+
+    // Scoped by userId in the UPDATE itself: someone else's artwork simply
+    // matches no row, so there is no separate read to race against.
+    const updated = await db
+      .update(artworks)
+      .set({ certificationPath: input.path })
+      .where(and(eq(artworks.id, input.artworkId), eq(artworks.userId, userId)))
+      .returning({ id: artworks.id });
+    if (updated.length === 0) throw new PreconditionError("Artwork not found");
+
+    expireCatalog();
+    revalidatePath("/studio/certificates");
+    revalidatePath(`/artwork/${input.artworkId}`);
     return null;
   });
 }

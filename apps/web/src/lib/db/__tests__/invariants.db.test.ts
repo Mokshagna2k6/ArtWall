@@ -19,6 +19,34 @@ import { makeArtwork, makeBooking, makeSlots, makeUser, purgeTestData, q, tid } 
  *            so UPDATE/DELETE pass the ACL and the trigger is all that is
  *            left standing                                              -> 23001
  * Both run in a transaction that is always rolled back.
+ *
+ * ---------------------------------------------------------------------------
+ * KNOWN ENVIRONMENT FAILURE — DO NOT "FIX" BY WEAKENING AN ASSERTION
+ * ---------------------------------------------------------------------------
+ * Eight of the `asApp(...)` expectations here can fail with 23001 where they
+ * assert 42501. That is NOT a hole in the protection, and the fix is NOT to
+ * accept 23001 in the assertion — doing so would stop this suite from ever
+ * noticing if the REVOKEs were actually dropped.
+ *
+ * What was verified by hand (2026-11-12):
+ *   - `has_table_privilege('artwall_app', 'pw_ledger', 'DELETE')` is **false**.
+ *     The 0035 REVOKEs are really in place.
+ *   - `begin; set local role artwall_app; delete from pw_ledger ...` in psql
+ *     correctly fails with "permission denied for table pw_ledger" (42501).
+ *
+ * Why the test sees 23001 instead: `as()` below connects through the
+ * application's own `pg` pool. `set local role` is transaction-scoped and does
+ * not reliably take effect on a pooled / transaction-mode connection (a
+ * pooler may hand the statement a different backend session, or reset the
+ * role), so the statement can run as the pool's own user — which does hold
+ * the privilege — and the only thing left to refuse it is the append-only
+ * guard trigger. Hence 23001: the write is still refused, just by the second
+ * layer rather than the first.
+ *
+ * In other words the DATA IS PROTECTED EITHER WAY; what is wrong is this
+ * file's assumption that `set local role` sticks. The real fix is to give the
+ * suite a direct (non-pooled) connection as a dedicated superuser/owner role
+ * and run these cases on it, not to relax the SQLSTATE.
  */
 
 afterAll(purgeTestData);
