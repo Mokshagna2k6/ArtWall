@@ -18,4 +18,13 @@ runs = 64
 depth = 25
 
 [rpc_endpoints]
+# Bible §15/§19 names Polygon zkEVM as the chain for the five-contract
+# architecture (ArtworkRegistry, WallRegistry, ExhibitionManager,
+# RevenueDistributor, MerkleVerifier). Confirmed by the founder 2026-11-12.
+#
+# Base Sepolia stays because ArtwallCOA already targets it (Base L2 is the
+# Bible's NFT path, §10) — the two are different products on purpose, not a
+# leftover. Deploy the five to zkEVM; leave the COA NFT where it is.
+polygon_zkevm = "${POLYGON_ZKEVM_RPC_URL}"
+polygon_zkevm_testnet = "${POLYGON_ZKEVM_TESTNET_RPC_URL}"
 base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
