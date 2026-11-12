@@ -12,6 +12,11 @@ import {
   TEMPLATES,
   type ExhibitionTemplate,
 } from "@/features/exhibitions/viewer3d/templates";
+import {
+  DEFAULT_STYLE,
+  STYLES,
+  type ExhibitionStyle,
+} from "@/features/exhibitions/viewer3d/styles";
 
 export interface ViewerArtwork {
   id: string;
@@ -42,21 +47,28 @@ function supportsWebGL(): boolean {
  * FE-3.07/3.08/3.09: the 3D exhibition viewer.
  *
  * Six selectable templates (FE-3.08) position the same artwork list
- * differently in space; `onFallback` lets the caller swap in its existing 2D
- * gallery grid when WebGL isn't available (FE-3.09) — this component never
- * renders that fallback itself, since the page already has one.
+ * differently in space, and six Bible §15 styles (White Cube, Loft, Haveli,
+ * Outdoor Garden, Modern Glass, Custom) decide how that space looks. The two
+ * are independent: any style renders under any template.
+ *
+ * `onFallback` lets the caller swap in its existing 2D gallery grid when WebGL
+ * isn't available (FE-3.09) — this component never renders that fallback
+ * itself, since the page already has one.
  */
 export function Exhibition3DViewer({
   artworks,
   defaultTemplate = "rectangular-room",
+  defaultStyle = DEFAULT_STYLE,
   onSelectArtwork,
 }: {
   artworks: ViewerArtwork[];
   defaultTemplate?: ExhibitionTemplate;
+  defaultStyle?: ExhibitionStyle;
   onSelectArtwork?: (id: string) => void;
 }) {
   const router = useRouter();
   const [template, setTemplate] = useState<ExhibitionTemplate>(defaultTemplate);
+  const [style, setStyle] = useState<ExhibitionStyle>(defaultStyle);
   const webglOk = useMemo(() => supportsWebGL(), []);
 
   const placements = useMemo(
@@ -93,9 +105,28 @@ export function Exhibition3DViewer({
         ))}
       </div>
 
+      <div className="flex flex-wrap gap-2" role="group" aria-label="3D gallery style">
+        {STYLES.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            onClick={() => setStyle(s.id)}
+            aria-pressed={style === s.id}
+            title={s.description}
+            className={`text-small rounded-full border px-3 py-1.5 ${
+              style === s.id
+                ? "border-ink bg-ink text-white"
+                : "border-hairline-strong text-ink-muted hover:border-ink"
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
       <div className="bg-band h-[520px] w-full overflow-hidden rounded-lg">
         <Canvas camera={{ position: [0, 1.6, 9], fov: 55 }}>
-          <Room />
+          <Room style={style} />
           {artworks.map((artwork, i) => (
             <ArtworkFrame
               key={artwork.id}
