@@ -51,25 +51,32 @@ export function Room({ style = DEFAULT_STYLE }: { style?: ExhibitionStyle }) {
 
       {/* Back and side walls the artworks hang against. Free-standing panels,
           not a sealed box: the templates place frames on an outward-facing
-          ring too, and the camera orbits outside. Omitted for the open-air
-          styles, where the Bible wants walls in open space, not a room. */}
-      {!spec.openAir &&
-        (
-          [
+          ring too, and the camera orbits outside.
+
+          Open-air styles (Outdoor Garden, Modern Glass) still get these
+          panels — the Bible asks for "walls standing in an open garden", so
+          the wall is the point and only the *enclosure* goes away. An earlier
+          version skipped the meshes entirely for openAir, which left every
+          frame floating in mid-air with nothing behind it. What openAir
+          changes is the side panels: open-air keeps the back panel alone, so
+          the space reads as outdoors rather than a three-sided room. */}
+      {(spec.openAir
+        ? [{ position: [0, 3, -12] as [number, number, number], rotationY: 0 }]
+        : [
             { position: [0, 3, -12] as [number, number, number], rotationY: 0 },
             { position: [-12, 3, 0] as [number, number, number], rotationY: Math.PI / 2 },
             { position: [12, 3, 0] as [number, number, number], rotationY: -Math.PI / 2 },
           ]
-        ).map((wall, i) => (
-          <mesh key={i} position={wall.position} rotation={[0, wall.rotationY, 0]} receiveShadow>
-            <planeGeometry args={[24, 6]} />
-            <meshStandardMaterial
-              color={spec.wall.color}
-              roughness={spec.wall.roughness}
-              metalness={spec.wall.metalness}
-            />
-          </mesh>
-        ))}
+      ).map((wall, i) => (
+        <mesh key={i} position={wall.position} rotation={[0, wall.rotationY, 0]} receiveShadow>
+          <planeGeometry args={[24, 6]} />
+          <meshStandardMaterial
+            color={spec.wall.color}
+            roughness={spec.wall.roughness}
+            metalness={spec.wall.metalness}
+          />
+        </mesh>
+      ))}
     </>
   );
 }
