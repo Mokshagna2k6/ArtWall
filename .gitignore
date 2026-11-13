@@ -78,3 +78,8 @@ SHOWCASE-CREDENTIALS*.md
 
 # Admin logins, rewritten whenever passwords are reset.
 ADMIN-CREDENTIALS.md
+
+# Added by `vercel link`. Keep .env.example tracked: a blanket `.env*`
+# shadows apps/*/.env.example, which the repo ships on purpose.
+.vercel
+.env.local
