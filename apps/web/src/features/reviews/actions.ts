@@ -214,7 +214,7 @@ export interface ReviewSummary {
   reviews: ReviewView[];
 }
 
-export const NO_REVIEWS: ReviewSummary = { count: 0, average: null, reviews: [] };
+const NO_REVIEWS: ReviewSummary = { count: 0, average: null, reviews: [] };
 
 /**
  * Public reviews for an artwork, newest first, with the average.
