@@ -112,4 +112,23 @@ describe("viewer3d style registry (Bible §15)", () => {
     expect(viewer).toMatch(/<Room style=\{style\}\s*\/>/);
     expect(viewer).toMatch(/STYLES\.map/);
   });
+
+  it("every style hangs its artworks on something — open-air included", () => {
+    // Regression: `{!spec.openAir && ...}` skipped the wall meshes entirely
+    // for Outdoor Garden and Modern Glass, so frames floated in mid-air with
+    // nothing behind them. The Bible says "walls standing in an open garden":
+    // the wall is the point, only the enclosure goes away.
+    const room = readFileSync(resolve(__dirname, "../viewer3d/room.tsx"), "utf8");
+    expect(room).not.toMatch(/\{\s*!spec\.openAir\s*&&/);
+    // openAir still has to change something, or the two styles are identical
+    // to the enclosed ones: it keeps the back panel and drops the sides.
+    expect(room).toMatch(/spec\.openAir\s*\?/);
+
+    // Both open-air styles must still define a wall colour to render with.
+    for (const id of ["outdoor-garden", "modern-glass"] as const) {
+      const spec = getStyle(id);
+      expect(spec.openAir, id).toBe(true);
+      expect(spec.wall.color, id).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+  });
 });
