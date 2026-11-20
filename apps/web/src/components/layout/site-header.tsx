@@ -59,6 +59,9 @@ export function SiteHeader({
 }) {
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Which mobile section is expanded; one at a time, so the menu stays a
+  // short list however many children a section has. Null = all collapsed.
+  const [openSection, setOpenSection] = useState<string | null>(null);
   /**
    * Which desktop dropdown is open, by key, or null.
    *
@@ -141,6 +144,7 @@ export function SiteHeader({
     setLastPathname(pathname);
     setMenuOpen(false);
     setOpenMenu(null);
+    setOpenSection(null);
   }
 
   /** Is this href the page we are on, or an ancestor of it? */
@@ -429,41 +433,57 @@ export function SiteHeader({
                     }}
                     className="border-border border-b"
                   >
-                    {/* On a phone the children are simply listed under the
-                          parent. A tap-to-expand disclosure would hide two
-                          links behind an extra tap to save four lines of a
-                          panel that already scrolls. */}
+                    {/* Collapsed by default, labels only. Expanding every
+                          section and printing a sentence of description under
+                          every link turned a six-item menu into a wall of
+                          prose you had to scroll past to find "Artists". The
+                          descriptions still do their job on desktop, where
+                          they sit in a dropdown you opened deliberately. */}
                     {children.length > 0 ? (
-                      <div className="py-4">
-                        <p className="font-heading text-card">{item.label}</p>
-                        <ul className="mt-2 flex flex-col">
-                          {children.map((child) => (
-                            <li key={child.href}>
-                              <Link
-                                href={child.href}
-                                aria-current={
-                                  isCurrent(child.href) ? "page" : undefined
-                                }
-                                className="border-border/60 block border-l py-2.5 pl-4 text-sm"
-                              >
-                                {child.label}
-                                <span className="text-muted-foreground mt-0.5 block text-xs">
-                                  {child.description}
-                                </span>
-                              </Link>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenSection(
+                              openSection === item.href ? null : item.href
+                            )
+                          }
+                          aria-expanded={openSection === item.href}
+                          className="font-heading text-card flex w-full items-center justify-between py-4 text-left"
+                        >
+                          {item.label}
+                          <ChevronDown
+                            className={cn(
+                              "size-4 transition-transform",
+                              openSection === item.href && "rotate-180"
+                            )}
+                            aria-hidden
+                          />
+                        </button>
+                        {openSection === item.href && (
+                          <ul className="flex flex-col pb-2">
+                            {children.map((child) => (
+                              <li key={child.href}>
+                                <Link
+                                  href={child.href}
+                                  aria-current={
+                                    isCurrent(child.href) ? "page" : undefined
+                                  }
+                                  className="border-border/60 block border-l py-2.5 pl-4 text-sm"
+                                >
+                                  {child.label}
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </>
                     ) : (
                       <Link
                         href={item.href}
                         className="font-heading text-card block py-4"
                       >
                         {item.label}
-                        <span className="text-muted-foreground mt-1 block font-sans text-sm tracking-normal">
-                          {item.description}
-                        </span>
                       </Link>
                     )}
                   </motion.li>
