@@ -209,8 +209,27 @@ async function discover(filters: MarketplaceFilters): Promise<MarketplacePage> {
   };
 }
 
+/**
+ * One artwork, or null when there genuinely is no public artwork with that id.
+ *
+ * NOT wrapped in `readSafely`, deliberately. The caller
+ * (`/artwork/[id]`) wraps this in `cachedCatalog`, and `readSafely` turns
+ * *any* failure — a dropped connection, a pool timeout — into the same `null`
+ * that means "no such artwork". The cache cannot tell those apart, so it
+ * stored the failure as a legitimate "not found" and served a 404 for that
+ * artwork, to every visitor, for the full hour of the cache window. A
+ * one-second database hiccup became an hour-long outage on a perfectly good
+ * page, and re-requesting could not clear it.
+ *
+ * Throwing instead means `unstable_cache` stores nothing and the next request
+ * retries. The page's own error boundary handles the throw, which is the
+ * honest outcome: "something broke, try again", not "this artwork does not
+ * exist". A bad id still fails fast and cheaply via parseInput.
+ */
 export async function getArtworkDetail(artworkId: string) {
-  return readSafely("getArtworkDetail", null, () => artworkDetail(parseInput(id, artworkId)));
+  const parsed = id.safeParse(artworkId);
+  if (!parsed.success) return null;
+  return artworkDetail(parsed.data);
 }
 
 async function artworkDetail(id: string) {

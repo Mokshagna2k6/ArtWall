@@ -24,6 +24,20 @@ const HANDLED = /\btry \{|\battempt\(|\breadSafely\(/;
 /** Actions that return a constant: no input, no I/O, nothing to validate or catch. */
 const CONSTANT = new Set(["getLedgerCategories", "getTierOrder"]);
 
+/**
+ * Page reads that MUST throw on failure instead of swallowing it.
+ *
+ * The rule below exists so a form action never leaks a raw error to a client.
+ * These are not form actions: they are cached page reads whose caller turns a
+ * null into `notFound()`. Swallowing a failure there is actively harmful —
+ * `unstable_cache` stores the resulting null and serves a 404 for a real
+ * artwork for the whole cache window (this happened in production; see
+ * marketplace/__tests__/artwork-detail-failure.test.ts). Throwing keeps the
+ * failure out of the cache and lets the route's error boundary say "something
+ * broke" rather than "this does not exist".
+ */
+const MUST_THROW = new Set(["getArtworkDetail"]);
+
 function actionFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
@@ -66,7 +80,7 @@ describe("server action contract, static (BE-2.14 / BE-2.15)", () => {
 
   it("every action handles its own errors (no raw throw to the client)", () => {
     const violations = actions
-      .filter((a) => !CONSTANT.has(a.name) && !HANDLED.test(a.body))
+      .filter((a) => !CONSTANT.has(a.name) && !MUST_THROW.has(a.name) && !HANDLED.test(a.body))
       .map((a) => `${a.file}: ${a.name}`);
     expect(violations).toEqual([]);
   });
