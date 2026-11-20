@@ -232,7 +232,7 @@ export function DashboardSidebar() {
       </button>
 
       {/* Desktop Sidebar */}
-      <aside className="dark md:border-border md:bg-card hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col md:border-r">
+      <aside className="dark md:border-border md:bg-card-surface hidden md:fixed md:inset-y-0 md:flex md:w-64 md:flex-col md:border-r">
         {sidebarContent}
       </aside>
 
@@ -253,7 +253,7 @@ export function DashboardSidebar() {
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ duration: duration.moderate, ease: ease.standard }}
-              className="bg-card fixed inset-y-0 left-0 z-50 w-72 shadow-xl md:hidden"
+              className="bg-card-surface fixed inset-y-0 left-0 z-50 w-72 shadow-xl md:hidden"
             >
               <div className="border-border flex h-16 items-center justify-between border-b px-6">
                 <span className="font-heading text-lg font-semibold">Menu</span>

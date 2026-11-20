@@ -256,7 +256,14 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
+  /* Exposed as `card-surface`, NOT `card`. A `--color-card` here also makes
+     Tailwind resolve `text-card` as a COLOUR, and this project already uses
+     `text-card` as the card-heading SIZE token (`--text-card`, 62 call sites).
+     Colour wins, so every one of those headings silently rendered white — on
+     white. That is what made the mobile menu's labels invisible. Use
+     `bg-card-surface` for the surface; there is no text colour here, because
+     card text takes `--color-card-foreground`. */
+  --color-card-surface: var(--card);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

@@ -416,7 +416,7 @@ export function SiteHeader({
             </button>
           </div>
           <nav aria-label="Mobile" className="mt-6">
-            <ul className="border-border flex flex-col border-t">
+            <ul className="flex flex-col">
               {[...navItems, ...secondaryNavItems].map((item, index) => {
                 const children = visibleChildren(item, {
                   physicalWallEnabled,
@@ -431,14 +431,17 @@ export function SiteHeader({
                       ...transition.base,
                       delay: 0.03 * index + 0.04,
                     }}
-                    className="border-border border-b"
                   >
                     {/* Collapsed by default, labels only. Expanding every
                           section and printing a sentence of description under
                           every link turned a six-item menu into a wall of
                           prose you had to scroll past to find "Artists". The
                           descriptions still do their job on desktop, where
-                          they sit in a dropdown you opened deliberately. */}
+                          they sit in a dropdown you opened deliberately.
+
+                          No dividing rules between sections: spacing already
+                          separates six large labels, and a line under each one
+                          read as six underlined links. */}
                     {children.length > 0 ? (
                       <>
                         <button
@@ -469,7 +472,7 @@ export function SiteHeader({
                                   aria-current={
                                     isCurrent(child.href) ? "page" : undefined
                                   }
-                                  className="border-border/60 block border-l py-2.5 pl-4 text-sm"
+                                  className="text-muted-foreground block py-2.5 pl-4 text-sm"
                                 >
                                   {child.label}
                                 </Link>
