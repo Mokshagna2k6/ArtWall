@@ -89,7 +89,7 @@ export default async function PhysicalWallPage() {
             Art you can stand in front of.
           </h1>
 
-          <div className="border-border mt-14 grid gap-10 border-t pt-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-20">
+          <div className="border-border mt-14 grid grid-cols-[minmax(0,1fr)] gap-10 border-t pt-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-20">
             <div>
               <div className="flex items-center gap-2.5">
                 <span
@@ -312,7 +312,7 @@ export default async function PhysicalWallPage() {
         <div className="flex items-baseline gap-6">
           <Eyebrow index="04">For visitors</Eyebrow>
         </div>
-        <div className="mt-10 grid gap-14 lg:grid-cols-2 lg:gap-24">
+        <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-14 lg:grid-cols-2 lg:gap-24">
           <div>
             <h2 className="font-heading text-section text-balance">
               You&rsquo;re eating here anyway. Look up.
@@ -403,7 +403,7 @@ export default async function PhysicalWallPage() {
       {/* ── Venue info ──────────────────────────────────────────────── */}
       <Band id="venue">
         <Eyebrow index="05">The venue</Eyebrow>
-        <div className="mt-10 grid gap-10 lg:grid-cols-2 lg:gap-24">
+        <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-2 lg:gap-24">
           <div>
             <h2 className="font-heading text-section text-balance">
               Ric Platter, Jaipur

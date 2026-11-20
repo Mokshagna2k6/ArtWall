@@ -98,7 +98,7 @@ export default async function ArtistProfilePage({
   return (
     <main className="bg-[#ffffff] pt-20">
       <section className="border-border border-b px-5 py-16 sm:px-8 md:py-24 lg:px-16">
-        <div className="max-w-page mx-auto grid gap-10 lg:grid-cols-[minmax(0,1fr)_15rem]">
+        <div className="max-w-page mx-auto grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,1fr)_15rem]">
           <div>
             <p className="text-signal text-eyebrow">ArtWall artist</p>
             <h1 className="font-heading text-display mt-4 text-balance">

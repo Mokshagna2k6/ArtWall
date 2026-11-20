@@ -135,7 +135,7 @@ export default async function ArtworkDetailPage({
     // viewport and only the detail column scrolls, so the work stays visible
     // while reading provenance. Below lg it collapses to one normal column.
     <main className="lg:h-[calc(100dvh-var(--header-h,4rem))] lg:overflow-hidden">
-      <div className="mx-auto grid max-w-7xl gap-10 px-6 py-12 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,34rem)] lg:gap-0 lg:px-0 lg:py-0">
+      <div className="mx-auto grid grid-cols-[minmax(0,1fr)] max-w-7xl gap-10 px-6 py-12 lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(0,34rem)] lg:gap-0 lg:px-0 lg:py-0">
         <div className="bg-band/40 lg:flex lg:h-full lg:items-center lg:justify-center lg:p-10">
           <ArtworkViewer images={images} title={artwork.title} />
         </div>

@@ -51,7 +51,7 @@ export default function AboutPage() {
           Four things, holding each other in place.
         </h2>
 
-        <div className="mt-12 grid items-start gap-12 lg:grid-cols-2 lg:gap-24">
+        <div className="mt-12 grid grid-cols-[minmax(0,1fr)] items-start gap-12 lg:grid-cols-2 lg:gap-24">
           <div className="border-border flex items-center justify-center border p-12">
             <ArtWallLogo className="size-40" titled />
           </div>
@@ -89,7 +89,7 @@ export default function AboutPage() {
           {team.map((member) => (
             <li
               key={member.name}
-              className="border-border grid gap-4 border-b py-8 lg:grid-cols-[4rem_minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-10"
+              className="border-border grid grid-cols-[minmax(0,1fr)] gap-4 border-b py-8 lg:grid-cols-[4rem_minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-10"
             >
               <span
                 aria-hidden
