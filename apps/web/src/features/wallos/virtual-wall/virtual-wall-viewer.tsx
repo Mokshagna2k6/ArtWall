@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Canvas, useThree } from "@react-three/fiber";
 import { AdaptiveDpr, OrbitControls, Sky, useProgress } from "@react-three/drei";
 
@@ -22,6 +22,19 @@ function supportsWebGL(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * A touch device, i.e. one with no pointer lock and no WASD.
+ *
+ * `pointer: coarse` rather than a width breakpoint or a user-agent sniff: the
+ * question is "can this visitor press keys and lock the mouse", which is about
+ * the input device, not the screen size. A small desktop window is still
+ * keyboard-capable; a large tablet is not.
+ */
+function isTouchDevice(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia?.("(pointer: coarse)").matches ?? false;
 }
 
 export interface SelectedSlot {
@@ -55,7 +68,13 @@ export function VirtualWallViewer({
   canPlace: boolean;
 }) {
   const [floorIndex, setFloorIndex] = useState(0);
+  const touch = useMemo(() => isTouchDevice(), []);
+  // Walk is the richer mode and stays the default everywhere: touch now has
+  // a joystick and drag-look, so it is no longer a dead end on a phone.
   const [mode, setMode] = useState<"walk" | "look" | "list">("walk");
+  // Joystick axes, read by the frame loop. A ref, not state: this changes
+  // every pointermove and re-rendering the Canvas at that rate would stutter.
+  const moveRef = useRef({ f: 0, r: 0 });
   const [locked, setLocked] = useState(false);
   const [selected, setSelected] = useState<SelectedSlot | null>(null);
   const webglOk = useMemo(() => supportsWebGL(), []);
@@ -111,9 +130,14 @@ export function VirtualWallViewer({
                   floorLevel={floor.level}
                   enabled
                   onLockChange={setLocked}
+                  touch={touch}
+                  moveRef={moveRef}
                 />
+                {/* On touch there is no lock to wait for, and taps land where
+                    the visitor is looking — so the crosshair picker is what
+                    makes artworks selectable at all while walking. */}
                 <CrosshairPicker
-                  active={locked}
+                  active={touch || locked}
                   onPick={(slotId, artworkId) => setSelected({ slotId, artworkId })}
                 />
               </>
@@ -167,7 +191,8 @@ export function VirtualWallViewer({
           </nav>
         </div>
 
-        {mode === "walk" && <ControlsLegend locked={locked} />}
+        {mode === "walk" && touch && <WalkStick moveRef={moveRef} />}
+        {mode === "walk" && <ControlsLegend locked={locked} touch={touch} />}
       </div>
 
       {selected && (
@@ -286,17 +311,31 @@ function CrosshairPicker({
   return null;
 }
 
-function ControlsLegend({ locked }: { locked: boolean }) {
-  const rows: [string, string][] = [
-    ["Walk", "W A S D"],
-    ["Run", "SHIFT"],
-    ["Look", "MOUSE"],
-    ["Change floor", "BUTTONS, TOP RIGHT"],
-    ["Release cursor", "ESC"],
-  ];
+function ControlsLegend({ locked, touch }: { locked: boolean; touch: boolean }) {
+  // Telling a phone visitor to press W or release the cursor is worse than
+  // saying nothing: the keys do not exist and there is no cursor to release.
+  const rows: [string, string][] = touch
+    ? [
+        ["Walk", "STICK"],
+        ["Look", "DRAG"],
+        ["Open", "TAP"],
+        ["Floor", "TOP RIGHT"],
+      ]
+    : [
+        ["Walk", "W A S D"],
+        ["Run", "SHIFT"],
+        ["Look", "MOUSE"],
+        ["Change floor", "BUTTONS, TOP RIGHT"],
+        ["Release cursor", "ESC"],
+      ];
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-3 flex flex-col items-center gap-2 px-3">
-      {!locked && (
+    <div
+      className={`pointer-events-none absolute inset-x-0 flex flex-col items-center gap-2 px-3 ${
+        touch ? "bottom-40" : "bottom-3"
+      }`}
+    >
+      {/* The legend sits above the stick on a phone, not under it. */}
+      {!locked && !touch && (
         <p className="rounded bg-black/70 px-3 py-1.5 text-xs text-white">
           Click the view to look around
         </p>
@@ -352,6 +391,68 @@ function ViewModes({
           This device can&rsquo;t render 3D — showing the list.
         </span>
       )}
+    </div>
+  );
+}
+
+/**
+ * On-screen walk stick, for devices with no keyboard.
+ *
+ * Writes into the same `{f, r}` ref the frame loop reads, so touch movement
+ * goes through the identical clamped integration as WASD — there is no second
+ * movement implementation to keep in step.
+ *
+ * Placed bottom-left, thumb-reachable, and deliberately outside the Canvas:
+ * the canvas handles look-drag, and nesting the stick inside it would make
+ * every joystick touch also spin the camera.
+ */
+function WalkStick({ moveRef }: { moveRef: { current: { f: number; r: number } } }) {
+  const [knob, setKnob] = useState({ x: 0, y: 0 });
+  const base = useRef<HTMLDivElement | null>(null);
+  const active = useRef<number | null>(null);
+
+  const RADIUS = 44;
+
+  function apply(e: React.PointerEvent<HTMLDivElement>) {
+    const box = base.current?.getBoundingClientRect();
+    if (!box) return;
+    const dx = e.clientX - (box.left + box.width / 2);
+    const dy = e.clientY - (box.top + box.height / 2);
+    const dist = Math.hypot(dx, dy) || 1;
+    const clamped = Math.min(dist, RADIUS);
+    const nx = (dx / dist) * clamped;
+    const ny = (dy / dist) * clamped;
+    setKnob({ x: nx, y: ny });
+    // Up on screen is forward; normalise so a full push equals one key press.
+    moveRef.current = { f: -ny / RADIUS, r: nx / RADIUS };
+  }
+
+  function release() {
+    active.current = null;
+    setKnob({ x: 0, y: 0 });
+    moveRef.current = { f: 0, r: 0 };
+  }
+
+  return (
+    <div
+      ref={base}
+      aria-label="Walk"
+      className="pointer-events-auto absolute bottom-6 left-5 size-28 touch-none rounded-full border border-white/25 bg-black/35 backdrop-blur-sm"
+      onPointerDown={(e) => {
+        active.current = e.pointerId;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        apply(e);
+      }}
+      onPointerMove={(e) => {
+        if (active.current === e.pointerId) apply(e);
+      }}
+      onPointerUp={release}
+      onPointerCancel={release}
+    >
+      <div
+        className="absolute left-1/2 top-1/2 size-12 rounded-full bg-white/80 shadow"
+        style={{ transform: `translate(-50%,-50%) translate(${knob.x}px, ${knob.y}px)` }}
+      />
     </div>
   );
 }

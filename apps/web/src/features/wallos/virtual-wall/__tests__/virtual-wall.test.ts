@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -178,5 +181,41 @@ describe("slot/artwork resolution geometry", () => {
     const pose = slotPose(0, 2, 0, 1);
     expect(pose.position[1]).toBeGreaterThan(2 * FLOOR_HEIGHT);
     expect(pose.position[1]).toBeLessThan(3 * FLOOR_HEIGHT);
+  });
+});
+
+describe("touch controls", () => {
+  const viewer = readFileSync(
+    resolve(__dirname, "../virtual-wall-viewer.tsx"),
+    "utf8"
+  );
+  const controls = readFileSync(
+    resolve(__dirname, "../first-person-controls.tsx"),
+    "utf8"
+  );
+
+  it("walk mode is reachable on a phone: stick, drag-look, and no pointer lock", () => {
+    // The bug: walk mode was WASD + PointerLockControls only. Pointer lock
+    // does not exist on touch, so a phone visitor spawned facing one way and
+    // could neither turn nor move.
+    expect(viewer).toMatch(/isTouchDevice/);
+    expect(viewer).toMatch(/<WalkStick moveRef=\{moveRef\}/);
+    // Pointer lock must be skipped on touch, or it swallows the taps that
+    // pick artworks without ever locking.
+    expect(controls).toMatch(/if \(touch\) return null;/);
+    // Drag-look has to exist, or there is still no way to turn.
+    expect(controls).toMatch(/pointerdown/);
+  });
+
+  it("touch movement reuses the keyboard integration rather than duplicating it", () => {
+    // One clamped integration, so touch cannot drift out of the room while
+    // keyboard stays inside it.
+    expect(controls).toMatch(/stick\?\.f \?\? 0/);
+    expect(controls).toMatch(/stick\?\.r \?\? 0/);
+  });
+
+  it("the legend does not tell a phone to press keys it does not have", () => {
+    expect(viewer).toMatch(/\["Walk", "STICK"\]/);
+    expect(viewer).toMatch(/\["Look", "DRAG"\]/);
   });
 });
