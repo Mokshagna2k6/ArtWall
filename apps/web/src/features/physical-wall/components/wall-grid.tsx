@@ -120,7 +120,9 @@ export function WallGrid({
   ).sort();
 
   return (
-    <div className="flex flex-col gap-3">
+    // min-w-0 here too: this is itself a grid child on the page, and the same
+    // `min-width: auto` default would re-expand it around the scroller.
+    <div className="flex min-w-0 flex-col gap-3">
       {mode === "edit" && (
         <p className="text-ink-muted text-xs leading-5" aria-live="polite">
           {carrying
@@ -129,7 +131,12 @@ export function WallGrid({
         </p>
       )}
 
-      <div className="bg-band border-hairline overflow-x-auto rounded-md border p-3">
+      {/* `min-w-0` is load-bearing: this box is a grid/flex child, whose
+          default `min-width: auto` is its content's intrinsic width. Without
+          it the box grows to the full grid (550px at a 390px viewport) and
+          `overflow-x-auto` never engages — it scrolls the page sideways
+          instead of the grid. Found on a 390px phone against the live site. */}
+      <div className="bg-band border-hairline min-w-0 overflow-x-auto rounded-md border p-3">
         <div
           role="grid"
           aria-label="The physical wall"
