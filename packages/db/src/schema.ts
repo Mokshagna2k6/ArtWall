@@ -1240,10 +1240,20 @@ export const organizations = pgTable("organizations", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/** 0086 added location, kind and the artist-facing `listed` flag. */
 export const venues = pgTable("venues", {
   id: text("id").primaryKey(),
   organizationId: text("organization_id").notNull(),
   name: text("name").notNull(),
+  /** One of VENUE_TYPES. Null until a Wall Manager sets it. */
+  venueType: text("venue_type"),
+  addressLine: text("address_line"),
+  city: text("city"),
+  state: text("state"),
+  pincode: text("pincode"),
+  /** Whether this venue appears in the artist-facing wall search. */
+  listed: boolean("listed").notNull().default(false),
+  description: text("description"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -1277,6 +1287,10 @@ export const walls = pgTable("walls", {
   id: text("id").primaryKey(),
   roomZoneId: text("room_zone_id").notNull(),
   name: text("name").notNull(),
+  /** Physical size in whole centimetres (0086). Null = not yet measured. */
+  widthCm: integer("width_cm"),
+  heightCm: integer("height_cm"),
+  notes: text("notes"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -1289,6 +1303,11 @@ export const wallosSlots = pgTable("slots", {
   label: text("label").notNull(),
   onChainSlotId: text("on_chain_slot_id"),
   pwSlotId: text("pw_slot_id"),
+  /** Integer paise for one `periodDays` booking. Null = not for rent (0086). */
+  pricePaise: integer("price_paise"),
+  periodDays: integer("period_days").notNull().default(30),
+  widthCm: integer("width_cm"),
+  heightCm: integer("height_cm"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
