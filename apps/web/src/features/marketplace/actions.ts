@@ -261,7 +261,28 @@ async function artworkDetail(id: string) {
     .innerJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
     .where(and(eq(artworks.id, id), eq(artworks.isPublic, true), eq(artistProfiles.published, true)));
 
-  if (!artwork) return null;
+  if (!artwork) {
+    // TEMP DIAGNOSTIC (remove once the 97-99 404s are explained): say which
+    // of the three conditions actually failed, from inside the production
+    // runtime, since the same query returns a row from every other client.
+    try {
+      const probe = await db
+        .select({
+          id: artworks.id,
+          isPublic: artworks.isPublic,
+          ownerId: artworks.userId,
+          profileUser: artistProfiles.userId,
+          published: artistProfiles.published,
+        })
+        .from(artworks)
+        .leftJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
+        .where(eq(artworks.id, id));
+      console.error("[artwork-404-probe]", id, JSON.stringify(probe));
+    } catch (e) {
+      console.error("[artwork-404-probe] probe threw", id, e);
+    }
+    return null;
+  }
 
   const [certs, editionRows, tagRows] = await Promise.all([
     db
