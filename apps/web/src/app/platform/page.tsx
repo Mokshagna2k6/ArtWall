@@ -125,7 +125,28 @@ export default function ServicesPage() {
           </p>
         </div>
 
-        <div className="mt-12 overflow-x-auto">
+        {/* `max-w-full` is what makes the scroller work. The table is
+            deliberately `min-w-[42rem]` so its seven columns stay readable,
+            and this box is meant to scroll it — but a block box still sizes
+            to its content's min-content width when that exceeds the viewport,
+            so the box itself grew to 672px and pushed the page sideways
+            instead of scrolling. Capping it at the parent's width gives
+            `overflow-x-auto` something to overflow.
+            Measured at 390px on the deployed page: 633 vs 390. */}
+        {/* `relative` is the fix, and it is not decorative. This table holds
+            50 `sr-only` elements (the caption plus a per-cell "covered" /
+            "not covered" label). `sr-only` is `position: absolute`, and with
+            no positioned ancestor their containing block was the page, not
+            this scroller — so they were laid out against the table's full
+            707px and escaped `overflow-x-auto`, dragging the document to
+            633px at a 390px viewport while the scroller itself measured a
+            correct 350px and scrolled fine. That is why capping the
+            scroller's width changed nothing.
+
+            Making the scroller a containing block keeps them inside it.
+            Bisected on the running page: removing the 50 sr-only nodes drops
+            the document to 390, and `position: relative` alone does the same. */}
+        <div className="relative mt-12 overflow-x-auto">
           <table className="w-full min-w-[42rem] border-collapse text-sm">
             <caption className="sr-only">
               Coverage of seven infrastructure domains by platform
