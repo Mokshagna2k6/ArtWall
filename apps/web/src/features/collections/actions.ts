@@ -486,7 +486,23 @@ export async function getCollectionsForArtwork(artworkId: string) {
   });
 }
 
-async function getCollectionArtworkRows(collectionId: string) {
+/**
+ * Artworks in a collection.
+ *
+ * `publicOnly` applies the same visibility rule the artwork page itself uses
+ * (`artworkDetail` in features/marketplace/actions.ts): the work must be
+ * public AND its artist's profile published. Without it a public collection
+ * kept showing title, price and artist of works whose own /artwork/:id and
+ * /artist/:handle had gone 404 — a QA agent unpublished a profile and the
+ * collection page still listed the work, linking to a 404.
+ *
+ * The owner's own studio view passes `false`, because a collection you own
+ * must show your unpublished work — that is the whole point of a draft.
+ */
+async function getCollectionArtworkRows(collectionId: string, publicOnly: boolean) {
+  const visibility = publicOnly
+    ? [eq(artworks.isPublic, true), eq(artistProfiles.published, true)]
+    : [];
   return db
     .select({
       artworkId: artworks.id,
@@ -500,7 +516,7 @@ async function getCollectionArtworkRows(collectionId: string) {
     .from(collectionArtworks)
     .innerJoin(artworks, eq(collectionArtworks.artworkId, artworks.id))
     .leftJoin(artistProfiles, eq(artworks.userId, artistProfiles.userId))
-    .where(eq(collectionArtworks.collectionId, collectionId))
+    .where(and(eq(collectionArtworks.collectionId, collectionId), ...visibility))
     .orderBy(collectionArtworks.position);
 }
 
@@ -514,7 +530,7 @@ export async function getOwnedCollectionBySlug(ownerId: string, slug: string) {
     const data = parseInput(z.object({ ownerId: id, slug: z.string().trim().min(1).max(200) }), { ownerId, slug });
     const [row] = await db.select().from(collections).where(and(eq(collections.ownerId, data.ownerId), eq(collections.slug, data.slug)));
     if (!row) return null;
-    const artworkRows = await getCollectionArtworkRows(row.id);
+    const artworkRows = await getCollectionArtworkRows(row.id, false);
     return { ...row, artworks: artworkRows };
   });
 }
@@ -534,7 +550,7 @@ export async function getPublicCollection(slug: string) {
     const decision = canViewCollection({ visibility: row.visibility as "public" | "private", actorId: session?.user?.id ?? null, ownerId: row.ownerId });
     if (!decision.allow) return null;
 
-    const artworkRows = await getCollectionArtworkRows(row.id);
+    const artworkRows = await getCollectionArtworkRows(row.id, true);
     return { ...row, artworks: artworkRows };
   });
 }

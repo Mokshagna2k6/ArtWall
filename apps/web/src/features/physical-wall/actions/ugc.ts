@@ -244,9 +244,25 @@ export async function moderateUgc(
   }
 }
 
+/**
+ * Pending UGC awaiting moderation. Staff only.
+ *
+ * This is a `"use server"` export, so it is a callable endpoint for anyone who
+ * can read an action id out of the page bundle — not merely a function the
+ * admin panel happens to call. It returns unmoderated visitor captions and
+ * image URLs, which is exactly the content moderation exists to withhold, so
+ * it needs the same `requireRole("staff")` gate `moderateUgc` already has.
+ *
+ * Found by a QA agent calling it anonymously: it returned 200.
+ */
 export async function listPendingUgc(): Promise<
   { id: string; caption: string; imageUrl: string; cloudinaryId: string; kind: string; createdAt: string }[]
 > {
+  // Outside the try: `requireRole` throws NotAuthorisedError, and the catch
+  // below returns [] for genuine query failures. Inside, a refusal would be
+  // indistinguishable from "nothing pending" — the caller would be told the
+  // queue is empty rather than that it may not look.
+  await requireRole("staff");
   try {
     const sql = getSql();
     const rows = (await sql`
