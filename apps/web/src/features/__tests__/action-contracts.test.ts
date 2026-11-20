@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 /**
@@ -168,4 +168,64 @@ describe("server action contract, runtime (BE-2.15)", () => {
     expect((await approveCurator("")).ok).toBe(false);
     expect(await approveCurator({ $ne: null } as never)).toMatchObject({ ok: false });
   });
+});
+
+/**
+ * Every `"use server"` export in physical-wall/actions must either consult the
+ * caller or be deliberately public.
+ *
+ * A `"use server"` export is a callable endpoint for anyone who can read its
+ * action id out of the page bundle — not merely a function the admin UI calls.
+ * `listPendingUgc` shipped with no gate and returned unmoderated visitor
+ * captions and image URLs to anonymous callers (a QA agent got HTTP 200).
+ *
+ * The allowlist is the point: adding a name to it is a deliberate statement
+ * that the data is public, reviewed in the diff, rather than an oversight.
+ */
+describe("physical-wall server actions are gated", () => {
+  /** Public by design — anonymous visitors legitimately reach these. */
+  const PUBLIC = new Set([
+    "quoteBooking", // a price quote, before anyone has signed in
+    "react", // visitor reactions; rate-limited, not identity-gated
+    "recordScan", // QR scan by a walk-up visitor with no account
+    "listCommunityGallery", // already-approved, already-public gallery
+    "getLedgerCategories", // returns a static constant, touches no data
+    "grantAdminRoleByEmail", // delegates to grantAdminRole (super_admin)
+    "revokeAdminRoleByEmail", // delegates to revokeAdminRole (super_admin)
+    "searchArtworks", // the public catalogue; the same rows /discover shows
+    "registerVisitor", // a walk-in at the wall, who by definition has no account
+    "withdrawVisitorConsent", // the same anonymous visitor withdrawing consent
+    "getTierOrder", // returns a static tier list, touches no data
+  ]);
+
+  const GATES = [
+    "requireRole",
+    "requireAdminRole",
+    "requireVenueRole",
+    "getActor",
+    "requireAuth",
+    "getSessionUser",
+    "requireOwner",
+  ];
+
+  const dir = resolve(__dirname, "../physical-wall/actions");
+
+  for (const file of readdirSync(dir).filter((f) => f.endsWith(".ts"))) {
+    const src = readFileSync(resolve(dir, file), "utf8");
+    if (!src.trimStart().startsWith('"use server"')) continue;
+
+    // Split before each exported async function so a body runs to the next
+    // export, not to the first closing brace of a nested block.
+    const parts = src.split(/\n(?=export async function )/).slice(1);
+    for (const part of parts) {
+      const name = /export async function (\w+)/.exec(part)?.[1];
+      if (!name || PUBLIC.has(name)) continue;
+      it(`${file} :: ${name} checks the caller`, () => {
+        expect(
+          GATES.some((g) => part.includes(g)),
+          `${name} is a "use server" export with no auth check and is not on the PUBLIC allowlist`
+        ).toBe(true);
+      });
+    }
+  }
 });
