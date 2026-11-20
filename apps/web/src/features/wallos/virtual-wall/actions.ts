@@ -19,7 +19,10 @@ import { recordAudit } from "@/features/physical-wall/audit";
 import {
   getActor,
   hasAdminRole,
+  hasVenueRole,
+  listOwnVenues,
   NotAuthorisedAdminRoleError,
+  NotAuthorisedVenueRoleError,
   requireAdminRole,
   type Actor,
 } from "@/features/physical-wall/authorize";
@@ -242,7 +245,12 @@ export async function listVirtualBuildings() {
  */
 export async function canPlaceVirtualArt(): Promise<boolean> {
   try {
-    return (await hasAdminRole(await getActor(), "super_admin")) === true;
+    const actor = await getActor();
+    if (await hasAdminRole(actor, "super_admin")) return true;
+    // A Wall Manager rotates the art on walls they manage. This only asks
+    // whether to render the UI at all; `placeArtworkOnSlot` still checks the
+    // grant against the specific slot's own venue.
+    return (await listOwnVenues(actor, "wall_manager")).length > 0;
   } catch (error) {
     // Default-deny: an unreadable role must never render the placement UI.
     console.error("[virtual-wall] Could not resolve placement permission", error);
@@ -279,8 +287,8 @@ export async function placeArtworkOnSlot(raw: {
   artworkId: string;
 }): Promise<Result<string>> {
   return attempt("placeArtworkOnSlot", async () => {
-    const actor = await requireSuperAdmin();
     const input = parseInput(placeSchema, raw);
+    const actor = await requirePlacementRights(input.slotId);
 
     const [slot] = await db
       .select({ id: wallosSlots.id, label: wallosSlots.label })
@@ -350,8 +358,8 @@ export async function placeArtworkOnSlot(raw: {
 /** Super Admin only: take whatever currently hangs on `slotId` down. */
 export async function removeArtworkFromSlot(rawSlotId: string): Promise<Result<void>> {
   return attempt("removeArtworkFromSlot", async () => {
-    const actor = await requireSuperAdmin();
     const slotId = parseInput(slotIdSchema, rawSlotId);
+    const actor = await requirePlacementRights(slotId);
 
     const rows = await db
       .update(virtualWallPlacements)
@@ -381,11 +389,45 @@ export async function removeArtworkFromSlot(rawSlotId: string): Promise<Result<v
 
 /**
  * The one gate both writes share. Separate function so there is exactly one
- * place that decides what "may place art" means, and so the test can assert
- * that a non-super-admin is refused without going through the UI.
+ * place that decides what "may place art on THIS slot" means, and so a test
+ * can assert refusal without going through the UI.
+ *
+ * Two ways through, and the difference matters:
+ *
+ *  * Super Admin, platform-wide. Unchanged.
+ *  * A `wall_manager` grant on the venue **that owns this slot** (Bible §13 /
+ *    Locked Rule 34: a Wall Manager manages walls for specific assigned
+ *    venues, not all of them). Rotating the art is the daily job of the person
+ *    who runs the wall, so gating it on Super Admin alone meant a venue could
+ *    never change its own display.
+ *
+ * The venue is resolved from the slot by walking the hierarchy, never taken
+ * from the caller: a grant on venue A must not authorize a write to a slot in
+ * venue B, and the slot id alone does not say which venue it belongs to.
+ * `wall_consultant` is not accepted (Rule 35 - external advisory, not
+ * operations).
  */
-async function requireSuperAdmin(): Promise<Actor> {
-  return requireAdminRole("super_admin");
+async function requirePlacementRights(slotId: string): Promise<Actor> {
+  const actor = await getActor();
+  if (await hasAdminRole(actor, "super_admin")) return actor as Actor;
+
+  const [row] = await db
+    .select({ venueId: buildings.venueId })
+    .from(wallosSlots)
+    .innerJoin(walls, eq(wallosSlots.wallId, walls.id))
+    .innerJoin(roomsZones, eq(walls.roomZoneId, roomsZones.id))
+    .innerJoin(floors, eq(roomsZones.floorId, floors.id))
+    .innerJoin(buildings, eq(floors.buildingId, buildings.id))
+    .where(eq(wallosSlots.id, slotId))
+    .limit(1);
+
+  // No such slot: fall back to the admin check so a probe for a non-existent
+  // slot id cannot tell the difference between "does not exist" and "not
+  // yours" — and so the error stays the same one an unauthorised caller gets.
+  if (!row) return requireAdminRole("super_admin");
+
+  if (await hasVenueRole(actor, row.venueId, "wall_manager")) return actor as Actor;
+  throw new NotAuthorisedVenueRoleError("wall_manager", row.venueId);
 }
 
 /** Postgres unique_violation (23505), however the driver wraps it. */

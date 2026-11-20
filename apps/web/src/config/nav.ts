@@ -83,6 +83,11 @@ export const navItems: readonly NavItem[] = [
         requiresPhysicalWall: true,
       },
       {
+        label: "Find a Wall",
+        href: "/walls",
+        description: "Cafés, hotels and galleries with space to hang",
+      },
+      {
         label: "Join the Wall",
         href: "/join",
         description: "Claim a place as a founding artist",

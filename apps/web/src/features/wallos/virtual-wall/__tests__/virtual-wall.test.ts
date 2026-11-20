@@ -16,11 +16,18 @@ import {
 /**
  * The Virtual Wall's two pieces of non-trivial logic:
  *
- * 1. **Placement authorization.** Only Super Admin may place or remove art
- *    (the user's explicit requirement; Locked Rule 42: backend authorization
- *    is mandatory). The gate must hold for a signed-out caller, a plain user,
- *    a generic `admin` with no named role, and an admin holding a *different*
- *    named admin role — and must not depend on any UI flag.
+ * 1. **Placement authorization.** Placing or removing art needs either Super
+ *    Admin, or a `wall_manager` grant on the venue that owns *that slot*
+ *    (Bible §13 / Locked Rule 34 — a Wall Manager rotates the art on the walls
+ *    they run). Locked Rule 42: backend authorization is mandatory, so the gate
+ *    must hold for a signed-out caller, a plain user, a generic `admin` with no
+ *    named role, and an admin holding a *different* named admin role — and must
+ *    not depend on any UI flag.
+ *
+ *    This block covers the admin half of that gate. The venue half — including
+ *    that a grant on venue A does not authorize a slot in venue B — needs the
+ *    real hierarchy join, so it is tested against a database in
+ *    features/wallos/__tests__/wall-manager.db.test.ts.
  * 2. **Slot/artwork resolution geometry.** A slot's world position is derived
  *    from its place in the WallOS hierarchy, not stored, so the derivation is
  *    what keeps two slots off the same spot and keeps every work inside the
@@ -79,15 +86,20 @@ beforeEach(() => {
   userRole = "artist";
 });
 
-/** The exact gate both virtual-wall writes use. */
+/**
+ * The admin branch of `requirePlacementRights`. Reconstructed rather than
+ * imported because the real function also runs a hierarchy join to find the
+ * slot's venue, which needs a database; these cases are all ones where no
+ * venue grant exists, so the admin branch is the only one that can pass.
+ */
 const placementGate = () => requireAdminRole("super_admin");
 
-describe("virtual wall placement is Super Admin only (Locked Rule 42)", () => {
+describe("virtual wall placement: the admin branch (Locked Rule 42)", () => {
   it("refuses a signed-out caller", async () => {
     await expect(placementGate()).rejects.toThrow();
   });
 
-  it("refuses a signed-in artist", async () => {
+  it("refuses a signed-in artist with no venue grant", async () => {
     sessionUser = { id: "u_artist", name: "A", email: "a@x.test" };
     userRole = "artist";
     await expect(placementGate()).rejects.toThrow();
@@ -101,6 +113,8 @@ describe("virtual wall placement is Super Admin only (Locked Rule 42)", () => {
   });
 
   it("refuses an admin holding a DIFFERENT named role", async () => {
+    // venue_admin administers the wall network's structure, but placing art is
+    // either Super Admin or the venue's own Wall Manager — not this role.
     sessionUser = { id: "u_fin", name: "C", email: "c@x.test" };
     userRole = "admin";
     // Finance/venue admins run other parts of WallOS; neither may hang art.

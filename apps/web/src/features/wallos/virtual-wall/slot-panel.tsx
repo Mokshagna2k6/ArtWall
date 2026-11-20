@@ -21,10 +21,12 @@ import type { SelectedSlot } from "@/features/wallos/virtual-wall/virtual-wall-v
  * band. "Show the price in the gallery" has to change §A13 first; it is not a
  * UI decision.
  *
- * For Super Admin only, the same panel is where art is hung and taken down.
- * The buttons are a convenience: `placeArtworkOnSlot`/`removeArtworkFromSlot`
- * each call `requireAdminRole("super_admin")` server-side on every invocation
- * (Locked Rule 42), so rendering them is not what grants the permission.
+ * For Super Admin, and for a Wall Manager on their own venue's slots, the same
+ * panel is where art is hung and taken down. The buttons are a convenience:
+ * `placeArtworkOnSlot`/`removeArtworkFromSlot` re-check the caller against
+ * *that slot's own venue* server-side on every invocation (Locked Rule 42), so
+ * rendering them is not what grants the permission — `canPlace` only decides
+ * whether to show the controls at all.
  */
 export function SlotPanel({
   slot,
