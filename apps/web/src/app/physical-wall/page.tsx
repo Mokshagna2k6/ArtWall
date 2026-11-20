@@ -205,7 +205,13 @@ export default async function PhysicalWallPage() {
         <div className="flex items-baseline gap-6">
           <Eyebrow index="02">The wall itself</Eyebrow>
         </div>
-        <div className="mt-10 grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
+        {/* `grid-cols-[minmax(0,1fr)]` below lg, not a bare `grid`: an implicit
+            column track is `auto`, which sizes to its content's min-content
+            width. The slot map inside is drawn at true slot size, so that
+            track became 550px on a 390px phone and scrolled the whole page
+            sideways — min-w-0 on the children cannot help, because the track
+            itself is what is too wide. Measured on the deployed page. */}
+        <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
           <div>
             <h2 className="font-heading text-section text-balance">
               Slot map
