@@ -154,7 +154,7 @@ export default async function PhysicalWallAdminLayout({
       <div className="mb-6 flex items-center justify-end">
         <NotificationBell count={unreadCount} recent={recentActivity} />
       </div>
-      <div className="grid gap-8 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-12">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-12">
         {/* Problem #10: wall-management links + (for a non-super-admin) the
             8-role lock list + the "signed in as" box can together be taller
             than a short viewport, with nothing below `lg:sticky` to let a

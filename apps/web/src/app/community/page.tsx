@@ -48,7 +48,7 @@ export default function CommunityPage() {
       {/* ── Indiagrapher ─────────────────────────────────────────────── */}
       <Section id="indiagrapher">
         <Eyebrow index="01">The community</Eyebrow>
-        <div className="mt-10 grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
+        <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
           <div>
             <h2 className="font-heading text-section text-balance">
               {community.name}
@@ -83,7 +83,7 @@ export default function CommunityPage() {
           them rather than in a corner of the site by itself. */}
       <Section id="archetype">
         <Eyebrow index="02">The Archetype</Eyebrow>
-        <div className="mt-10 grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
+        <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
           <div>
             <h2 className="font-heading text-section text-balance">
               How much do you know about art?
@@ -115,7 +115,7 @@ export default function CommunityPage() {
       {/* ── The physical wall ────────────────────────────────────────── */}
       <Section id="physical-wall">
         <Eyebrow index="03">The physical wall</Eyebrow>
-        <div className="mt-10 grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
+        <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
           <div>
             <h2 className="font-heading text-section text-balance">
               It started with one wall in Jaipur.
@@ -158,7 +158,7 @@ export default function CommunityPage() {
       {/* ── Founding membership ──────────────────────────────────────── */}
       <Section id="founding">
         <Eyebrow index="04">Optional</Eyebrow>
-        <div className="mt-10 grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
+        <div className="mt-10 grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-24">
           <h2 className="font-heading text-section text-balance">
             Be a Founding Member.
           </h2>

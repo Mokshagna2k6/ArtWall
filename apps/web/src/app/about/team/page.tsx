@@ -42,7 +42,7 @@ export default function TeamPage() {
           {team.map((member) => (
             <li
               key={member.name}
-              className="border-border grid gap-6 border-b py-10 lg:grid-cols-[8rem_minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-10"
+              className="border-border grid grid-cols-[minmax(0,1fr)] gap-6 border-b py-10 lg:grid-cols-[8rem_minmax(0,1fr)_minmax(0,1.4fr)] lg:gap-10"
             >
               {"photo" in member && member.photo ? (
                 <Image

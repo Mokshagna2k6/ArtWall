@@ -39,7 +39,7 @@ export default function HowItWorksPage() {
           {howItWorks.map((step) => (
             <li
               key={step.number}
-              className="border-border grid gap-4 border-b py-12 lg:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.25fr)] lg:gap-12 lg:py-16"
+              className="border-border grid grid-cols-[minmax(0,1fr)] gap-4 border-b py-12 lg:grid-cols-[7rem_minmax(0,1fr)_minmax(0,1.25fr)] lg:gap-12 lg:py-16"
             >
               <span
                 className="font-heading text-numeral text-hairline tabular-nums"

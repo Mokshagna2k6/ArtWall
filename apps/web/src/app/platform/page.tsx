@@ -61,7 +61,7 @@ export default function ServicesPage() {
           {services.map((service, index) => (
             <li
               key={service.number}
-              className="border-border grid gap-6 border-b py-10 lg:grid-cols-[4rem_minmax(0,1fr)_minmax(0,1fr)] lg:items-start lg:gap-12 lg:py-16"
+              className="border-border grid grid-cols-[minmax(0,1fr)] gap-6 border-b py-10 lg:grid-cols-[4rem_minmax(0,1fr)_minmax(0,1fr)] lg:items-start lg:gap-12 lg:py-16"
             >
               <span className="text-muted-foreground font-heading text-lg tabular-nums">
                 {service.number}
