@@ -18,9 +18,25 @@
 
 begin;
 
-alter table collections rename column "userId" to owner_id;
-alter table collections rename column name to title;
-alter table collections rename column "createdAt" to created_at;
+-- Each rename is guarded so this file can be applied a second time without
+-- error (DB-2.13). `alter table ... rename column` has no `if exists` form,
+-- and on a re-run the old names are already gone, so an unguarded rename
+-- fails with: column "userId" does not exist.
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_name = 'collections' and column_name = 'userId') then
+    alter table collections rename column "userId" to owner_id;
+  end if;
+  if exists (select 1 from information_schema.columns
+             where table_name = 'collections' and column_name = 'name') then
+    alter table collections rename column name to title;
+  end if;
+  if exists (select 1 from information_schema.columns
+             where table_name = 'collections' and column_name = 'createdAt') then
+    alter table collections rename column "createdAt" to created_at;
+  end if;
+end $$;
 
 alter table collections
   add column if not exists type text not null default 'BUYER',

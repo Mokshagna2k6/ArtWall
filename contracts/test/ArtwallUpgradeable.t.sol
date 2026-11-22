@@ -54,8 +54,13 @@ contract ArtwallUpgradeableTest is Test {
     }
 
     function test_pauserCanBeDelegatedSeparately() public {
+        // `reg.PAUSER_ROLE()` is itself a call, so reading it inline would
+        // consume the single-call prank and `grantRole` would run as the
+        // default sender — which is not an admin, so it reverted with
+        // AccessControlUnauthorizedAccount(<default sender>, DEFAULT_ADMIN_ROLE).
+        bytes32 pauserRole = reg.PAUSER_ROLE();
         vm.prank(admin);
-        reg.grantRole(reg.PAUSER_ROLE(), pauser);
+        reg.grantRole(pauserRole, pauser);
         vm.prank(pauser);
         reg.pause();
         assertTrue(reg.paused());

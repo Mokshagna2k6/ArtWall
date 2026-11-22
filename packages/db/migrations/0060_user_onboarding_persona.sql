@@ -19,8 +19,10 @@
 
 begin;
 
-alter table "user" add column "onboarding_persona" text;
+-- `if not exists` / drop-then-add so the file is re-runnable (DB-2.13).
+alter table "user" add column if not exists "onboarding_persona" text;
 
+alter table "user" drop constraint if exists "user_onboarding_persona_check";
 alter table "user" add constraint "user_onboarding_persona_check"
   check ("onboarding_persona" in ('artist', 'curator', 'buyer'));
 

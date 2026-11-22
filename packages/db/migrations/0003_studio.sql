@@ -8,7 +8,22 @@ create index if not exists artworks_user_idx on artworks ("userId", "createdAt")
 create index if not exists contacts_user_idx on contacts ("userId", "createdAt");
 create table if not exists collections (id text primary key, "userId" text not null, name text not null, description text, "createdAt" timestamp not null default now());
 create table if not exists tasks (id text primary key, "userId" text not null, title text not null, status text not null default 'open', "dueAt" timestamp, "createdAt" timestamp not null default now());
-create index if not exists collections_user_idx on collections ("userId", "createdAt");
+-- Guarded because migration 0057 renames collections."userId" -> owner_id and
+-- "createdAt" -> created_at. On a FRESH database this runs normally. On a
+-- re-run against an already-migrated database, `create table if not exists`
+-- above skips, so this line would otherwise execute against the renamed
+-- schema and fail with: column "userId" does not exist. (DB-2.13 requires
+-- every migration to be re-runnable; 0057 leaves the index 0057 itself
+-- rebuilds, so skipping here loses nothing.)
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'collections' and column_name = 'userId'
+  ) then
+    create index if not exists collections_user_idx on collections ("userId", "createdAt");
+  end if;
+end $$;
 create index if not exists tasks_user_idx on tasks ("userId", "createdAt");
 create table if not exists sales (id text primary key, "userId" text not null, "contactId" text, "artworkId" text, status text not null default 'lead', amount integer, "createdAt" timestamp not null default now());
 create table if not exists documents (id text primary key, "userId" text not null, title text not null, kind text not null default 'certificate', url text, "createdAt" timestamp not null default now());
