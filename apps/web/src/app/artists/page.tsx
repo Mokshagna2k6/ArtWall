@@ -10,6 +10,7 @@ export const metadata: Metadata = {
   title: "Artists",
   description:
     "Discover artists who have chosen to share their work on ArtWall.",
+  alternates: { canonical: "/artists" },
 };
 
 export default async function ArtistsPage() {

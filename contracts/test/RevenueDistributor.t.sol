@@ -242,8 +242,12 @@ contract RevenueDistributorTest is Test {
         // Even if the attacker held OPERATOR_ROLE, the guard stops it — and
         // without the role it fails earlier. Either way the outer sale must
         // revert rather than pay twice.
+        // `dist.OPERATOR_ROLE()` is itself a call, so reading it inline would
+        // consume the single-call prank and `grantRole` would run as the
+        // default sender — which holds no admin role.
+        bytes32 operatorRole = dist.OPERATOR_ROLE();
         vm.prank(admin);
-        dist.grantRole(dist.OPERATOR_ROLE(), address(attacker));
+        dist.grantRole(operatorRole, address(attacker));
 
         vm.prank(operator);
         vm.expectRevert();

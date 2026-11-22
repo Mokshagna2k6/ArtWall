@@ -160,6 +160,15 @@ contract ArtwallCOASecurityTest is Test {
         // artifact, not a real contract bug.
         vm.assume(to != address(vm));
         vm.assume(to != 0x000000000000000000636F6e736F6c652e6c6f67); // console.log
+        // `_safeMint` refuses any recipient CONTRACT that does not implement
+        // onERC721Received — that is the whole point of the "safe" variant.
+        // Foundry pre-deploys several contracts (the CREATE2 deployer at
+        // 0x4e59b448..., among others) and the fuzzer picks them, producing
+        // ERC721InvalidReceiver. That is the contract working as designed, not
+        // a bug, so recipients are restricted to EOAs here. Rejection of a
+        // non-receiving contract is asserted separately in
+        // test_mintToNonReceiverReverts.
+        vm.assume(to.code.length == 0);
         vm.assume(deadlineOffset > 0 && deadlineOffset < 365 days);
         royaltyFeeBps = uint96(bound(royaltyFeeBps, 0, coa.MAX_ROYALTY_BPS()));
 
@@ -181,6 +190,27 @@ contract ArtwallCOASecurityTest is Test {
         (address receiver, uint256 royaltyAmount) = coa.royaltyInfo(tokenId, 10_000);
         if (royaltyFeeBps > 0) assertEq(receiver, to);
         assertLe(royaltyAmount, (10_000 * uint256(coa.MAX_ROYALTY_BPS())) / 10_000);
+    }
+
+    /**
+     * The fuzz test above restricts recipients to EOAs, so the "safe" half of
+     * _safeMint is asserted explicitly here instead: a contract that does not
+     * implement onERC721Received must NOT receive a token. `this` is such a
+     * contract — the test contract has no onERC721Received.
+     */
+    function test_mintToNonReceiverReverts() public {
+        ArtwallCOA.MintVoucher memory v = ArtwallCOA.MintVoucher({
+            to: address(this),
+            uri: "ipfs://bafy-non-receiver",
+            royaltyReceiver: address(this),
+            royaltyFeeBps: 0,
+            nonce: keccak256("non-receiver"),
+            deadline: block.timestamp + 1 days
+        });
+        bytes32 digest = _digestFor(v, block.chainid, address(coa));
+        (uint8 vS, bytes32 r, bytes32 s) = vm.sign(signerKey, digest);
+        vm.expectRevert();
+        coa.mintWithVoucher(v, abi.encodePacked(r, s, vS));
     }
 
     function testFuzz_RoyaltyAboveCapAlwaysReverts(uint96 royaltyFeeBps) public {

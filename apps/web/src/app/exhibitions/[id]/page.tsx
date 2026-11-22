@@ -15,11 +15,15 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const exh = await load((await params).id);
-  if (!exh) return { title: "Exhibition not found" };
+  const { id } = await params;
+  const exh = await load(id);
+  if (!exh) return { title: "Exhibition not found", robots: { index: false, follow: false } };
   return {
     title: `${exh.title} · ${exh.artistName}`,
     description: exh.description ?? `An exhibition by ${exh.artistName} on ArtWall.`,
+    // Without this the root layout's `canonical: "/"` is inherited and this
+    // page tells Google it is a duplicate of the homepage.
+    alternates: { canonical: `/exhibitions/${id}` },
   };
 }
 

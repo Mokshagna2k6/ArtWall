@@ -5,7 +5,21 @@ export const siteConfig = {
   positioning: "Reimagining and revolutionising India's art economy.",
   description:
     "India's digital home for artists. Exhibitions, a fair marketplace, and tamper-proof certification. Launching Diwali 2026.",
-  url: "https://www.artwalllabs.com",
+  /**
+   * The public origin. EVERY SEO surface derives from this one value:
+   * canonical tags, OpenGraph urls, robots.txt and all 452+ sitemap entries.
+   *
+   * It must be a host that actually serves THIS app. www.artwalllabs.com is a
+   * separate Vercel project (a one-page company site) where /discover and
+   * every /artwork/* return a hard 404 — pointing SEO there handed Google
+   * hundreds of URLs that all 404, so no artwork page could be indexed.
+   *
+   * Env-overridable so moving to the real domain, once it serves this app, is
+   * a Vercel environment-variable change and not a code change. Set
+   * NEXT_PUBLIC_SITE_URL in the deployment to override; the fallback is the
+   * deployment that genuinely serves the app today.
+   */
+  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://artwall-production.vercel.app",
 
   /**
    * When the platform goes live. Everything that counts down reads this one

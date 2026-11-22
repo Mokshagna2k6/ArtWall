@@ -48,13 +48,17 @@ export async function generateMetadata({
 }: {
   params: Promise<{ hash: string }>;
 }): Promise<Metadata> {
-  const cert = await load((await params).hash);
+  const { hash } = await params;
+  const cert = await load(hash);
   if (!cert) return { title: "Certificate not found", robots: { index: false } };
   return {
     title: `Verify: ${cert.artworkTitle} · ${cert.artistName}`,
     description: `Certificate of Authenticity for ${cert.artworkTitle} by ${cert.artistName} on ArtWall.`,
     // Only an issued, non-revoked certificate is worth indexing.
     robots: { index: cert.status !== "revoked" },
+    // Inherited from the root layout otherwise, which would point every
+    // certificate page at the homepage.
+    alternates: { canonical: `/verify/${hash}` },
   };
 }
 

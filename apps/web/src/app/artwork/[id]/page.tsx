@@ -6,7 +6,7 @@ import { BadgeCheck, Nfc, QrCode } from "lucide-react";
 
 import { CloudinaryImage as Image } from "@/components/media/cloudinary-image";
 import { JsonLd } from "@/components/seo/json-ld";
-import { features } from "@/config/site";
+import { features, siteConfig } from "@/config/site";
 import { AddToCollectionButton } from "@/features/collections/add-to-collection-button";
 import { getProvenanceTimeline } from "@/features/coa/actions";
 import { loadEscrowSplitPreview } from "@/features/escrow/preview";
@@ -46,12 +46,38 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const artwork = await loadArtwork(id);
-  if (!artwork) return { title: "Artwork not found" };
+  // A 404 must not advertise itself as the homepage: without an explicit
+  // canonical here, the root layout's `canonical: "/"` is inherited.
+  if (!artwork) return { title: "Artwork not found", robots: { index: false, follow: false } };
+  const description =
+    artwork.description?.slice(0, 160) ??
+    `${artwork.title} — ${artwork.medium ?? "artwork"}`;
+  const title = `${artwork.title} by ${artwork.artistName}`;
+  // SEO: the root layout sets `alternates: { canonical: "/" }`, and Next
+  // INHERITS that into every page that does not set its own. Left unset, all
+  // 452 artwork pages declared themselves duplicates of the homepage, so none
+  // could rank on its own. The artwork's own path is the only correct value.
+  const canonical = `/artwork/${artwork.id}`;
   return {
-    title: `${artwork.title} by ${artwork.artistName}`,
-    description:
-      artwork.description?.slice(0, 160) ??
-      `${artwork.title} — ${artwork.medium ?? "artwork"}`,
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      type: "article",
+      title,
+      description,
+      url: canonical,
+      siteName: siteConfig.name,
+      images: artwork.imageUrl
+        ? [{ url: artwork.imageUrl, alt: artwork.title }]
+        : undefined,
+    },
+    twitter: {
+      card: artwork.imageUrl ? "summary_large_image" : "summary",
+      title,
+      description,
+      images: artwork.imageUrl ? [artwork.imageUrl] : undefined,
+    },
   };
 }
 

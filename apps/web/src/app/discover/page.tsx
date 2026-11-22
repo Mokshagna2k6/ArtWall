@@ -18,6 +18,9 @@ export const metadata: Metadata = {
   title: "Discover Art",
   description:
     "Explore original artworks from India's finest contemporary artists.",
+  // Inherited otherwise from the root layout, which would mark this page a
+  // duplicate of the homepage.
+  alternates: { canonical: "/discover" },
 };
 
 export default async function DiscoverPage({

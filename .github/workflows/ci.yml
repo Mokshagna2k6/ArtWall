@@ -183,6 +183,16 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # nft-routes.anvil.db.test.ts exercises the mint-voucher and certificates
+      # routes against a REAL local anvil chain, and SKIPS ITSELF when Foundry
+      # is absent. Without this step that suite silently vanished here, taking
+      # the coverage it earns on src/app/api/blockchain/** with it — which is
+      # what put that path below its floor (56.47/54.46/55.55 against floors
+      # set from a measured 64.2/60.9/71.4). The gate was right; the job was
+      # simply not running the tests the floor was measured with.
+      - name: Install Foundry (for the anvil-backed NFT route tests)
+        uses: foundry-rs/foundry-toolchain@v1
+
       - name: Create non-superuser owner role
         run: |
           psql "postgresql://postgres:postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -c "

@@ -124,8 +124,12 @@ contract MerkleVerifierTest is Test {
 
         // Next day is fine.
         vm.warp(block.timestamp + 1 days);
+        // `mv.currentDayIndex()` is itself a call, so reading it inside the
+        // argument list would consume the single-call prank and `postRoot`
+        // would run as the default sender, reverting NotAnchor().
+        uint64 nextDay = mv.currentDayIndex();
         vm.prank(anchor);
-        mv.postRoot(other, mv.currentDayIndex(), 1);
+        mv.postRoot(other, nextDay, 1);
         assertEq(mv.totalRoots(), 2);
     }
 

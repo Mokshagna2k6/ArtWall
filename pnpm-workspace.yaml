@@ -34,6 +34,12 @@ overrides:
   # 2026-11-22: added while making CI green for the catch-up PR, same reasoning
   # as above — deep transitive deps of already-current tooling, none of which
   # reach the production server bundle.
+  # 2026-11-22: the last two high advisories. `vite` is dev/test tooling only
+  # (vitest), never in the production bundle; `zod` 3.x arrives transitively
+  # through the wallet libraries — the app's own dependency is already 4.6.7.
+  # Both have real patched releases, so both are pinned up rather than waived.
+  "vite": "8.2.6"
+  "zod@<4.6.6": ">=4.6.6"
   "decode-uri-component@<0.5.1": ">=0.5.1"
   "follow-redirects@<1.16.2": ">=1.16.2"
   "source-map-js@<1.2.2": ">=1.2.2"

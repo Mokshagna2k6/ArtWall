@@ -45,8 +45,12 @@ contract ExhibitionManagerTest is Test {
             )
         );
         // ExhibitionManager must be able to bump the wall's counter.
+        // `walls.OPERATOR_ROLE()` is itself a call, so reading it inline would
+        // consume the single-call prank and `grantRole` would run as the
+        // default sender — which holds no admin role.
+        bytes32 wallsOperator = walls.OPERATOR_ROLE();
         vm.prank(admin);
-        walls.grantRole(walls.OPERATOR_ROLE(), address(mgr));
+        walls.grantRole(wallsOperator, address(mgr));
 
         vm.startPrank(gateway);
         artworks.registerArtwork(TOKEN, artist, keccak256("meta"), keccak256("tag"), artist, 500);

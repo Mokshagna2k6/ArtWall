@@ -1,0 +1,50 @@
+# SEC-2.09: no real secret is committed. gitleaks scans the FULL history on
+# every run (see .github/workflows/ci.yml), so this config has to describe the
+# exceptions precisely rather than silence the rule.
+#
+# The only exceptions are Foundry/anvil's PUBLISHED development keys. anvil
+# prints these same ten accounts on every start, on every machine, and funds
+# them at genesis on a local chain that exists for the length of one test run.
+# They are published in Foundry's own documentation. They are what makes the
+# NFT-route tests sign real EIP-712 vouchers and verify real signatures
+# instead of mocking the crypto — using a random key would mean the contract
+# and the route could never agree, and the tests would prove nothing.
+#
+# Allowlisting is BY LITERAL VALUE, not by path: a test file is not a safe
+# place for a real key either, so a genuine secret committed to one of these
+# files still fails. Adding a path here instead would create exactly that hole.
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+
+  [[rules.allowlists]]
+  description = "anvil's published development keys (accounts #0 and #1) and the local test secrets derived for them"
+  regexTarget = "secret"
+  regexes = [
+    # anvil account #0 — the deployer in the anvil-backed route tests.
+    '''0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80''',
+    # anvil account #1 — the platform voucher signer (SIGNER_ROLE).
+    '''0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d''',
+    # anvil account #2 — the linking wallet in an earlier revision of the
+    # anvil route test; still reachable because this scan covers full history.
+    '''0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a''',
+  ]
+
+[allowlist]
+description = "Fixed, non-secret test values"
+regexes = [
+  # The two anvil keys again, for any rule other than generic-api-key that
+  # matches the same literal (private-key detectors, entropy rules).
+  '''0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80''',
+  '''0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d''',
+  '''0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a''',
+  # NIST SP 800-38B Appendix D.1 published AES-128 CMAC test vector — the
+  # reference value the standard itself prints, used to prove our CMAC
+  # implementation matches the spec. Not a provisioning key.
+  '''2b7e151628aed2a6abf7158809cf4f3c''',
+  # An all-zero key block: a placeholder/padding value, never a real key.
+  '''00000000000000000000000000000000''',
+]
