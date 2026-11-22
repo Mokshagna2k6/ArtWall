@@ -165,9 +165,21 @@ alter table account add constraint account_user_id_fkey
 alter table contacts drop constraint if exists contacts_user_id_fkey;
 alter table contacts add constraint contacts_user_id_fkey
   foreign key ("userId") references "user"(id) on delete cascade;
-alter table collections drop constraint if exists collections_user_id_fkey;
-alter table collections add constraint collections_user_id_fkey
-  foreign key ("userId") references "user"(id) on delete cascade;
+-- Guarded: 0057 renames collections."userId" -> owner_id and re-adds this FK
+-- under the new name. On a fresh database the column is still "userId" here,
+-- so this runs; on a re-run (DB-2.13) the column is gone and this would fail
+-- with: column "userId" referenced in foreign key constraint does not exist.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_name = 'collections' and column_name = 'userId'
+  ) then
+    alter table collections drop constraint if exists collections_user_id_fkey;
+    alter table collections add constraint collections_user_id_fkey
+      foreign key ("userId") references "user"(id) on delete cascade;
+  end if;
+end $$;
 alter table tasks drop constraint if exists tasks_user_id_fkey;
 alter table tasks add constraint tasks_user_id_fkey
   foreign key ("userId") references "user"(id) on delete cascade;
