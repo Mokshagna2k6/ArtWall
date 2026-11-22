@@ -1,0 +1,735 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+   ArtWall design tokens
+   Source of truth: docs/product/ArtWall_Experience_Design_System.md (§8–§11, §17)
+
+   The site is a white gallery wall: pure white canvas, near-black type, and
+   hairline rules. Colour is not part of the argument — the work is. Anything
+   that used to be amber is now ink, so emphasis comes from weight, scale and
+   space rather than hue.
+
+   Token *names* are unchanged so every component keeps working; only their
+   values moved. `ember` is the single emphasis colour and is now near-black.
+--------------------------------------------------------------------------- */
+
+@theme {
+  /* — Brand palette (§10) ------------------------------------------------
+     Neutrals are slate-tinted rather than pure grey, carried over from the
+     ArtWall Labs reference palette. The difference is a few degrees of hue and
+     almost invisible on its own, but across a whole white page it is what
+     separates "considered" from "unstyled default". ---------------------- */
+  --color-wall-black: #0c0f1d;
+  --color-wall-charcoal: #f1f5f9;
+  --color-wall-elevated: #f8fafc;
+  --color-wall-paper: #ffffff;
+  /* `ember` is the historical name for the emphasis colour. It is now ink. */
+  --color-ember: #0c0f1d;
+  --color-ember-glow: #2b3245;
+  --color-lab-blue: #64748b;
+  --color-terracotta: #94a3b8;
+  --color-ink: #0c0f1d;
+  --color-ink-muted: #64748b;
+  /* `text-paper`/`bg-paper` is the short form of `wall-paper` that the
+     `bg-ink text-paper` "inverted pill" pattern already uses in three
+     places (revenue/audit filters, discover's CTA) — without this token
+     `text-paper` resolved to no Tailwind utility at all, so the label
+     fell back to inherited near-black ink text on the near-black `bg-ink`
+     pill: invisible text on a solid-looking black box. Alias rather than a
+     rename at each call site, since `wall-paper` already means this exact
+     colour. */
+  --color-paper: var(--color-wall-paper);
+  /* Hairlines and quiet bands. Named so components stop inventing greys. */
+  --color-hairline: #e2e8f0;
+  --color-hairline-strong: #cbd5e1;
+  --color-band: #f7f9fb;
+
+  /* The one hue on the site.
+     Reserved for the short tracked headings that label each chapter
+     ("02 SERVICES"). Never body copy, never a button, and never twice in the
+     same block: the moment a second thing is teal, neither one is emphasis.
+     #0e7490 on white is ~4.9:1, which clears WCAG AA at the 11px the eyebrow
+     is actually set in; the brighter tone is the on-dark counterpart. */
+  --color-signal: #0e7490;
+  --color-signal-bright: #38bdf8;
+
+  /* The footer ground. A deep slate rather than the page's near-black ink:
+     against a white page, true black closes the document like a lid, where
+     this reads as the room's far wall. Body copy on it sits at 70% white
+     (~7:1) and the quietest metadata at 45% (~4.6:1), both clearing AA. */
+  --color-footer: #1c2e38;
+
+  /* — Type scale (§9) ----------------------------------------------------
+     ONE scale, addressed by role rather than by heading level, so a card
+     title and a page title can never accidentally be sized by whoever wrote
+     the markup that day.
+
+     This replaces two systems that were running at once: a token scale
+     (--text-h1/h2/…) used only by SectionHeading, and hand-written clamps
+     used by every page. They disagreed by up to 95%, which is why a section
+     heading could come out larger than the page heading above it.
+
+     Sized against the Artclear reference, which is what a professional art
+     business actually looks like: h1 40px, h2 36px, h3 24px, all at weight
+     600 with generous leading. Restraint is the point — that site carries 57
+     images and lets the work be the loud thing. Oversized display type is
+     what makes a page read as a startup landing page rather than a gallery.
+
+     Resolved px at 375 / 768 / 1024 / 1440 — strictly descending at every
+     width, which is the property that actually prevents the bug:
+
+       display     36 · 48 · 55 · 56
+       section     26 · 32 · 35 · 36
+       subsection  20 · 22 · 23 · 24
+       card        18 (fixed)
+       lead        17 · 18 · 19 · 19
+       body        16 (fixed)
+
+     Tracking tightens as size grows: at display sizes the default spacing
+     reads loose and amateur, at body sizes tightening hurts legibility. --- */
+  --text-display: clamp(2.25rem, 1.55rem + 3vw, 3.5rem);
+  --text-display--line-height: 1.1;
+  --text-display--letter-spacing: -0.03em;
+  --text-display--font-weight: 500;
+
+  --text-section: clamp(1.625rem, 1.3rem + 1.4vw, 2.25rem);
+  --text-section--line-height: 1.25;
+  --text-section--letter-spacing: -0.025em;
+
+  --text-subsection: clamp(1.25rem, 1.1rem + 0.65vw, 1.5rem);
+  --text-subsection--line-height: 1.35;
+  --text-subsection--letter-spacing: -0.02em;
+
+  --text-card: 1.125rem;
+  --text-card--line-height: 1.45;
+  --text-card--letter-spacing: -0.015em;
+
+  --text-lead: clamp(1.0625rem, 1rem + 0.27vw, 1.1875rem);
+  --text-lead--line-height: 1.65;
+
+  --text-body: 1rem;
+  --text-body--line-height: 1.75;
+
+  --text-small: 0.875rem;
+  --text-small--line-height: 1.6;
+
+  /* The gallery placard. One size, one tracking, one weight — this role had
+     eight different sizes and seven trackings across the site. */
+  --text-eyebrow: 0.875rem;
+  --text-eyebrow--line-height: 1;
+  --text-eyebrow--letter-spacing: 0.14em;
+  --text-eyebrow--font-weight: 500;
+
+  /* The oversized chapter numeral in the section gutter. Decorative, always
+     `aria-hidden`, and paired with a real eyebrow that carries the text. */
+  --text-numeral: clamp(4rem, 2rem + 8vw, 9rem);
+  --text-numeral--line-height: 0.8;
+  --text-numeral--letter-spacing: -0.04em;
+
+  /* Tailwind's heading-sized steps are switched off. Leaving them on is what
+     let a second, uncoordinated display scale grow alongside this one: any
+     `text-3xl` typed into a component silently opted out of the system, and
+     that is how an h3 ended up larger than the h2 above it. Removing them
+     turns that mistake into a build-visible one.
+
+     text-xs / -sm / -base / -lg survive deliberately. They are UI-chrome
+     sizes — form labels, table cells, studio and dashboard furniture — with
+     ~190 call sites in areas this scale does not govern. They never compete
+     with a heading, so killing them would be churn without a benefit. */
+  /* DEPRECATED compatibility aliases.
+     ~74 call sites across the wall, archetype, certificate and upload
+     components still name the old steps. They are aliased *onto* the roles
+     above rather than kept as independent values, so there is still exactly
+     one scale — the defect was never the extra names, it was that they
+     resolved to different sizes than the pages around them. Convert call
+     sites opportunistically; do not add new uses. */
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.125rem;
+  --text-body-lg: var(--text-lead);
+  --text-body-lg--line-height: var(--text-lead--line-height);
+  --text-h4: var(--text-subsection);
+  --text-h4--line-height: var(--text-subsection--line-height);
+  --text-h4--letter-spacing: var(--text-subsection--letter-spacing);
+  --text-h3: var(--text-subsection);
+  --text-h3--line-height: var(--text-subsection--line-height);
+  --text-h3--letter-spacing: var(--text-subsection--letter-spacing);
+  --text-h2: var(--text-section);
+  --text-h2--line-height: var(--text-section--line-height);
+  --text-h2--letter-spacing: var(--text-section--letter-spacing);
+  --text-h1: var(--text-display);
+  --text-h1--line-height: var(--text-display--line-height);
+  --text-h1--letter-spacing: var(--text-display--letter-spacing);
+  --text-display-s: var(--text-display);
+  --text-display-s--line-height: var(--text-display--line-height);
+  --text-display-s--letter-spacing: var(--text-display--letter-spacing);
+
+  --text-xl: initial;
+  --text-2xl: initial;
+  --text-3xl: initial;
+  --text-4xl: initial;
+  --text-5xl: initial;
+  --text-6xl: initial;
+  --text-7xl: initial;
+  --text-8xl: initial;
+  --text-9xl: initial;
+
+  /* — Spacing (§11). 8px base with a 4px half-step; widens fast at the top
+       because generous negative space is the difference between a gallery
+       and a marketplace. ------------------------------------------------- */
+  --spacing-1: 0.25rem;
+  --spacing-2: 0.5rem;
+  --spacing-3: 0.75rem;
+  --spacing-4: 1rem;
+  --spacing-6: 1.5rem;
+  --spacing-8: 2rem;
+  --spacing-12: 3rem;
+  --spacing-16: 4rem;
+  --spacing-24: 6rem;
+
+  /* — Shadows (§8.3). Deliberately faint: on a white gallery wall a heavy
+       drop shadow reads as a web app, not an exhibition. Depth comes from
+       hairlines first, shadow only where something genuinely floats. ------ */
+  --shadow-soft: 0 1px 2px rgb(0 0 0 / 0.03);
+  --shadow-medium: 0 2px 10px rgb(0 0 0 / 0.05);
+  --shadow-large: 0 8px 28px rgb(0 0 0 / 0.07);
+  --shadow-floating: 0 18px 48px rgb(0 0 0 / 0.1);
+
+  /* — Motion (§17). Every animation draws its timing from here so the same
+       ceremony always feels identical across the site. ------------------- */
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* — Containers (§8.1) --------------------------------------------------
+     One page measure. The header used to sit on a 1440px shell while every
+     page body sat on 1180px, so above 1440px the logo and the CTA floated
+     130px outboard of the content they belong to. Both now read this. */
+  --container-page: 1180px;
+  --container-text: 900px;
+  --container-narrow: 640px;
+}
+
+/* Motion + z-index scales are consumed by JS/inline styles rather than
+   generating utility classes, so they live on :root instead of @theme. */
+:root {
+  --duration-instant: 100ms;
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-moderate: 350ms;
+  --duration-slow: 550ms;
+  --duration-scene: 1200ms;
+
+  --z-base: 0;
+  --z-elevated: 10;
+  --z-sticky: 100;
+  --z-dropdown: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+  --z-cursor: 999;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-heading);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  /* Exposed as `card-surface`, NOT `card`. A `--color-card` here also makes
+     Tailwind resolve `text-card` as a COLOUR, and this project already uses
+     `text-card` as the card-heading SIZE token (`--text-card`, 62 call sites).
+     Colour wins, so every one of those headings silently rendered white — on
+     white. That is what made the mobile menu's labels invisible. Use
+     `bg-card-surface` for the surface; there is no text colour here, because
+     card text takes `--color-card-foreground`. */
+  --color-card-surface: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* shadcn's semantic contract, bound to ArtWall brand values so every
+   generated component inherits the gallery palette automatically. */
+:root {
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-fraunces);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --background: var(--color-wall-paper);
+  --foreground: var(--color-ink);
+  --card: var(--color-wall-paper);
+  --card-foreground: var(--color-ink);
+  --popover: var(--color-wall-paper);
+  --popover-foreground: var(--color-ink);
+
+  /* Ink is earned, not decorative — a solid black block is the loudest thing
+     on the page, so it is reserved for the one action that matters. */
+  --primary: var(--color-ember);
+  --primary-foreground: #ffffff;
+
+  --secondary: var(--color-band);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-band);
+  --muted-foreground: var(--color-ink-muted);
+  --accent: var(--color-ember);
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+
+  --border: var(--color-hairline);
+  --input: var(--color-hairline-strong);
+  --ring: var(--color-ink);
+
+  /* Editorial geometry: near-square. Rounded corners read consumer-app; a
+     gallery frames things with straight edges. */
+  --radius: 0.25rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    @apply font-sans;
+    /* Smooth scroll only for users who haven't asked for reduced motion. */
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-heading;
+  }
+
+  /* A single, consistent, high-contrast focus ring across every interactive
+     element — never suppressed (§16). */
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  ::selection {
+    background: var(--color-ink);
+    color: #ffffff;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    /* Global safety net. Individual components still branch on the
+       preference for meaningful fallbacks; this guarantees nothing
+       animates for users who opted out, even if a component forgets. */
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .hero-surface {
+    background: #ffffff;
+    border: 1px solid var(--color-hairline);
+    box-shadow: none;
+  }
+
+  .hero-figure {
+    border-radius: 0;
+    overflow: hidden;
+    position: relative;
+    min-height: 28rem;
+    background: var(--color-band);
+    border: 1px solid var(--color-hairline);
+  }
+
+  .desktop-pill {
+    background: transparent;
+    border: 1px solid var(--color-hairline-strong);
+    color: var(--color-ink-muted);
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    letter-spacing: 0.16em;
+    padding: 0.5rem 0.9rem;
+    text-transform: uppercase;
+  }
+
+  /* The editorial hairline: a full-bleed rule that separates chapters without
+     drawing a box around anything. */
+  .rule-y {
+    border-top: 1px solid var(--color-hairline);
+  }
+
+  /* The wall, drifting.
+     Translating exactly -50% of a track that holds the tile set twice makes
+     the loop seamless: at the moment the animation resets, the second copy is
+     sitting precisely where the first began. Animating `transform` keeps the
+     whole thing on the compositor, so it never triggers layout or paint. */
+  @keyframes wall-drift {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+
+  .wall-drift {
+    animation: wall-drift 90s linear infinite;
+    will-change: transform;
+  }
+
+  /* Pausing on hover is not decoration: the tiles are artwork, and a visitor
+     who stops to look at one should not have it slide away from them. */
+  .wall-drift-track:hover .wall-drift,
+  .wall-drift-track:focus-within .wall-drift {
+    animation-play-state: paused;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wall-drift {
+      animation: none;
+    }
+  }
+
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+
+  .section-split {
+    display: grid;
+    gap: 3rem;
+  }
+
+  @media (min-width: 1024px) {
+    .section-split {
+      grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.9fr);
+      align-items: center;
+    }
+  }
+}
+/* ArtWall 2.0 Dashboard Theme */
+.dashboard-theme {
+  --dashboard-bg: #ffffff;
+  --dashboard-surface: #ffffff;
+  --dashboard-border: #e6e6e6;
+  --dashboard-navy: #0f0f0f;
+  --dashboard-teal: #3d3d3d;
+  --dashboard-text: #0f0f0f;
+  --dashboard-text-muted: #5a5a5a;
+  --dashboard-shadow: none;
+  --dashboard-radius: 0.25rem;
+
+  background-color: var(--dashboard-bg);
+  color: var(--dashboard-text);
+  font-family: "Inter", sans-serif;
+}
+
+.dashboard-theme h1,
+.dashboard-theme h2,
+.dashboard-theme h3,
+.dashboard-theme h4 {
+  font-family: "Newsreader", Georgia, serif;
+  color: var(--dashboard-navy);
+}
+
+.dashboard-card {
+  background: var(--dashboard-surface);
+  border: 1px solid var(--dashboard-border);
+  border-radius: var(--dashboard-radius);
+  box-shadow: var(--dashboard-shadow);
+}
+
+.dashboard-btn-primary {
+  background-color: var(--dashboard-navy);
+  color: var(--dashboard-surface);
+  border-radius: 9999px;
+  padding: 0.5rem 1.5rem;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.dashboard-btn-primary:hover {
+  background-color: var(--dashboard-teal);
+  transform: translateY(-1px);
+}
+
+/* Studio application: warm archive paper, quiet chrome, image-first workspace. */
+body:has(.studio-shell) header:has(nav[aria-label="Primary"]),
+body:has(.studio-shell) footer {
+  display: none;
+}
+.studio-shell {
+  --studio-bg: #ffffff;
+  --studio-surface: #ffffff;
+  --studio-border: #e6e6e6;
+  --studio-ink: #0f0f0f;
+  --studio-muted: #5a5a5a;
+  --studio-accent: #0f0f0f;
+  background: var(--studio-bg);
+  color: var(--studio-ink);
+  font-family: var(--font-inter), sans-serif;
+}
+.studio-sidebar {
+  background: var(--studio-surface);
+  border-right: 1px solid var(--studio-border);
+  display: flex;
+  flex-direction: column;
+  inset: 0 auto 0 0;
+  position: fixed;
+  transform: translateX(-100%);
+  transition: transform 220ms ease;
+  width: 18rem;
+  z-index: 30;
+}
+.studio-sidebar-open {
+  transform: translateX(0);
+}
+.studio-main {
+  min-height: 100vh;
+}
+.studio-topbar {
+  align-items: center;
+  background: color-mix(in srgb, var(--studio-surface) 94%, transparent);
+  border-bottom: 1px solid var(--studio-border);
+  display: flex;
+  gap: 1rem;
+  height: 4.5rem;
+  padding: 0 1.25rem;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.studio-content {
+  margin: 0 auto;
+  max-width: 96rem;
+  padding: 2.5rem 1.5rem 5rem;
+}
+.studio-mark {
+  align-items: center;
+  background: var(--studio-ink);
+  color: var(--studio-surface);
+  display: inline-flex;
+  font-family: var(--font-heading), serif;
+  font-size: 0.75rem;
+  height: 2.25rem;
+  justify-content: center;
+  letter-spacing: -0.04em;
+  width: 2.25rem;
+}
+.studio-eyebrow {
+  color: var(--studio-muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.studio-nav-link {
+  align-items: center;
+  border-radius: 0.25rem;
+  color: var(--studio-ink);
+  display: flex;
+  font-size: 0.92rem;
+  gap: 0.75rem;
+  padding: 0.85rem 0.95rem;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+.studio-nav-link svg {
+  height: 1.05rem;
+  width: 1.05rem;
+}
+.studio-nav-link:hover,
+.studio-nav-link-active {
+  background: #f4f4f4;
+  color: var(--studio-ink);
+}
+.studio-nav-link-active {
+  font-weight: 600;
+}
+.studio-card {
+  background: var(--studio-surface);
+  border: 1px solid var(--studio-border);
+  border-radius: 0.25rem;
+  box-shadow: none;
+}
+.studio-empty {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 17rem;
+  text-align: center;
+}
+.studio-empty-mark {
+  align-items: center;
+  border: 1px solid var(--studio-border);
+  color: var(--studio-accent);
+  display: flex;
+  height: 3.75rem;
+  justify-content: center;
+  width: 3.75rem;
+}
+.studio-empty-mark svg {
+  height: 1.35rem;
+  width: 1.35rem;
+}
+.studio-button {
+  align-items: center;
+  background: var(--studio-accent);
+  color: var(--studio-surface);
+  display: inline-flex;
+  font-size: 0.9rem;
+  font-weight: 600;
+  gap: 0.5rem;
+  justify-content: center;
+  padding: 0.85rem 1.1rem;
+  border-radius: 0.25rem;
+  transition:
+    background-color 150ms ease,
+    transform 150ms ease;
+}
+.studio-button:hover {
+  background: color-mix(
+    in srgb,
+    var(--studio-accent) 65%,
+    var(--studio-ink) 35%
+  );
+  transform: translateY(-1px);
+}
+.studio-input {
+  background: var(--studio-bg);
+  border: 1px solid var(--studio-border);
+  color: var(--studio-ink);
+  font: inherit;
+  outline: none;
+  padding: 0.85rem 1rem;
+  border-radius: 0.25rem;
+}
+.studio-input:focus {
+  border-color: var(--studio-accent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--studio-accent) 18%, transparent);
+}
+.studio-icon-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  color: var(--studio-muted);
+  display: inline-flex;
+  height: 2.25rem;
+  justify-content: center;
+  width: 2.25rem;
+}
+.studio-icon-button svg {
+  height: 1.1rem;
+  width: 1.1rem;
+}
+.studio-search {
+  align-items: center;
+  color: var(--studio-muted);
+  display: flex;
+  font-size: 0.88rem;
+  gap: 0.75rem;
+  max-width: 34rem;
+  width: 100%;
+}
+.studio-search svg {
+  height: 1rem;
+  width: 1rem;
+}
+.studio-search kbd {
+  border: 1px solid var(--studio-border);
+  font-size: 0.68rem;
+  margin-left: auto;
+  padding: 0.27rem 0.4rem;
+  border-radius: 0.25rem;
+}
+.studio-avatar {
+  align-items: center;
+  background: #f0f0f0;
+  color: var(--studio-ink);
+  display: flex;
+  font-size: 0.7rem;
+  font-weight: 700;
+  height: 2rem;
+  justify-content: center;
+  width: 2rem;
+}
+.studio-note {
+  border-left: 2px solid var(--studio-accent);
+  padding: 0.35rem 0 0.35rem 1rem;
+}
+.studio-backdrop {
+  background: rgb(40 39 34 / 0.18);
+  inset: 0;
+  position: fixed;
+  z-index: 20;
+}
+.text-studio-ink {
+  color: var(--studio-ink);
+}
+.text-studio-muted {
+  color: var(--studio-muted);
+}
+.text-studio-accent {
+  color: var(--studio-accent);
+}
+.border-studio-border {
+  border-color: var(--studio-border);
+}
+.bg-studio-accent {
+  background-color: var(--studio-accent);
+}
+@media (min-width: 768px) {
+  .studio-sidebar {
+    transform: translateX(0);
+  }
+  .studio-main {
+    margin-left: 18rem;
+  }
+  .studio-topbar {
+    padding: 0 2rem;
+  }
+  .studio-content {
+    padding: 3rem 2.5rem 6rem;
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "//": "Template for .mcp.json, which is gitignored. Copy this file to .mcp.json and set the env vars below in your shell. Never put a literal token in .mcp.json — use ${VAR} so nothing secret can be committed even by accident.",
+
+  "//env": {
+    "GITHUB_PAT": "GitHub personal access token (repo scope). github.com/settings/tokens",
+    "SUPABASE_PROJECT_REF": "Supabase project ref — the subdomain in https://<ref>.supabase.co. Not a secret, but it names which project the server can touch, so it is kept out of the repo."
+  },
+
+  "//railway": "Railway is NOT configured here. Run `railway mcp install --agent claude-code`, which writes to the global ~/.claude.json and authenticates through your existing `railway login` — no token stored on disk. Re-run it any time to update; it merges rather than replaces.",
+
+  "//supabase-scope": "project_ref scopes the server to ONE project. Without it the server can reach every project in the account. Add &read_only=true to run every query as a read-only Postgres user — Supabase's docs recommend that for any project holding real user data, and it is the safer default if you do not specifically need writes.",
+
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_PAT}"
+      }
+    },
+    "notion": {
+      "type": "http",
+      "url": "https://mcp.notion.com/mcp"
+    },
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=${SUPABASE_PROJECT_REF}"
+    }
+  }
+}

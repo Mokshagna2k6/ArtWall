@@ -1,3 +1,7 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
@@ -27,3 +31,9 @@ overrides:
   "undici@>=7.0.0 <7.29.1": ">=7.29.1"
   "brace-expansion@<1.1.20": "1.1.21"
   "brace-expansion@>=4.0.0 <5.0.12": "5.0.12"
+  # 2026-11-22: added while making CI green for the catch-up PR, same reasoning
+  # as above — deep transitive deps of already-current tooling, none of which
+  # reach the production server bundle.
+  "decode-uri-component@<0.5.1": ">=0.5.1"
+  "follow-redirects@<1.16.2": ">=1.16.2"
+  "source-map-js@<1.2.2": ">=1.2.2"

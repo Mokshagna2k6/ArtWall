@@ -1,0 +1,125 @@
+import "server-only";
+
+import { and, desc, eq } from "drizzle-orm";
+
+import { db } from "@/lib/db/index";
+import { artistProfiles, artworks, collections, user } from "@/lib/db/schema";
+
+type AuthUser = { id: string; name: string; email: string };
+
+function handleFromName(name: string) {
+  const compact = name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+
+  return compact || "artist";
+}
+
+/** Create the private draft profile once, with a collision-safe reserved handle. */
+export async function ensureArtistProfile(user: AuthUser) {
+  const existing = await db
+    .select()
+    .from(artistProfiles)
+    .where(eq(artistProfiles.userId, user.id))
+    .limit(1);
+  if (existing[0]) return existing[0];
+
+  const baseHandle = handleFromName(user.name);
+  const collision = await db
+    .select({ userId: artistProfiles.userId })
+    .from(artistProfiles)
+    .where(eq(artistProfiles.handle, baseHandle))
+    .limit(1);
+  const handle = collision[0]
+    ? // better-auth ids are mixed-case base62; the handle CHECK is ^[a-z0-9-]+$.
+      `${baseHandle}-${user.id.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8)}`
+    : baseHandle;
+
+  await db
+    .insert(artistProfiles)
+    .values({ userId: user.id, handle, displayName: user.name })
+    .onConflictDoNothing();
+
+  const created = await db
+    .select()
+    .from(artistProfiles)
+    .where(eq(artistProfiles.userId, user.id))
+    .limit(1);
+  if (!created[0]) throw new Error("Unable to create artist profile");
+  return created[0];
+}
+
+export async function getPublicArtistProfile(handle: string) {
+  const profiles = await db
+    .select()
+    .from(artistProfiles)
+    .where(
+      and(eq(artistProfiles.handle, handle), eq(artistProfiles.published, true))
+    )
+    .limit(1);
+  const profile = profiles[0];
+  if (!profile) return null;
+
+  // The identity axis of the Bible §4 A0-A4 ladder (features/policy/artist-level.ts).
+  // Read here rather than on the page so it shares the catalogue cache — it is
+  // the same for every visitor, like the rest of this payload.
+  const [identityRow] = await db
+    .select({
+      identityVerified: user.identityVerified,
+      artistVerificationStatus: user.artistVerificationStatus,
+    })
+    .from(user)
+    .where(eq(user.id, profile.userId))
+    .limit(1);
+
+  const publicArtworks = await db
+    .select()
+    .from(artworks)
+    .where(
+      and(eq(artworks.userId, profile.userId), eq(artworks.isPublic, true))
+    )
+    .orderBy(desc(artworks.createdAt));
+
+  // Artist collections (series/portfolios) shown on the public profile — not
+  // buyer or curator collections, which have no place on an artist's own page.
+  const artistCollections = await db
+    .select({
+      id: collections.id,
+      slug: collections.slug,
+      title: collections.title,
+      description: collections.description,
+      isFeatured: collections.isFeatured,
+    })
+    .from(collections)
+    .where(
+      and(
+        eq(collections.ownerId, profile.userId),
+        eq(collections.type, "ARTIST"),
+        eq(collections.visibility, "public")
+      )
+    )
+    .orderBy(desc(collections.isFeatured), desc(collections.createdAt));
+
+  return {
+    profile,
+    artworks: publicArtworks,
+    collections: artistCollections,
+    identity: {
+      identityVerified: identityRow?.identityVerified ?? false,
+      artistVerificationStatus: identityRow?.artistVerificationStatus ?? null,
+    },
+  };
+}
+
+export async function getPublishedArtistProfiles() {
+  return db
+    .select()
+    .from(artistProfiles)
+    .where(eq(artistProfiles.published, true))
+    .orderBy(desc(artistProfiles.publishedAt))
+    .limit(36);
+}
